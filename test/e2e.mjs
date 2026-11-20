@@ -516,6 +516,38 @@ function contrast(a, b) {
   await other.close();
 }
 
+// Zoomed in, the map keeps a floor of 300 px tall and the page scrolls down to the fare, rather than the map
+// shrinking (at 400% it used to vanish). A phone and a laptop at 100% are as they were. A finger dragged on the map
+// traces and never scrolls the page; one dragged on the sign scrolls it.
+{
+  for (const [width, height, scale, size] of [[390, 844, 2, [358, 477]], [1280, 800, 1, [431, 575]], [640, 400, 2], [427, 267, 3], [320, 200, 4]]) {
+    const { other, tab, errors } = await visitor({ options: { traced: true }, best: {}, games: {} }, { viewport: { width, height }, deviceScaleFactor: scale, isMobile: width === 390, hasTouch: true });
+    await tab.click('#b-continue');
+    const b = await tab.locator('#board').boundingBox(), fare = await tab.locator('#fare').boundingBox();
+    const page = await tab.evaluate(() => ({ tall: document.documentElement.scrollHeight, wide: document.documentElement.scrollWidth, sy: scrollY }));
+    if (size) assert.deepEqual([Math.round(b.width), Math.round(b.height), page.tall], [...size, height], `the map should be as it was at ${width}x${height}`);
+    else {
+      assert.ok(b.height >= 299.5 && page.tall > height && fare.y + fare.height <= page.tall + 0.5 && page.wide <= width, `zoomed in to ${width}x${height}, the map shrank or the fare can't be reached: ${JSON.stringify({ b, fare, page })}`);
+      const cdp = await tab.context().newCDPSession(tab);
+      const touch = async points => {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [points[0]] });
+        for (const pt of points.slice(1)) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [pt] });
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await tab.waitForTimeout(200);
+      };
+      const at = i => ({ x: b.x + (i % 6 + 0.5) * b.width / 6, y: b.y + (Math.floor(i / 6) + 0.5) * b.height / 8 });
+      const down = [0, 6, 12, 18].filter(i => at(i).y < height - 4);
+      const steps = down.slice(1).flatMap((i, n) => [1, 2, 3, 4].map(s => ({ x: at(i).x, y: at(down[n]).y + (at(i).y - at(down[n]).y) * s / 4 })));
+      await touch([at(down[0]), ...steps]);
+      assert.deepEqual([await tab.evaluate(() => scrollY), await tab.textContent('#readout') !== ''], [0, true], `a finger dragged down the map at ${width}x${height} should trace, not scroll the page`);
+      await touch([...Array(10)].map((_, s) => ({ x: 30, y: height * (0.35 - s * 0.03) })));
+      assert.ok(await tab.evaluate(() => scrollY) > 0, `a finger dragged on the sign at ${width}x${height} should scroll the page`);
+    }
+    assert.deepEqual(errors, []);
+    await other.close();
+  }
+}
+
 // On a small phone a long tapped word stays whole on one line, and what to do next gives way, so the map doesn't move.
 {
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { viewport: { width: 320, height: 568 }, hasTouch: true });

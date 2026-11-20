@@ -422,6 +422,7 @@ function openPuzzle(i) {
   buildBoard();
   for (const k of game.found) drawLine(k, false);
   $('s-list').hidden = true; $('s-play').hidden = false;
+  scrollTo(0, 0);   // zoomed in, the play screen can be taller than the window: a new puzzle starts at its clue
   // Until a first word is sent, the puzzle opens saying how to trace one. (A puzzle only looked at is saved too, for
   // its clock, so what's saved can't say whether anyone has traced yet.)
   if (game.done) sayName();
