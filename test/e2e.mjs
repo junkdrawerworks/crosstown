@@ -2047,6 +2047,15 @@ if (LINES.length > 1) {
         return { ring: getComputedStyle(document.querySelector('#route li.todo:not(.next) .roundel')).borderTopColor, segment: getComputedStyle(document.querySelector('#route li.todo:last-child'), '::before').backgroundColor, want };
       });
       assert.ok(ring.ring === ring.want && ring.segment === ring.want, `the ${l.name}'s stops not yet ridden should be a tint of its colour in ${colorScheme}: ${JSON.stringify(ring)}`);
+      // The logo's two branch lines are the line's colour and a paler shade of it; the Main Line's are blue and red.
+      const logo = await tab.evaluate(color => {
+        const of = c => { const probe = document.createElement('i'); probe.style.color = c; document.body.append(probe); const v = getComputedStyle(probe).color; probe.remove(); return v; };
+        const stroke = sel => getComputedStyle(document.querySelector(sel)).stroke;
+        return { a: stroke('.mark-a'), b: stroke('.mark-b'), line: of(`var(--${color})`), blue: of('var(--l2)'), red: of('var(--l1)') };
+      }, l.color);
+      const lum = c => { const [r, g, b] = c.match(/[\d.]+/g).map(v => (c.startsWith('color(') ? v * 255 : +v)); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };   // rgb() or color(srgb), as color-mix() comes out
+      if (l.color === 'cross') assert.deepEqual([logo.a, logo.b], [logo.blue, logo.red], `the Main Line's logo should be blue and red in ${colorScheme}`);
+      else assert.ok(logo.a === logo.line && logo.b !== logo.a && lum(logo.b) > lum(logo.a), `the ${l.name}'s logo should be its colour and a paler shade in ${colorScheme}: ${JSON.stringify(logo)}`);
     }
   }
   assert.deepEqual(errors, []);

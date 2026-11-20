@@ -191,7 +191,10 @@ function tally(l) {
 function setLine(l) {
   line = l; list = l.puzzles;
   const [c, on, deep] = tint(l);
-  $('s-list').style.setProperty('--line', c); $('s-list').style.setProperty('--on-line-c', on); $('s-list').style.setProperty('--line-deep', deep);
+  const sl = $('s-list').style;
+  sl.setProperty('--line', c); sl.setProperty('--on-line-c', on); sl.setProperty('--line-deep', deep);
+  // The logo's two branch lines take the line's colour, in two shades; the Main Line's are red and blue.
+  if (l.color === 'cross') { sl.removeProperty('--mark-a'); sl.removeProperty('--mark-b'); } else { sl.setProperty('--mark-a', c); sl.setProperty('--mark-b', `color-mix(in srgb, ${c} 62%, #fff)`); }
   detoursOf(l.id);   // fetched ahead, so they're in by the time a puzzle opens
 }
 const pickLine = l => { setLine(l); setOption('line', l.id); };
