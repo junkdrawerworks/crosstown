@@ -245,7 +245,7 @@ a { color: inherit; }
   background: var(--bg); border: 4px solid var(--unridden); color: var(--muted);
   font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; line-height: 1; padding-top: 2px;
 }
-.going .roundel { border-color: var(--line, var(--cross)); color: var(--ink); }
+.going .roundel, .next .roundel { border-color: var(--line, var(--cross)); color: var(--ink); }
 .done .roundel { background: var(--line-deep, var(--cross)); border-color: var(--line-deep, var(--cross)); color: var(--on-line-c, var(--on-cross)); }
 .row-main { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .row-clue { font-weight: 700; font-size: 17px; line-height: 1.25; }

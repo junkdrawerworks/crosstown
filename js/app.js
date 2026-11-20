@@ -196,13 +196,15 @@ function drawList() {
   const route = $('route');
   route.textContent = '';
   let finished = 0, stars = 0, prevDone = false;
-  const going = [];
+  const going = [], up = nextUp();
   list.forEach((p, i) => {
     const g = gameFor(p.id);
     const state = g?.done ? 'done' : started(g) ? 'going' : 'todo';
     if (state === 'going') going.push(i);
     const li = document.createElement('li');
-    li.className = state + (prevDone ? ' after-done' : '');
+    // The puzzle the big button plays, not yet started, is the next stop (one under way says Resume).
+    const next = i === up && state === 'todo';
+    li.className = state + (prevDone ? ' after-done' : '') + (next ? ' next' : '');
     prevDone = state === 'done';
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'row';
@@ -224,14 +226,14 @@ function drawList() {
     const main = document.createElement('span'); main.className = 'row-main'; main.append(clue, sub);
     const num = document.createElement('span'); num.className = 'roundel'; num.innerHTML = `<span class="sr-only">No. </span>${i + 1}`;   // said as on screen elsewhere
     const go = document.createElement('span'); go.className = 'row-go'; go.setAttribute('aria-hidden', 'true');
-    go.textContent = state === 'going' ? 'Resume' : state === 'done' ? 'Map' : '';
+    go.textContent = state === 'going' ? 'Resume' : state === 'done' ? 'Map' : next ? 'Next stop' : '';
     btn.append(num, main, go);
     btn.addEventListener('click', () => fromList(i));
     li.append(btn); route.append(li);
   });
   // The big button plays the next puzzle, or moves on to the next line with one left. With every line finished it goes,
   // rather than staying as a button that does nothing, and the tally gives the whole network's.
-  const up = nextUp(), onward = up < 0 ? nextLine() : null, end = up < 0 && !onward;
+  const onward = up < 0 ? nextLine() : null, end = up < 0 && !onward;
   $('b-continue').textContent = up >= 0 ? `${started(gameFor(list[up].id)) ? 'Resume' : 'Play'} No. ${up + 1}` : onward ? `On to ${shortName(onward)}` : '';
   $('b-continue').disabled = false;   // off in the page as sent, until this has run
   $('b-continue').hidden = end;

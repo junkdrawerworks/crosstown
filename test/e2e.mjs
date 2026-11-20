@@ -50,6 +50,9 @@ assert.equal(await text('#b-continue'), 'Play No. 1');
 assert.equal(await text('#tally'), `${PUZZLES.length} puzzles`);
 // A row is read with its number as the screen shows it elsewhere, "No. 1".
 assert.equal(await text('#route li:first-child .roundel'), 'No. 1');
+// The puzzle the big button plays is marked on the route as the next stop, its roundel ringed in the line's colour.
+assert.deepEqual(await page.$$eval('#route li.next', l => l.map(x => [[...x.parentNode.children].indexOf(x), x.querySelector('.row-go').textContent])), [[0, 'Next stop']]);
+assert.equal(await page.evaluate(() => { const r = getComputedStyle(document.querySelector('#route li.next .roundel')), o = getComputedStyle(document.querySelector('#route li:nth-child(2) .roundel')); return r.borderTopColor !== o.borderTopColor && r.color !== o.color; }), true, 'the next stop should look unlike the stops after it');
 // The toast stays where screen readers can hear it, shown only by a class, so a message is heard as it arrives.
 assert.deepEqual(await page.evaluate(() => { const t = document.getElementById('toast'), s = getComputedStyle(t); return [t.hidden, s.display === 'none', s.visibility, s.opacity, t.getAttribute('role')]; }), [false, false, 'visible', '0', 'status']);
 
@@ -154,6 +157,7 @@ assert.equal(await page.locator('#board .stop.first').count(), 1);
 // Leaving and coming back keeps everything.
 await page.reload();
 assert.equal(await text('#b-continue'), 'Resume No. 1');
+assert.equal(await page.locator('#route li.next').count(), 0, 'a puzzle under way says Resume, not Next stop');
 assert.match(await text('#route li:first-child .row-sub'), /^2 of \d lines found$/);
 await page.tap('#route li:first-child .row');
 assert.equal(await text('#count'), `2 of ${p.lines.length} lines`);
@@ -983,7 +987,7 @@ if (LINES.length > 1) {
   // A starts Market No. 1 over. B shows it, and B's next writes (an option, a line) don't bring the game back.
   await pick(a, 2); await a.click('#route li:nth-child(1) .row');
   await a.click('#b-menu'); await a.click('#m-restart'); await a.click('#m-restart'); await a.click('#b-back');
-  await b.waitForFunction(() => document.querySelector('#route li:nth-child(1)').className === 'todo', null, { timeout: 5000 })
+  await b.waitForFunction(() => document.querySelector('#route li:nth-child(1)').classList.contains('todo'), null, { timeout: 5000 })
     .catch(() => assert.fail('a puzzle started over in one window should show as not started in the other'));
   await b.click('#b-list-menu'); await b.click('#o-clock'); await b.keyboard.press('Escape');
   await pick(b, 1);
@@ -1759,7 +1763,7 @@ if (LINES.length > 1) {
       const ring = await tab.evaluate(() => {
         const probe = document.createElement('i'); probe.style.color = 'color-mix(in srgb, var(--line) 30%, var(--bg))'; document.getElementById('route').append(probe);
         const want = getComputedStyle(probe).color; probe.remove();
-        return { ring: getComputedStyle(document.querySelector('#route li.todo .roundel')).borderTopColor, segment: getComputedStyle(document.querySelector('#route li.todo:last-child'), '::before').backgroundColor, want };
+        return { ring: getComputedStyle(document.querySelector('#route li.todo:not(.next) .roundel')).borderTopColor, segment: getComputedStyle(document.querySelector('#route li.todo:last-child'), '::before').backgroundColor, want };
       });
       assert.ok(ring.ring === ring.want && ring.segment === ring.want, `the ${l.name}'s stops not yet ridden should be a tint of its colour in ${colorScheme}: ${JSON.stringify(ring)}`);
     }
