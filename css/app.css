@@ -271,7 +271,7 @@ a { color: inherit; }
 
 .readout { min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 800; font-size: 20px; letter-spacing: .08em; text-transform: uppercase; text-align: center; }
 /* Tight lines, so a note that wraps on a small phone still fits the readout's height and the map doesn't jump. */
-.readout.note { font-size: 15px; line-height: 1.1; letter-spacing: .02em; text-transform: none; font-weight: 700; color: var(--muted); }
+.readout.note { font-size: 15px; line-height: 1.1; letter-spacing: .02em; text-transform: none; font-weight: 700; color: var(--muted); text-wrap: balance; }
 .readout.pending { color: var(--muted); white-space: nowrap; }
 /* The Crosstown found: the map's name whole, then "Crosstown" small after it (it comes first for a screen reader). */
 .readout.crossed { white-space: nowrap; }
