@@ -618,6 +618,22 @@ for (const [width, height] of [[640, 400], [375, 667]]) {
   await other.close();
 }
 
+// The fare meter has no number on screen, so its empty slots need the 3:1 a part of the picture needs against the
+// page (WCAG 2.2, 1.4.11), in both palettes, and the full ones stand out from them.
+{
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: { [p.id]: { found: [], detours: [], fare: 2 } } });
+  await tab.click('#b-continue');
+  for (const colorScheme of ['light', 'dark']) {
+    await tab.emulateMedia({ colorScheme });
+    await tab.waitForTimeout(300);   // the pips' colours ease in
+    const pip = await tab.evaluate(() => ({ empty: getComputedStyle(document.querySelector('#pips i:not(.full)')).borderTopColor, full: getComputedStyle(document.querySelector('#pips i.full')).backgroundColor, bg: getComputedStyle(document.body).backgroundColor }));
+    const rgb = c => (c.startsWith('color(srgb') ? `rgb(${c.match(/[\d.]+/g).slice(0, 3).map(v => v * 255).join(', ')})` : c);   // a mixed colour
+    assert.ok(contrast(rgb(pip.empty), pip.bg) >= 3 && contrast(pip.full, pip.bg) >= 4.5, `the fare's slots are hard to see in ${colorScheme}: ${JSON.stringify(pip)}`);
+  }
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // On a small phone a long tapped word stays whole on one line, and what to do next gives way, so the map doesn't move.
 {
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { viewport: { width: 320, height: 568 }, hasTouch: true });
