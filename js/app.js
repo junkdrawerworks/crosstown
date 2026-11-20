@@ -161,15 +161,21 @@ function showLine(l) {
 // Until it's in, a word that isn't an answer waits for it (see wait()). If it can't be loaded (offline with no copy,
 // or a weak signal), the next word asks for it again. A file made for other boards than these (`stale`: a new release
 // went out since the page opened, and its detours came instead) can't be used, and asking again would bring the same
-// file, so words aren't checked against it and the page says once that a new version is out.
+// file, so words aren't checked against it and the page says once that a new version is out. A browser may keep a
+// failed import's failure for the life of the page and hand it back when asked again, so each try after a failure asks
+// for the file at an address of its own (`?try=1`, and so on, which the offline copy answers as the plain file). The
+// one-file copy has every line's detours in it, and nothing to fetch.
 const detourSets = new Map();
 const STALE = "Can't check detours right now. Reload to play the new version";
 let toldNewer = false;
 function detoursOf(lineId) {
   let d = detourSets.get(lineId);
   if (d && (!d.failed || d.stale)) return d;
-  d = { words: {}, ready: false, failed: false, stale: false };
-  d.wait = DETOURS[lineId]().then(m => {
+  const tries = d ? d.tries + 1 : 0;
+  d = { words: {}, ready: false, failed: false, stale: false, tries };
+  const again = `./detours/${lineId}.js?try=${tries}`;   // a name, not written in import(), so the build leaves it be
+  const load = tries && !single ? import(again) : DETOURS[lineId]();
+  d.wait = load.then(m => {
     if (m.FOR === lineOf(lineId).fp) { d.words = m.DETOURS; return; }
     d.failed = d.stale = true;
     if (!toldNewer) { toldNewer = true; toast('A new version of Crosstown is out. Reload to play it', 5000); }

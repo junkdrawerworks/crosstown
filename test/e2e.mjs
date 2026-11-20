@@ -1397,16 +1397,25 @@ if (LINES.length > 1) {
 {
   server.refuse = 'js/detours/main.js';
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { serviceWorkers: 'block' });
+  const asked = [];
+  tab.on('request', r => { if (r.url().includes('/detours/')) asked.push(r.url().replace(base, '')); });
   await tab.click('#b-continue');
   await drag(tab, first.path);
   await tab.waitForFunction(() => document.getElementById('readout').textContent !== 'One moment', null, { timeout: 8000 });
   assert.equal(await tab.textContent('#readout'), "Can't check detours right now. Try that word again in a moment");
   assert.equal(await tab.locator('#pips .full').count(), 0);
+  // Each try asks for the file at an address of its own, as a browser may hand back a failed import's failure.
+  await drag(tab, first.path);
+  await tab.waitForFunction(() => document.getElementById('readout').textContent !== 'One moment', null, { timeout: 8000 });
+  assert.equal(await tab.textContent('#readout'), "Can't check detours right now. Try that word again in a moment");
   server.refuse = null;
   await drag(tab, first.path);
   await tab.waitForFunction(() => document.getElementById('readout').textContent.startsWith('Detour:'), null, { timeout: 8000 })
     .catch(async () => assert.fail(`a detour once its file could load read "${await tab.textContent('#readout')}"`));
   assert.equal(await tab.locator('#pips .full').count(), fareFor(first.word) % FARE_PER_TOKEN);
+  // (Opening the puzzle asked again too, as did each word.)
+  const tries = asked.filter(u => u.includes('main.js'));
+  assert.ok(tries.length >= 3 && new Set(tries).size === tries.length && tries.every(u => /^js\/detours\/main\.js\?try=\d+$/.test(u)), `each try after a failure should ask at an address of its own: ${tries}`);
   assert.deepEqual(errors, []);
   await other.close();
 }
