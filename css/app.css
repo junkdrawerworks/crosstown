@@ -118,7 +118,9 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { height: 100%; }
+/* No swipe sideways starts the browser's Back or Forward (Chrome's overscroll navigation): a swipe that runs off the
+   map's edge mid-word would otherwise leave the puzzle. */
+html, body { height: 100%; overscroll-behavior: none; }
 body {
   margin: 0;
   background: var(--bg);
@@ -126,7 +128,6 @@ body {
   font: 500 16px/1.45 var(--font);
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior: none;
 }
 h1, h2, h3, p, ul, ol { margin: 0; padding: 0; }
 ul, ol { list-style: none; }
@@ -276,6 +277,9 @@ a { color: inherit; }
 /* The play screen fills the window, and grows past it (the page scrolls) rather than let the map shrink below its
    floor when the window is short: zoomed in, or a phone on its side. */
 .play { padding: var(--safe-top) var(--gutter) var(--safe-bottom); max-width: 520px; margin-inline: auto; height: auto; min-height: 100%; }
+/* A finger on the play screen can scroll it up and down (zoomed in, it can be taller than the window) and pinch, but a
+   swipe sideways is nobody's: it doesn't scroll, so it can't run on into the browser's swipe to go Back. */
+.play { touch-action: pan-y pinch-zoom; overscroll-behavior: none; }
 .bar { display: flex; align-items: center; gap: 6px; min-height: 52px; margin-inline: -10px; }
 .where { flex: 1; min-width: 0; display: flex; align-items: center; font-weight: 800; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
 .where-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

@@ -2230,6 +2230,18 @@ if (LINES.length > 2) {
   await context.close();
 }
 
+// A swipe sideways on the play screen is nobody's, so it can't run on into Chrome's swipe to go Back or Forward: the
+// page doesn't overscroll, the play screen only scrolls up and down (and pinches), and the map takes every touch.
+{
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { hasTouch: true, isMobile: true });
+  await tab.click('#b-continue');
+  const look = await tab.evaluate(() => ['html', 'body', '#s-play', '#board'].map(s => { const c = getComputedStyle(document.querySelector(s)); return [s, c.overscrollBehaviorX, c.touchAction]; }));
+  assert.deepEqual(look.slice(0, 3).map(([s, o]) => [s, o]), [['html', 'none'], ['body', 'none'], ['#s-play', 'none']], 'nothing on the play screen should overscroll sideways');
+  assert.deepEqual([look[2][2], look[3][2]], ['pan-y pinch-zoom', 'none'], 'the play screen should only scroll up and down, and the map take every touch');
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // It can be installed.
 const cdp = await ctx.newCDPSession(page);
 const manifest = await cdp.send('Page.getAppManifest');
