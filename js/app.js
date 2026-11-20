@@ -227,7 +227,9 @@ function say(text, kind = '', chip = null) {
   out.append(text);
   if (kind.includes('nope')) { out.style.animation = 'none'; void out.offsetWidth; out.style.animation = ''; }
 }
-const showTrace = () => say(sel.length ? spell(cur.p.grid, sel) : '');
+// A word built by taps (or the keyboard) isn't sent until its last letter is tapped again, so until then it shows
+// muted, unlike a word that's been found. A word being dragged is sent as the finger lifts, and shows as usual.
+const showTrace = () => say(sel.length ? spell(cur.p.grid, sel) : '', sel.length > 1 && !drag?.changed ? 'pending' : '');
 
 // The bar names the line and the number, "Main · No. 1". On a narrow phone with the clock on, only the line's name
 // gives way, so the number always shows. The dot is drawn, since the font's own has no width and hugs the number;

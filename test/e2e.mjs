@@ -336,13 +336,24 @@ function contrast(a, b) {
   await other.close();
 }
 
-// Tapping the first letters of a word and then dragging on from the last one carries the same word on.
+// Tapping the first letters of a word and then dragging on from the last one carries the same word on. Until it's
+// sent, a tapped word shows muted, so it can't be taken for a word that's been found; a dragged word shows as usual.
 {
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} });
   await tab.click('#b-continue');
+  const pending = () => tab.evaluate(() => document.getElementById('readout').classList.contains('pending'));
   await tap(tab, p.lines[1][0]);
   await tap(tab, p.lines[1][1]);
-  await drag(tab, p.lines[1].slice(1));
+  assert.equal(await pending(), true, 'a tapped word not yet sent looks like a found one');
+  const box = await tab.locator('#board').boundingBox();
+  const at = i => [box.x + (i % 6 + 0.5) * box.width / 6, box.y + (Math.floor(i / 6) + 0.5) * box.height / 8];
+  await tab.mouse.move(...at(p.lines[1][1]));
+  await tab.mouse.down();
+  for (const i of p.lines[1].slice(2)) {
+    await tab.mouse.move(...at(i), { steps: 3 });
+    assert.equal(await pending(), false, 'a word being dragged should show as usual');
+  }
+  await tab.mouse.up();
   assert.equal(await tab.textContent('#count'), `1 of ${p.lines.length} lines`, 'dragging on from the last tapped letter should carry the word on');
   assert.equal(await tab.textContent('#readout'), words[1]);
   assert.deepEqual(errors, []);
