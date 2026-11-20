@@ -69,7 +69,9 @@ assert.ok(stray !== undefined, 'no stop beside the line to tap by mistake');
 await tap(page, stray);
 await drag(page, p.lines[2]);
 assert.equal(await text('#count'), `1 of ${p.lines.length} lines`, 'a stray tap ended up in front of the dragged word');
-assert.equal(await text('#readout'), words[2]);
+// A found word is heard as found, with the count, in words kept off the screen.
+assert.equal(await text('#readout'), `${words[2]}, found. 1 of ${p.lines.length} lines`);
+assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#readout .sr-only')].map(s => s.getBoundingClientRect().width <= 1)), [true], 'what the readout says after a found word should not show');
 assert.equal(await page.locator('#board .stop.on.c2').count(), p.lines[2].length);
 await tapOut(page, p.lines[4]);
 assert.equal(await text('#count'), `2 of ${p.lines.length} lines`);
@@ -204,7 +206,7 @@ assert.match(await text('#clue'), /^Night service/);
 assert.equal(await page.isVisible('#clock'), true);
 await drag(page, PUZZLES[1].lines[0]);
 assert.equal(await text('#clue'), PUZZLES[1].clue);
-assert.equal(await text('#readout'), `Crosstown: ${PUZZLES[1].name}`);
+assert.equal(await text('#readout'), `Crosstown: ${PUZZLES[1].name}, found`);
 
 // Back on the list: one finished with a star, one under way.
 await page.click('#b-back');
@@ -374,7 +376,7 @@ function contrast(a, b) {
   }
   await tab.mouse.up();
   assert.equal(await tab.textContent('#count'), `1 of ${p.lines.length} lines`, 'dragging on from the last tapped letter should carry the word on');
-  assert.equal(await tab.textContent('#readout'), words[1]);
+  assert.equal(await tab.textContent('#readout'), `${words[1]}, found. 1 of ${p.lines.length} lines`);
   assert.deepEqual(errors, []);
   await other.close();
 }
@@ -878,7 +880,7 @@ if (LINES.length > 1) {
   for (const i of rest) await touch('touchMove', [at(i), at(resting, 1)]);
   await touch('touchEnd', []);
   assert.equal(await tab.textContent('#count'), `1 of ${p.lines.length} lines`, 'a second finger on the map lost the word being traced');
-  assert.equal(await tab.textContent('#readout'), words[1]);
+  assert.equal(await tab.textContent('#readout'), `${words[1]}, found. 1 of ${p.lines.length} lines`);
   assert.deepEqual(errors, []);
   await other.close();
 }
@@ -978,7 +980,7 @@ if (LINES.length > 1) {
   await drag(tab, d[1]);
   assert.match(await tab.textContent('#readout'), new RegExp(`^Detour: ${d[0]}, \\+${fareFor(d[0])} fare`));
   await drag(tab, q.lines[0]);
-  assert.equal(await tab.textContent('#readout'), `Crosstown: ${q.name}`);
+  assert.equal(await tab.textContent('#readout'), `Crosstown: ${q.name}, found`);
 
   // Back to the list, over to the Main Line.
   await tab.goBack();

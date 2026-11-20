@@ -305,12 +305,15 @@ function paint() {
   if (game.done) { const { n, to } = after(); $('b-next').hidden = n < 0 && !to; $('b-next').textContent = to ? `On to ${shortName(to)}` : 'Next puzzle'; }
 }
 
-function say(text, kind = '', chip = null) {
+// The readout, a live region: `heard` is said after the text but not shown (what the chip and the drawn line tell the
+// eye, say).
+function say(text, kind = '', chip = null, heard = '') {
   const out = $('readout');
   out.className = 'readout' + (kind ? ` ${kind}` : '');
   out.textContent = '';
   if (chip !== null) { const dot = document.createElement('span'); dot.className = 'chip'; dot.style.background = chip ? `var(--l${chip})` : 'var(--cross)'; out.append(dot); }
   out.append(text);
+  if (heard) { const s = document.createElement('span'); s.className = 'sr-only'; s.textContent = heard; out.append(s); }
   if (kind.includes('nope')) { out.style.animation = 'none'; void out.offsetWidth; out.style.animation = ''; }
 }
 // A word built by taps (or the keyboard) isn't sent until its last letter is tapped again, so until then it shows
@@ -583,8 +586,11 @@ function found(k) {
   game.found.push(k);
   if (game.hint?.line === k) game.hint = null;
   drawLine(k, true);
-  say(k === 0 ? `Crosstown: ${p.name}` : cur.words[k], k === 0 ? 'note' : '', k);
-  if (game.found.length === p.lines.length) {
+  // A found word would otherwise sound just like the word as it was traced, so it's heard as found, with the count.
+  const n = p.lines.length, all = game.found.length === n;
+  say(k === 0 ? `Crosstown: ${p.name}` : cur.words[k], k === 0 ? 'note' : '', k,
+    all ? `, found. All ${n} lines found` : k === 0 ? ', found' : `, found. ${game.found.length} of ${n} lines`);
+  if (all) {
     stopClock();
     game.done = true; game.hint = null;
     if (!saved.best[p.id] || game.ms < saved.best[p.id]) saved.best[p.id] = Math.round(game.ms);
