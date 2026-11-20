@@ -321,6 +321,9 @@ a { color: inherit; }
 .board .stop.c3 .dot { fill: var(--l3); } .board .stop.c4 .dot { fill: var(--l4); }
 .board .stop.c5 .dot { fill: var(--l5); } .board .stop.c6 .dot { fill: var(--l6); }
 .board .stop.c7 .dot { fill: var(--l7); } .board .stop.c8 .dot { fill: var(--l8); }
+/* A found line's stop in a word being traced (a detour can run through one) shows as traced, not in its line's colour. */
+.board .stop.on.sel .dot { fill: var(--select); }
+.board .stop.on.sel text { fill: var(--on-select); }
 .board .ring { fill: none; stroke: var(--ink); stroke-width: .5; stroke-dasharray: 1.15 1.05; opacity: 0; }
 .board .stop.hint .ring { opacity: 1; animation: turn 9s linear infinite; transform-box: fill-box; transform-origin: center; }
 .board .stop.first .ring { stroke-dasharray: none; stroke-width: .8; animation: none; }

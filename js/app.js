@@ -358,7 +358,7 @@ function drawLines() {
 let cur = null;      // the puzzle on screen: { i, p, words, extra, lineOf, game, waiting }
 let sel = [];        // stops in the word being traced
 let cursor = -1;     // keyboard position
-let drag = null;     // { pointerId, changed, tapLast, joined, blocked: the stop on a found line it ran into, or -1 }
+let drag = null;     // { pointerId, changed, tapLast, joined, named: a found line's stop pressed on its own, or -1 }
 let ticking = 0, since = 0;
 const board = $('board');
 const layers = {};
@@ -497,8 +497,8 @@ function openPuzzle(i) {
 // Another window has saved something of the puzzle on screen that this one hasn't got (a line, a detour, a token spent,
 // or the finish; see combine()), so this one takes it in and says so, rather than carrying on without it. Not while the
 // last line draws or a sheet is open: closing the sheet looks again. Not while a finger (or the mouse) is tracing a
-// word either: letting go sends the word, then looks again (`held`). A word being tapped out stays, unless a line
-// taken in now runs through it. After an erase in another window (see adopt()) the puzzle starts afresh.
+// word either: letting go sends the word, then looks again (`held`). A word being tapped out stays, as a detour can
+// run through a found line. After an erase in another window (see adopt()) the puzzle starts afresh.
 let held = false;
 function catchUp() {
   held = false;
@@ -519,7 +519,6 @@ function catchUp() {
   const game = readGame(combine(cur.game, there, cur.p.id), cur.p.id);
   cur.game = { ...game, grid: cur.p.grid };
   saved.games[cur.p.id] = cur.game;
-  if (sel.some(taken)) sel = [];
   layers.lines.textContent = '';
   for (const k of game.found) drawLine(k, false);
   say(game.done ? 'Finished in another window' : 'Carried on in another window', 'note');
@@ -598,11 +597,11 @@ function stopNear({ x, y }, reach) {
 }
 const stopAt = (e, reach) => stopNear(onMap(e), reach);
 const taken = i => cur.game.found.includes(cur.lineOf[i]);
-// A stop on a finished line just tells you which line it is, whether you tap it or press Enter on it.
+// A detour can run through the stops of found lines, so late in a puzzle the whole map still makes words. A line
+// can't: the boards are made so that no answer can be traced through another line's stops. A drag goes on through a
+// found line's stop, and so does a tapped word (or one keyed in) when the stop is beside its last letter. Tapped on its
+// own, or pressed on and let go, a found line's stop tells you which line it is, and on a finished map that's all.
 const nameLine = i => { const k = cur.lineOf[i]; say(k ? cur.words[k] : `Crosstown: ${cur.p.name}`, k ? '' : 'note', k); };
-// A word can't go on through a stop that's on a found line: tracing into one says so, rather than skipping over it to
-// spell a different word, or dropping a tapped word.
-const sayTaken = i => { const k = cur.lineOf[i]; say(`${cur.p.grid[i]} is on the ${k ? `${cur.words[k]} line` : 'Crosstown'} already. Each letter is used once`, 'note nope'); };
 const takenNext = i => taken(i) && sel.length > 0 && !sel.includes(i) && adjacent(sel[sel.length - 1], i);
 
 // One finger traces at a time: while it's down, another finger (or a palm) resting on the map is ignored, rather
@@ -615,15 +614,15 @@ board.addEventListener('pointerdown', e => {
   if (i < 0) return;
   e.preventDefault();
   cursor = -1;
-  // A tapped word waiting beside it stays, and hears why the stop can't be added; otherwise the stop names its line.
-  if (taken(i)) { if (!cur.game.done && takenNext(i)) sayTaken(i); else { sel = []; nameLine(i); } paint(); return; }
-  if (cur.game.done) return;
+  if (cur.game.done) { if (taken(i)) { sel = []; nameLine(i); paint(); } return; }
   board.setPointerCapture?.(e.pointerId);
-  drag = { pointerId: e.pointerId, changed: false, tapLast: false, joined: false, blocked: -1, at: onMap(e) };
+  drag = { pointerId: e.pointerId, changed: false, tapLast: false, joined: false, named: -1, at: onMap(e) };
   const at = sel.indexOf(i);
   if (at >= 0 && at === sel.length - 1) drag.tapLast = true;
   else if (at >= 0) sel = sel.slice(0, at + 1);
   else if (sel.length && adjacent(sel[sel.length - 1], i)) { sel.push(i); drag.joined = true; }
+  // A found line's stop on its own names its line, and a word starts there only if the finger moves on (see pointerup).
+  else if (taken(i)) { sel = [i]; drag.named = i; nameLine(i); paint(); return; }
   else sel = [i];
   showTrace(); paint();
 });
@@ -632,41 +631,37 @@ board.addEventListener('pointerdown', e => {
 // it merged), a quarter of a stop at a time, and every step is a move of its own.
 const PACE = 0.25; // stops
 board.addEventListener('pointermove', e => {
-  if (!drag || !cur || other(e) || drag.blocked >= 0) return;
+  if (!drag || !cur || other(e)) return;
   const box = board.getBoundingClientRect(), merged = e.getCoalescedEvents?.() || [];
   let moved = false;
   for (const pt of merged.length ? merged : [e]) {
     const to = onMap(pt, box), from = drag.at, n = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / PACE));
     for (let k = 1; k <= n; k++) {
       moved = dragOnto(stopNear({ x: from.x + (to.x - from.x) * k / n, y: from.y + (to.y - from.y) * k / n }, 0.4)) || moved;
-      // Into a stop on a found line: the drag goes no further, says why straight away, and sends nothing when it ends.
-      if (drag.blocked >= 0) { if (moved) { showTrace(); paint(); } sayTaken(drag.blocked); return; }
     }
     drag.at = to;
   }
   if (moved) { showTrace(); paint(); }
 });
-// One step of a drag, onto stop `i` (or between stops, -1): back one stop, or on to a free stop beside the last.
-// Whether the word changed.
+// One step of a drag, onto stop `i` (or between stops, -1): back one stop, or on to a stop beside the last that isn't
+// in the word yet, on a found line or not. Whether the word changed.
 function dragOnto(i) {
   if (i < 0 || i === sel[sel.length - 1]) return false;
   // A tap beside the tapped letters adds to their word, but a drag from there spells a word of its own, so a stray
   // tap can't end up in front of it. Dragging on from the last tapped letter still carries that word on.
   const word = drag.joined ? sel.slice(-1) : sel;
   if (word.length > 1 && i === word[word.length - 2]) word.pop();
-  else if (!word.includes(i) && adjacent(word[word.length - 1], i)) {
-    if (taken(i)) { drag.blocked = i; return false; }   // see the pointermove handler
-    word.push(i);
-  } else return false;
+  else if (!word.includes(i) && adjacent(word[word.length - 1], i)) word.push(i);
+  else return false;
   sel = word; drag.joined = false;
   drag.changed = true;
   return true;
 }
 board.addEventListener('pointerup', e => {
   if (!drag || other(e)) return;
-  const { changed, tapLast, blocked } = drag; drag = null;
-  if (blocked >= 0) { sel = []; paint(); }
-  else if (changed || tapLast) submit();
+  const { changed, tapLast, named } = drag; drag = null;
+  if (changed || tapLast) submit();
+  else if (named >= 0) { sel = []; paint(); }   // a found line's stop, tapped on its own: its name stays in the readout
   if (held) catchUp();   // what another window saved while the word was traced (see catchUp())
 });
 // The browser takes the touch back (a system gesture, palm rejection): the word being traced goes, not half of it.
@@ -724,13 +719,14 @@ board.addEventListener('keydown', e => {
   } else if (e.key === 'Enter' || e.key === ' ') {
     // Before any arrow, Enter puts the cursor down (on the word's last letter, or the first stop) and says where.
     if (cursor < 0) { cursor = sel.length ? sel[sel.length - 1] : 0; speak(cursor); e.preventDefault(); paint(); return; }
-    const at = sel.indexOf(cursor);
-    if (taken(cursor)) { if (!cur.game.done && takenNext(cursor)) sayTaken(cursor); else nameLine(cursor); }
+    // A found line's stop beside the word's last letter goes on the word, as a tap does; anywhere else it names its line.
+    const at = sel.indexOf(cursor), named = taken(cursor) && (cur.game.done || (at < 0 && !takenNext(cursor)));
+    if (named) nameLine(cursor);
     else if (at >= 0 && at === sel.length - 1) { e.preventDefault(); submit(); return; }
     else if (at >= 0) sel = sel.slice(0, at + 1);
     else if (sel.length && adjacent(sel[sel.length - 1], cursor)) sel.push(cursor);
     else sel = [cursor];
-    if (!taken(cursor)) showTrace(true);
+    if (!named) showTrace(true);
   } else if ((e.key === 'Escape' || e.key === 'Backspace') && !cur.game.done) {
     if (e.key === 'Backspace') sel.pop(); else { if (sel.length) $('spoken').textContent = 'Word cleared'; sel = []; }
     showTrace(true);
@@ -741,16 +737,19 @@ board.addEventListener('keydown', e => {
 board.addEventListener('blur', () => { $('spoken').textContent = ''; if (cursor >= 0) { cursor = -1; if (cur) paint(); } });
 
 function submit() {
-  const word = spell(cur.p.grid, sel);
+  const word = spell(cur.p.grid, sel), through = sel.some(taken);
   sel = [];
   if (word.length > 1 && saved.options.traced !== true) setOption('traced', true);
-  judgeWord(word);
+  judgeWord(word, through);
 }
-function judgeWord(word) {
+// A word traced `through` a found line's stops can only be a detour, or a found line traced again.
+function judgeWord(word, through = false) {
   const { game, words } = cur;
   if (word.length < MIN_LENGTH) { say(word.length > 1 ? `Too short: words have ${MIN_LENGTH} letters or more` : '', 'note nope'); paint(); return; }
   const k = words.findIndex((w, n) => w === word && !game.found.includes(n));
-  if (k >= 0) return found(k);
+  if (k >= 0 && !through) return found(k);
+  const again = words.findIndex((w, n) => w === word && game.found.includes(n));
+  if (again >= 0) { say(again ? `${word} already found` : 'Crosstown already found', 'note nope', again); paint(); return; }
   if (cur.extra.failed) cur.extra = detoursOf(cur.line.id);   // ask again: the signal may be back
   if (cur.waiting || (!cur.extra.ready && !game.detours.includes(word.toLowerCase()))) { wait(word); return; }
   if (cur.extra.stale && !game.detours.includes(word.toLowerCase())) { say(STALE, 'note'); paint(); return; }

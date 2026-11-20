@@ -476,38 +476,59 @@ function contrast(a, b) {
   await other.close();
 }
 
-// A word can't be traced on through a stop on a found line. Dragging into one stops the word there and says why, as
-// soon as the finger gets there, rather than skipping over it to spell another word; nothing is sent when it lifts. A
-// tapped word waiting beside a taken stop stays when that stop is tapped, and hears the same.
+// A detour can run through the stops of found lines. A drag goes on through them, from one too, and a tapped word (or
+// one keyed in) goes on into one beside its last letter, which shows as traced. A found line's stop tapped on its own,
+// or pressed and let go, names its line, and a tapped word elsewhere goes. A found line traced again says it's found.
 {
   const { other, tab, errors } = await visitor({ options: { traced: true }, best: {}, games: { [p.id]: { found: [0], detours: [], crossAt: 0, spent: 1 } } });
   await tab.click('#b-continue');
   // With the tokens all spent, the token button says there are none left, not none yet.
   await tab.click('#b-token', { force: true });
   assert.equal(await tab.textContent('#readout'), NO_TOKENS.replace('yet', 'left'));
-  const alien = traces(p.grid, 'ALIEN', 20).find(t => p.lines[0].includes(t[3]) && t.slice(0, 3).every(i => !p.lines[0].includes(i)));
-  assert.ok(alien, 'this check needs ALIEN on the first map, its E on the Crosstown');
-  const taken = `${p.grid[alien[3]]} is on the Crosstown already. Each letter is used once`;
-  const state = async () => [await tab.textContent('#readout'), await tab.getAttribute('#meter', 'aria-label'), await tab.locator('#board .stop.sel').count()];
-  await drag(tab, alien);
-  assert.deepEqual(await state(), [taken, `Fare: 0 of ${FARE_PER_TOKEN}`, 0], 'a drag through a found line should stop there and say so, not spell a word past it');
-  assert.equal(await tab.evaluate(() => document.getElementById('readout').className), 'readout note nope');
-  for (const i of alien.slice(0, 3)) await tap(tab, i);
-  await tap(tab, alien[3]);
-  assert.deepEqual(await state(), [taken, `Fare: 0 of ${FARE_PER_TOKEN}`, 3], 'a tapped word should stay when a taken stop beside it is tapped');
-  await tap(tab, alien[2]);
-  assert.equal(await tab.textContent('#readout'), TOO_SHORT, 'the tapped word should still be there to send');
-  // An ordinary line says its word.
-  const k = p.lines.findIndex((l, k) => k > 0 && !l.some(i => alien.includes(i)));
+  const onCross = i => p.lines[0].includes(i);
+  const crossing = p.detours.split(' ').map(d => ({ word: d, path: traces(p.grid, d.toUpperCase(), 20).find(t => t.some(onCross)) })).filter(d => d.path);
+  const dragged = crossing.find(d => !onCross(d.path[0]));
+  const tapped = crossing.find(d => d !== dragged && !onCross(d.path[0]) && d.word.length < 7);
+  const keyed = crossing.find(d => d !== dragged && d !== tapped && !onCross(d.path[0]));
+  const fromFound = crossing.find(d => onCross(d.path[0]) && ![dragged, tapped, keyed].includes(d));
+  assert.ok(dragged && tapped && keyed && fromFound, 'this check needs detours through the first map\'s Crosstown');
+  const detourSaid = d => new RegExp(`^Detour: ${d.word.toUpperCase()}, \\+${fareFor(d.word)} fare`);
+  await drag(tab, dragged.path);
+  assert.match(await tab.textContent('#readout'), detourSaid(dragged), 'a drag through a found line should spell a detour');
+  await drag(tab, fromFound.path);
+  assert.match(await tab.textContent('#readout'), detourSaid(fromFound), 'a drag from a found line should spell a detour');
+  for (const i of tapped.path) await tap(tab, i);
+  await tab.waitForTimeout(400);   // the stops' colours ease in
+  const shown = await tab.evaluate(() => {
+    const fill = q => getComputedStyle(document.querySelector(q)).fill;
+    return { on: document.querySelectorAll('#board .stop.on.sel').length, found: fill('#board .stop.on.sel .dot'), free: fill('#board .stop.sel:not(.on) .dot') };
+  });
+  assert.deepEqual([shown.on, shown.found], [tapped.path.filter(onCross).length, shown.free], 'a found line\'s stop in a tapped word should show as traced');
+  await tap(tab, tapped.path.at(-1));
+  assert.match(await tab.textContent('#readout'), detourSaid(tapped), 'a tapped word should go on through a found line');
+  await tab.focus('#board');
+  await tab.keyboard.press('Enter');
+  for (const i of keyed.path) { await walk(i, tab); await tab.keyboard.press('Enter'); }
+  await tab.keyboard.press('Enter');
+  assert.match(await tab.textContent('#readout'), detourSaid(keyed), 'a word keyed in should go on through a found line');
+  assert.equal(await tab.textContent('#count'), `1 of ${p.lines.length} lines`);
+  // A found line traced again is found already, and earns nothing.
+  const fare = await tab.getAttribute('#meter', 'aria-label');
+  await drag(tab, p.lines[0]);
+  assert.deepEqual([await tab.textContent('#readout'), await tab.evaluate(() => document.getElementById('readout').className)], ['Crosstown already found', 'readout note nope']);
+  const k = 1;
   await tapOut(tab, p.lines[k]);
-  const free = j => !p.lines[0].includes(j) && !p.lines[k].includes(j);
-  const by = p.lines[k].find(i => NEIGHBORS[i].some(free)), from = NEIGHBORS[by].find(free);
-  await tap(tab, from); await tap(tab, by);
-  assert.deepEqual([await tab.textContent('#readout'), await tab.locator('#board .stop.sel').count()], [`${p.grid[by]} is on the ${words[k]} line already. Each letter is used once`, 1]);
-  // Away from the word, a taken stop names its line as before, and the word goes.
+  await drag(tab, p.lines[k]);
+  assert.equal(await tab.textContent('#readout'), `${words[k]} already found`);
+  assert.deepEqual([await tab.textContent('#count'), await tab.getAttribute('#meter', 'aria-label')], [`2 of ${p.lines.length} lines`, fare]);
+  // A found line's stop on its own names its line, tapped or pressed and let go, and a tapped word away from it goes.
+  const free = j => !onCross(j) && !p.lines[k].includes(j);
+  const from = NEIGHBORS[p.lines[k][0]].find(free) ?? [...Array(48).keys()].find(free);
   const far = p.lines[0].find(i => !NEIGHBORS[from].includes(i));
-  await tap(tab, far);
+  await tap(tab, from); await tap(tab, far);
   assert.deepEqual([await tab.textContent('#readout'), await tab.locator('#board .stop.sel').count()], [`Crosstown: ${p.name}`, 0]);
+  await drag(tab, [p.lines[k][1]]);
+  assert.deepEqual([await tab.textContent('#readout'), await tab.locator('#board .stop.sel').count()], [words[k], 0]);
   // The Lines sheet says a line with a puzzle under way and none finished is under way, after a full stop.
   await tab.click('#b-back'); await tab.click('#b-line');
   assert.equal(await tab.getAttribute('#lines li:nth-child(1) .line-row', 'aria-label'), `${LINES[0].name}: ${LINES[0].about}. Under way`);
