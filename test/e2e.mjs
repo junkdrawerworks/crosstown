@@ -250,12 +250,15 @@ else assert.match(await page.inputValue('#share-text'), /^Crosstown Main Line No
 await page.click('#b-done-next');
 assert.equal(await text('#where'), 'Main, No. 2');
 assert.equal(await text('#spoken'), `Main, No. 2. ${PUZZLES[1].clue}`, 'Next puzzle should say which puzzle and clue it is');
+// The page's title names the puzzle, and the back arrow the list it goes to.
+assert.deepEqual([await page.title(), await page.getAttribute('#b-back', 'aria-label')], ['Main No. 2 · Crosstown', 'Main Line puzzles']);
 await page.click('#b-menu');
 await page.check('#o-night');
 await page.check('#o-clock');
 await page.click('#sheet-menu .panel-row [data-close]');
 assert.match(await text('#clue'), /^Night service/);
 assert.equal(await page.isVisible('#clock'), true);
+assert.equal(await text('#map-where'), `Main Line, No. 2. Night service. 0 of ${PUZZLES[1].lines.length} lines.`, 'the map\'s description should keep the clue hidden too');
 await drag(page, PUZZLES[1].lines[0]);
 assert.equal(await text('#clue'), PUZZLES[1].clue);
 assert.equal(await text('#readout'), `Crosstown: ${PUZZLES[1].name}, found`);
@@ -263,6 +266,7 @@ assert.equal(await page.getAttribute('#readout', 'class'), 'readout crossed', 't
 
 // Back on the list: one finished with a star, one under way.
 await page.click('#b-back');
+assert.equal(await page.title(), 'Crosstown');
 assert.equal(await text('#tally'), `1 of ${PUZZLES.length} finished, 1 of ${PUZZLES.length * 3} stars`);
 assert.equal(await page.locator('#route li.done').count(), 1);
 assert.equal(await page.locator('#route li.going').count(), 1);
@@ -729,7 +733,11 @@ if (LINES.length > 1) {
   await hears(route[1], `${p.grid[route[1]]}, ${at(route[1])}, ringed, letter 2 of your word, Enter sends it`);
   await tab.keyboard.press('Escape');
   assert.deepEqual([await tab.textContent('#spoken'), await tab.locator('#board .stop.sel').count()], ['Word cleared', 0], 'Escape should say the word was cleared');
-  assert.equal(await tab.getAttribute('#board', 'aria-describedby'), 'where clue count map-keys');
+  // The description is in words of its own, not the screen's capitals, with a stop after each part.
+  assert.equal(await tab.getAttribute('#board', 'aria-describedby'), 'map-said');
+  assert.equal(await tab.textContent('#map-where'), `${LINES[0].name}, No. 1. Clue: ${p.clue}. 2 of ${p.lines.length} lines.`);
+  const ax = await (await tab.context().newCDPSession(tab)).send('Accessibility.getFullAXTree');
+  assert.match(ax.nodes.find(n => n.role?.value === 'application')?.description?.value ?? '', new RegExp(`^${LINES[0].name}, No\\. 1\\. Clue: .*\\. 2 of ${p.lines.length} lines\\. Arrow keys move\\.`), 'the map should be described by where it is, the clue, the count and the keys');
   assert.match(await tab.textContent('#map-keys'), /^Arrow keys move\. Home, Page Up, End and Page Down move diagonally: up left, up right, down left and down right\. Enter adds a letter; Enter again on the last letter sends the word\./);
   // The diagonals: Home, Page Up, End and Page Down, and the number pad's 7, 9, 1 and 3. A move off the map says so.
   const cursorAt = () => tab.evaluate(() => [...document.querySelectorAll('#board .stop')].findIndex(s => s.classList.contains('cursor')));

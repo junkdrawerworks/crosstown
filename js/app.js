@@ -355,6 +355,10 @@ function paint() {
   const hidden = saved.options.night && !game.found.length && !game.done;
   $('clue').textContent = hidden ? 'Night service. The clue shows up with your first line.' : p.clue;
   $('clue').classList.toggle('dark-hours', hidden);
+  // What the map is described by when it takes the focus, in words of its own rather than the screen's capitals, then
+  // the keys: "Market Line, No. 1. Clue: Extra cheese. 0 of 7 lines."
+  const n = p.lines.length, stop = t => (/[.?!…]$/.test(t) ? t : `${t}.`);
+  $('map-where').textContent = `${cur.line.name}, No. ${cur.i + 1}. ${hidden ? 'Night service.' : stop(`Clue: ${p.clue}`)} ${game.done ? `All ${n} lines found` : `${game.found.length} of ${n} lines`}.`;
 
   const pips = $('pips'); pips.textContent = '';
   for (let n = 0; n < FARE_PER_TOKEN; n++) { const pip = document.createElement('i'); if (n < game.fare) pip.className = 'full'; pips.append(pip); }
@@ -419,6 +423,8 @@ function openPuzzle(i) {
   cur = { i, p, line, words: p.lines.map(l => spell(p.grid, l)), extra: detoursOf(line.id), lineOf, game };
   sel = []; cursor = -1; $('spoken').textContent = '';
   showWhere(i);
+  $('b-back').setAttribute('aria-label', `${line.name} puzzles`);
+  document.title = `${shortName(line)} No. ${i + 1} · Crosstown`;
   buildBoard();
   for (const k of game.found) drawLine(k, false);
   $('s-list').hidden = true; $('s-play').hidden = false;
@@ -471,6 +477,7 @@ function leave() {
   cur = null;
   drag = null;   // Back can come in the middle of a drag, and letting go after it has no puzzle to spell the word on
   $('s-play').hidden = true; $('s-list').hidden = false;
+  document.title = 'Crosstown';
   drawList();
   toRow(left);
 }

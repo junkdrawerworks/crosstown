@@ -66,7 +66,7 @@
 
     <main class="screen play" id="s-play" hidden>
       <header class="bar">
-        <button type="button" class="btn icon" id="b-back" aria-label="All puzzles"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <button type="button" class="btn icon" id="b-back" aria-label="Main Line puzzles"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
         <p class="where" id="where">No. 1</p>
         <p class="clock" id="clock" hidden>0:00</p>
         <button type="button" class="btn icon" id="b-menu" aria-label="Options"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
@@ -81,10 +81,10 @@
       <p class="readout" id="readout" role="status" aria-live="polite"></p>
 
       <div class="board-wrap">
-        <svg class="board" id="board" viewBox="0 0 60 80" role="application" tabindex="0" aria-label="The map. Drag across letters to trace a word, or use the arrow keys and Enter." aria-describedby="where clue count map-keys"></svg>
+        <svg class="board" id="board" viewBox="0 0 60 80" role="application" tabindex="0" aria-label="The map. Drag across letters to trace a word, or use the arrow keys and Enter." aria-describedby="map-said"></svg>
       </div>
       <p class="sr-only" id="spoken" aria-live="polite" aria-atomic="true"></p>
-      <p class="sr-only" id="map-keys">Arrow keys move. Home, Page Up, End and Page Down move diagonally: up left, up right, down left and down right. Enter adds a letter; Enter again on the last letter sends the word. Backspace takes a letter off, Escape clears it.</p>
+      <p id="map-said" hidden><span id="map-where"></span> <span id="map-keys">Arrow keys move. Home, Page Up, End and Page Down move diagonally: up left, up right, down left and down right. Enter adds a letter; Enter again on the last letter sends the word. Backspace takes a letter off, Escape clears it.</span></p>
 
       <footer class="fare" id="fare">
         <button type="button" class="meter" id="meter" aria-label="Fare">
