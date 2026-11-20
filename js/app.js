@@ -753,8 +753,8 @@ function judgeWord(word, through = false) {
   if (cur.extra.failed) cur.extra = detoursOf(cur.line.id);   // ask again: the signal may be back
   if (cur.waiting || (!cur.extra.ready && !game.detours.includes(word.toLowerCase()))) { wait(word); return; }
   if (cur.extra.stale && !game.detours.includes(word.toLowerCase())) { say(STALE, 'note'); paint(); return; }
-  const { news, counted, won } = fares(game, cur.p, cur.extra, [word]);
-  say(...spent(news, counted, game, cur.p, cur.extra));
+  const knew = taught(), { news, counted, won } = fares(game, cur.p, cur.extra, [word]);
+  say(...teach(spent(news, counted, game, cur.p, cur.extra), counted, won, knew));
   if (counted) keep();
   paint();
   if (won) earned();
@@ -803,8 +803,8 @@ function land(mine, q, arrived) {
     if (shown) { say(q.extra.stale ? STALE : "Can’t check detours right now. Try that word again in a moment", 'note'); paint(); }
     return;
   }
-  const { news, counted, won } = fares(game, mine.p, q.extra, q.words);
-  if (shown) { say(...spent(news, counted, game, mine.p, q.extra)); if (counted) keep(); paint(); if (won) earned(); }
+  const knew = taught(), { news, counted, won } = fares(game, mine.p, q.extra, q.words);
+  if (shown) { say(...teach(spent(news, counted, game, mine.p, q.extra), counted, won, knew)); if (counted) keep(); paint(); if (won) earned(); }
   else if (counted) { setGame(mine.p.id, { ...game, grid: mine.p.grid }); if (!cur) drawList(); }
 }
 
@@ -829,6 +829,20 @@ function fares(game, p, extra, list) {
     : ['Not a word on this map', 'note nope'];
   return { news, counted: got.length > 0, won };
 }
+// Fare and tokens are each explained once, ever, the first time they come up, and kept with the options as the tip on
+// tracing is (see traced()): the first detour says what fare buys, and the first token how to spend it. Where the first
+// detour earns a token too, only the token's tip shows, and fare's waits for the next detour. A save from before these
+// were kept that has a detour (or a token) in it has had them. `knew` is taught() as it was before the word counted.
+const taught = () => ({
+  fare: saved.options.toldFare === true || Object.keys(saved.games).some(id => gameFor(id)?.detours.length),
+  token: saved.options.toldToken === true || Object.keys(saved.games).some(id => { const g = gameFor(id); return !!g && (g.tokens > 0 || g.spent > 0); }),
+});
+function teach(news, counted, won, knew) {
+  if (won && !knew.token) { setOption('toldToken', true); return [`${news[0]}. Tap Use a token for a hint`, news[1]]; }
+  if (counted && !knew.fare) { setOption('toldFare', true); return [`${news[0]}. Every ${FARE_PER_TOKEN} fare buys a token, a hint`, news[1]]; }
+  return news;
+}
+
 // Late in a puzzle every detour that could earn another token may have been found: the fare still to be had on the
 // whole map (a detour can run through found lines), with what's on the meter, comes to less than a token. The first
 // word that misses after that says so, once a visit to the puzzle. It changes nothing else: no free tokens.

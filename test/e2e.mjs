@@ -137,6 +137,10 @@ assert.equal(await text('#readout'), 'Not a word on this map');
 const first = detour([2, 4], 5);
 await drag(page, first.path);
 assert.match(await text('#readout'), new RegExp(`^Detour: ${first.word.toUpperCase()}, \\+${fareFor(first.word)} fare`));
+// The first detour ever says what fare buys, once; the first token ever, how to spend it (only that, if it's both).
+const FARE_TIP = `. Every ${FARE_PER_TOKEN} fare buys a token, a hint`, TOKEN_TIP = '. Tap Use a token for a hint';
+let toldToken = fareFor(first.word) >= FARE_PER_TOKEN, toldFare = !toldToken;
+assert.ok((await text('#readout')).endsWith(toldToken ? `Token earned${TOKEN_TIP}` : `fare${FARE_TIP}`), 'the first detour ever should say what fare buys');
 let fare = fareFor(first.word);
 assert.equal(await page.locator('#pips .full').count(), fare % FARE_PER_TOKEN);
 await page.click('#meter');
@@ -146,7 +150,15 @@ assert.equal(await text('#readout'), `${first.word.toUpperCase()} already counte
 
 // Enough detours for two tokens.
 const used = new Set([first.word]);
-while (fare < FARE_PER_TOKEN * 2) { const d = detour([2, 4], 6, used); used.add(d.word); await drag(page, d.path); fare += fareFor(d.word); }
+while (fare < FARE_PER_TOKEN * 2) {
+  const d = detour([2, 4], 6, used), before = Math.floor(fare / FARE_PER_TOKEN);
+  used.add(d.word); await drag(page, d.path); fare += fareFor(d.word);
+  const said = await text('#readout');
+  const tip = !toldToken && Math.floor(fare / FARE_PER_TOKEN) > before ? `Token earned${TOKEN_TIP}` : !toldFare ? FARE_TIP : '';
+  if (tip) assert.ok(said.endsWith(tip), `the first token ever should say how to spend it, and the first detour what fare buys: ${said}`);
+  else assert.ok(!said.endsWith(TOKEN_TIP) && !said.endsWith(FARE_TIP), `each tip should show once: ${said}`);
+  if (tip === FARE_TIP) toldFare = true; else if (tip) toldToken = true;
+}
 assert.equal(await text('#token-label'), `Use a token (${Math.floor(fare / FARE_PER_TOKEN)})`);
 
 // The first token rings a line's stops; the second draws its route.
@@ -925,7 +937,8 @@ if (LINES.length > 1) {
     new MutationObserver(() => { if (document.getElementById('b-token').classList.contains('earned')) window.seen.pulse = true; }).observe(document.getElementById('b-token'), { attributes: true });
   });
   await drag(tab, traces(p.grid, longest.toUpperCase(), 1)[0]);
-  assert.match(await tab.textContent('#readout'), /Token earned$/);
+  // The first token ever says how to spend it (and fare's tip waits, as the first detour ever is this one).
+  assert.match(await tab.textContent('#readout'), /Token earned\. Tap Use a token for a hint$/);
   await tab.waitForFunction(() => !document.getElementById('pips').classList.contains('rollover'), null, { timeout: 2000 });
   const fare = (3 + fareFor(longest)) % FARE_PER_TOKEN;
   assert.deepEqual([await tab.evaluate(() => window.seen), await tab.locator('#pips .full').count()], [{ full: FARE_PER_TOKEN, pulse: true }, fare], 'earning a token should fill the meter for a moment, then show the fare left over');
