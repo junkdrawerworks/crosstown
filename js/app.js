@@ -1077,10 +1077,11 @@ function showDone() {
     const sw = document.createElement('i'); sw.className = `c${k}`;
     li.append(sw, k === 0 ? `${xt} (the Crosstown)` : w); key.append(li);
   });
-  // The finish that ends a line says the line is finished, and how it went. Any finished map offers the next line
-  // with any left once its own line is finished.
+  // The finish that ends a line says the line is finished, and how it went. Any other finish is "Last stop", or
+  // "Express service" with all three stars: a perfect run is marked, and no other is graded. Any finished map offers
+  // the next line with any left once its own line is finished.
   const { n, to } = after(), ended = cur.justEnded;
-  $('done-eyebrow').textContent = ended === 'all' ? 'Every line finished' : ended ? `${cur.line.name} finished` : 'Last stop';
+  $('done-eyebrow').textContent = ended === 'all' ? 'Every line finished' : ended ? `${cur.line.name} finished` : starsFor(game) === 3 ? 'Express service' : 'Last stop';
   // The line's tally, on a strip in its colour over a route to a terminus, as a finished line's route ends on the
   // list. The finish that ends every line adds the whole network's. Emptied when it's not shown, as the sheet's
   // description still reads it.

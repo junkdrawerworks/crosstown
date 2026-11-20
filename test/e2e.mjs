@@ -260,7 +260,8 @@ await page.waitForSelector('#sheet-done:not([hidden])');
 }
 assert.equal(await focused(), 'b-done-next', 'the done sheet should start on Next puzzle');
 assert.equal(await text('#done-title'), p.name);
-// An ordinary puzzle's sheet says "Last stop", which can't be taken for the end of a Line of puzzles.
+// An ordinary puzzle's sheet says "Last stop", which can't be taken for the end of a Line of puzzles. Short of three
+// stars it's never graded: this one has one.
 assert.equal(await text('#sheet-done .eyebrow'), 'Last stop');
 assert.equal(await page.locator('#done-stars .got').count(), 1);
 // Earned and missed stars say which they are, not only by colour, and the sheet's description gives the result.
@@ -1670,7 +1671,8 @@ if (LINES.length > 1) {
   // marked when it happened. It still offers the next line.
   await tab.click('#route li:nth-child(1) .row');
   await tab.click('#b-results');
-  assert.equal(await tab.textContent('#sheet-done .eyebrow'), 'Last stop', 'Results on an old map should not say its line was just finished');
+  // With all three stars it's "Express service".
+  assert.equal(await tab.textContent('#sheet-done .eyebrow'), 'Express service', 'Results on an old three-star map should say Express service, not that its line was just finished');
   assert.deepEqual([await tab.isHidden('#done-line'), await tab.textContent('#done-line')], [true, '']);
   assert.equal(await tab.textContent('#b-done-next'), `On to ${second.name.replace(/ Line$/, '')}`);
   await tab.keyboard.press('Escape');
