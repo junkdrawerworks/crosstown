@@ -257,7 +257,10 @@ function openPuzzle(i) {
   buildBoard();
   for (const k of game.found) drawLine(k, false);
   $('s-list').hidden = true; $('s-play').hidden = false;
-  say(game.done ? p.name : '', game.done ? 'note' : '');
+  // A first visit, with nothing saved yet, is told how to trace, until the first word replaces it.
+  if (game.done) say(p.name, 'note');
+  else if (!Object.keys(saved.games).length) say('Drag across the letters to trace a word, or tap them and tap the last one again', 'note');
+  else say('');
   paint();
   startClock();
 }

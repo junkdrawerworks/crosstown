@@ -49,8 +49,15 @@ assert.equal(await page.locator('#route li').count(), PUZZLES.length);
 assert.equal(await text('#b-continue'), 'Play No. 1');
 assert.equal(await text('#tally'), `${PUZZLES.length} puzzles`);
 
-// Open the first one. Nothing found yet, no tokens.
+// Open the first one. Nothing found yet, no tokens. On a first visit the readout says how to trace, in a note that
+// fits it without moving the map.
 await page.click('#b-continue');
+const HOW = 'Drag across the letters to trace a word, or tap them and tap the last one again';
+assert.equal(await text('#readout'), HOW);
+for (const [width, height] of [[320, 568], [390, 844]]) {
+  await page.setViewportSize({ width, height });
+  assert.equal(await page.evaluate(() => { const r = document.getElementById('readout'); return r.getBoundingClientRect().height <= parseFloat(getComputedStyle(r).minHeight) + 0.5; }), true, `the first visit's note is taller than the readout at ${width} px`);
+}
 assert.equal(await text('#clue'), p.clue);
 assert.equal(await text('#count'), `0 of ${p.lines.length} lines`);
 assert.equal(await page.locator('#board .stop').count(), 48);
@@ -116,6 +123,7 @@ assert.equal(await text('#b-continue'), 'Resume No. 1');
 assert.match(await text('#route li:first-child .row-sub'), /^2 of \d lines found$/);
 await page.click('#route li:first-child .row');
 assert.equal(await text('#count'), `2 of ${p.lines.length} lines`);
+assert.equal(await text('#readout'), '', 'only a first visit is told how to trace');
 assert.equal(await page.locator('#board .line').count(), 2);
 assert.equal(await page.locator('#board .guide').count(), 1);
 
