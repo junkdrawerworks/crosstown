@@ -220,7 +220,7 @@ export const LINES = [
     { id: "fairgrounds", name: "Fairgrounds", clue: "Blue ribbon",
       grid: 'GDDSUMONRNOICODRDWRIEGYALIQSRLSTUISEZEACRUIRPFAO', lines: [[45,38,33,28,21,15,10,4,9,2,3],[12,13,8,7,1,6,0],[39,46,40,47,41,34,35,29],[5,11,16,17,23,22],[18,19,14,20,27],[44,43,42,36,37],[26,32,25,24,31,30]] },
   ] },
-  { id: "market", name: "Market Line", about: "Food and drink", color: "l1", fp: '6be57e03', puzzles: [
+  { id: "market", name: "Market Line", about: "Food and drink", color: "l1", fp: '121f7e8b', puzzles: [
     { id: "pizzeria", name: "Pizzeria", clue: "Extra cheese",
       grid: 'LSDTRCIOGSUACZUHISEIZRVEPOIELIRENZZOPPOAELPEMRLA', lines: [[24,19,13,20,27,21,16,11],[42,43,36,37,31,30,25,32,26],[44,38,33,34,39,45,40,46,41,47],[35,28,29,22,23,17],[5,4,10,9,3],[1,0,6,12,18],[2,7,14,8,15]] },
     { id: "candy-shop", name: "Candy shop", clue: "Sweet tooth",
@@ -383,6 +383,8 @@ export const LINES = [
       grid: 'HESIVARMTRUQRIOGABNSAXEEGEBASTLFOHLVSREECAEDSEGR', lines: [[2,7,14,9,15,20,19,26,32,37,43],[0,1,6,12,13,18,24],[46,47,41,35,34,27,21],[17,23,22,29,28],[40,33,39,38,44,45],[16,11,10,5,4,3,8],[30,25,31,36,42]] },
     { id: "sauce-station", name: "Sauce station", clue: "Mother knows best",
       grid: 'NIAEYVOTTLOAETSMRGUOVEUSLEATCAAYOMOBRNTCEEMOHAML', lines: [[23,29,22,28,21,14,8,2,7,1,6,0],[35,40,39,44,45,46,41,47],[20,25,24,19,18,13,12],[38,32,33,26,27,34],[15,10,9,3],[17,16,11,5,4],[42,43,36,37,30,31]] },
+    { id: "pickle-jar", name: "Pickle jar", clue: "In a pickle",
+      grid: 'IPSAEGRCRPSHEKNRENLILIKOSOSEHCHNAMJIRHSAONEOKRCR', lines: [[1,0,7,13,20,27,34,39,45],[5,11,16,15,22,21,14],[46,40,47,41,35,29,28,23,17],[44,43,38,37,42,36],[10,9,4,3,8,2],[6,12,18,19,24,30],[33,32,26,25,31]] },
   ] },
   { id: "park", name: "Park Line", about: "Nature and the outdoors", color: "l3", fp: '9a719f6f', puzzles: [
     { id: "barnyard", name: "Barnyard", clue: "E-I-E-I-O",
