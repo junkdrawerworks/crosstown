@@ -442,11 +442,11 @@ function fares(game, p, extra, list) {
   return { news, counted: got.length > 0 };
 }
 
-// Is this word one of the puzzle's detours? Each puzzle's list is read into a set the first time it's asked.
-const detourCache = new Map();
+// Is this word one of the puzzle's detours? The open puzzle's list is read into a set the first time it's asked.
+let detourCache = { id: null, set: null };
 function isDetour(extra, id, word) {
-  if (!detourCache.has(id) && extra.words[id] !== undefined) detourCache.set(id, new Set(extra.words[id].split(' ')));
-  return !!detourCache.get(id)?.has(word);
+  if (detourCache.id !== id && extra.words[id] !== undefined) detourCache = { id, set: new Set(extra.words[id].split(' ')) };
+  return detourCache.id === id && detourCache.set.has(word);
 }
 
 function found(k) {
