@@ -67,8 +67,8 @@ function setLine(l) {
 }
 
 // Each line's detours come in their own file, loaded the first time one of its puzzles (or the line) is shown.
-// Until it's in, a word that isn't an answer waits for it (see submit()). If it can't be loaded at all (offline
-// with no copy), detours just don't count this time, and the next puzzle asks again.
+// Until it's in, a word that isn't an answer waits for it (see wait()). If it can't be loaded (offline with no copy,
+// or a weak signal), the next word asks for it again.
 const detourSets = new Map();
 function detoursOf(lineId) {
   let d = detourSets.get(lineId);
@@ -154,7 +154,7 @@ function openLines() {
 }
 
 // ---- one puzzle -------------------------------------------------------------------------------------------------
-let cur = null;      // the puzzle on screen: { i, p, words, extra, lineOf, game }
+let cur = null;      // the puzzle on screen: { i, p, words, extra, lineOf, game, waiting }
 let sel = [];        // stops in the word being traced
 let cursor = -1;     // keyboard position
 let drag = null;     // { changed, tapLast, joined }
@@ -369,31 +369,77 @@ function submit() {
   judgeWord(word);
 }
 function judgeWord(word) {
-  const { p, game, words } = cur;
-  if (word.length >= MIN_LENGTH && !cur.extra.ready && !words.some((w, n) => w === word && !game.found.includes(n))) {
-    // The line's detours are still on their way: this word waits for them, then counts or doesn't.
-    const mine = cur;
-    say('One moment', 'note');
-    paint();
-    mine.extra.wait.then(() => { if (cur === mine) judgeWord(word); });
+  const { game, words } = cur;
+  if (word.length < MIN_LENGTH) { say(word.length > 1 ? 'Too short' : '', 'note nope'); paint(); return; }
+  const k = words.findIndex((w, n) => w === word && !game.found.includes(n));
+  if (k >= 0) return found(k);
+  if (cur.extra.failed) cur.extra = detoursOf(cur.line.id);   // ask again: the signal may be back
+  if (cur.waiting || (!cur.extra.ready && !game.detours.includes(word.toLowerCase()))) { wait(word); return; }
+  const { news, counted } = fares(game, cur.p, cur.extra, [word]);
+  say(...news);
+  if (counted) keep();
+  paint();
+}
+
+// Words traced while the line's detours are on their way wait for them together, for WAIT_LIMIT at most, then
+// count or don't all at once (see land()).
+const WAIT_LIMIT = 6000; // ms
+const pending = new Set();   // the puzzles (cur as it was) with words waiting, the one on screen or ones left since
+function wait(word) {
+  const mine = cur;
+  let q = mine.waiting;
+  if (!q) {
+    q = mine.waiting = { words: [], extra: mine.extra };
+    q.timer = setTimeout(() => land(mine, q, false), WAIT_LIMIT);
+    q.extra.wait.then(() => land(mine, q, !q.extra.failed));
+    pending.add(mine);
+  }
+  q.words.push(word);
+  say('One moment', 'note');
+  paint();
+}
+// Starting a puzzle over, or erasing everything, drops the words still waiting on it (`id`), or on any puzzle.
+function dropWaiting(id) {
+  for (const m of pending) if (!id || m.p.id === id) { clearTimeout(m.waiting.timer); m.waiting = null; pending.delete(m); }
+}
+
+// The waiting words land: counted if the detours came (`arrived`), and if they didn't, not called anything, since
+// they may well be detours. On a finished map they're dropped, as fare is no use there and the done sheet has
+// already counted the detours. After Back they count in the game that was left, and it's saved.
+function land(mine, q, arrived) {
+  if (mine.waiting !== q) return;   // landed already, or dropped
+  mine.waiting = null; clearTimeout(q.timer); pending.delete(mine);
+  const shown = cur && cur.p.id === mine.p.id ? cur : null;
+  const game = shown ? shown.game : gameFor(mine.p.id) || mine.game;
+  if (game.done) return;
+  if (!arrived) {
+    if (shown) { say("Can't check detours right now. Try that word again in a moment", 'note'); paint(); }
     return;
   }
-  if (word.length < MIN_LENGTH) {
-    say(word.length > 1 ? 'Too short' : '', 'note nope');
-  } else {
-    const k = words.findIndex((w, n) => w === word && !game.found.includes(n));
+  const { news, counted } = fares(game, mine.p, q.extra, q.words);
+  if (shown) { say(...news); if (counted) keep(); paint(); }
+  else if (counted) { saved.games[mine.p.id] = { ...game, grid: mine.p.grid }; save(); if (!cur) drawList(); }
+}
+
+// Counts the words that are new detours, and says the best news among them: a token earned, then a detour, then a
+// word already counted, then not a word on this map.
+function fares(game, p, extra, list) {
+  const got = []; let again = '', won = 0;
+  for (const word of list) {
     const lower = word.toLowerCase();
-    if (k >= 0) return found(k);
-    if (game.detours.includes(lower)) say(`${word} already counted`, 'note nope');
-    else if (isDetour(cur.extra, p.id, lower)) {
+    if (game.detours.includes(lower)) again = word;
+    else if (isDetour(extra, p.id, lower)) {
       const fare = fareFor(lower);
-      game.detours.push(lower); game.fare += fare;
-      let won = 0; while (game.fare >= FARE_PER_TOKEN) { game.fare -= FARE_PER_TOKEN; game.tokens++; won++; }
-      say(`Detour: ${word.toLowerCase()}, +${fare} fare${won ? '. Token earned' : ''}`, 'note');
-      keep();
-    } else say('Not a word on this map', 'note nope');
+      game.detours.push(lower); game.fare += fare; got.push([lower, fare]);
+      while (game.fare >= FARE_PER_TOKEN) { game.fare -= FARE_PER_TOKEN; game.tokens++; won++; }
+    }
   }
-  paint();
+  const tokens = won > 1 ? `. ${won} tokens earned` : won ? '. Token earned' : '';
+  const news = got.length === 1 ? [`Detour: ${got[0][0]}, +${got[0][1]} fare${tokens}`, 'note']
+    : got.length ? [`${got.length} detours, +${got.reduce((n, [, f]) => n + f, 0)} fare${tokens}`, 'note']
+    : again ? [`${again} already counted`, 'note nope']
+    : ['Not a word on this map', 'note nope'];
+  return { news, counted: got.length > 0 };
 }
 
 // Is this word one of the puzzle's detours? Each puzzle's list is read into a set the first time it's asked.
@@ -490,11 +536,12 @@ function twice(btn, ask, act) {
   });
 }
 twice($('m-restart'), 'Tap again to clear this puzzle', () => {
+  dropWaiting(cur.p.id);
   cur.game = fresh(); delete saved.games[cur.p.id]; save();
   const i = cur.i; closeSheets(); openPuzzle(i);
 });
 twice($('m-erase'), 'Tap again to erase everything', () => {
-  saved.games = {}; saved.best = {}; save(); closeSheets(); drawList(); toast('Progress erased');
+  dropWaiting(); saved.games = {}; saved.best = {}; save(); closeSheets(); drawList(); toast('Progress erased');
 });
 
 function shareText() {

@@ -17,10 +17,13 @@ export const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
 // Set server.down = true to drop every connection, the way a phone with no signal sees it. Playwright's own
 // offline switch doesn't stop the service worker's fetches, so it can't prove the offline copy works.
+// Set server.refuse to part of a path to answer those files 404, and server.slow to { path, ms } to answer them late.
 export function serve(dir = root) {
   const server = createServer(async (req, res) => {
     if (server.down) { req.socket.destroy(); return; }
     const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    if (server.refuse && path.includes(server.refuse)) { res.writeHead(404); res.end(); return; }
+    if (server.slow && path.includes(server.slow.path)) await new Promise(r => setTimeout(r, server.slow.ms));
     let body;
     try { body = await readFile(join(dir, path === '/' ? 'index.html' : path)); } catch { res.writeHead(404); res.end(); return; }
     res.writeHead(200, { 'content-type': TYPES[extname(path)] || 'text/html' });

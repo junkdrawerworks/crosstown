@@ -570,6 +570,53 @@ for (const [width, height] of [[360, 780], [320, 568]]) {
   await other.close();
 }
 
+// A line's detours that can't be loaded (a first visit on a weak signal, before the offline copy is in) don't make a
+// real detour "Not a word on this map": the readout says they can't be checked, and the next word asks for them
+// again, so once they come the same puzzle counts it.
+{
+  server.refuse = 'js/detours/main.js';
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { serviceWorkers: 'block' });
+  await tab.click('#b-continue');
+  await drag(tab, first.path);
+  await tab.waitForFunction(() => document.getElementById('readout').textContent !== 'One moment', null, { timeout: 8000 });
+  assert.equal(await tab.textContent('#readout'), "Can't check detours right now. Try that word again in a moment");
+  assert.equal(await tab.locator('#pips .full').count(), 0);
+  server.refuse = null;
+  await drag(tab, first.path);
+  await tab.waitForFunction(() => document.getElementById('readout').textContent.startsWith('Detour:'), null, { timeout: 8000 })
+    .catch(async () => assert.fail(`a detour once its file could load read "${await tab.textContent('#readout')}"`));
+  assert.equal(await tab.locator('#pips .full').count(), fareFor(first.word) % FARE_PER_TOKEN);
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
+// Words traced while a line's detours are on their way count together when they come, and the best news shows: a
+// detour then a word that isn't one still says the detour. A detour still waiting when Back is pressed counts in the
+// game that was left.
+{
+  server.slow = { path: 'js/detours/main.js', ms: 2500 };
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { serviceWorkers: 'block' });
+  await tab.click('#b-continue');
+  await drag(tab, first.path);
+  assert.equal(await tab.textContent('#readout'), 'One moment');
+  await drag(tab, junk);
+  await tab.waitForFunction(() => document.getElementById('readout').textContent !== 'One moment', null, { timeout: 8000 });
+  assert.match(await tab.textContent('#readout'), new RegExp(`^Detour: ${first.word}, \\+${fareFor(first.word)} fare`), 'a word that is not one buried the detour before it');
+  assert.equal(await tab.locator('#pips .full').count(), fareFor(first.word) % FARE_PER_TOKEN);
+  await tab.click('#b-back');
+  await tab.evaluate(() => localStorage.clear());
+  await tab.reload();
+  await tab.click('#b-continue');
+  await drag(tab, first.path);
+  await tab.click('#b-back');
+  await tab.waitForFunction(id => JSON.parse(localStorage.getItem('crosstown.v1'))?.games?.[id]?.detours?.length === 1, p.id, { timeout: 8000 })
+    .catch(() => assert.fail('a detour still waiting at Back was dropped'));
+  assert.equal(await tab.textContent('#route li:nth-child(1) .row-sub'), `0 of ${p.lines.length} lines found`, 'the list should show the game the detour started');
+  server.slow = null;
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // The lines: the list shows one at a time, the button above Continue changes it, and each line keeps its own
 // numbers and progress. Seeded as Mark has it: every Main Line puzzle finished.
 if (LINES.length > 1) {
