@@ -48,6 +48,10 @@ await page.evaluate(() => document.fonts.ready);
 assert.equal(await page.locator('#route li').count(), PUZZLES.length);
 assert.equal(await text('#b-continue'), 'Play No. 1');
 assert.equal(await text('#tally'), `${PUZZLES.length} puzzles`);
+// A row is read with its number as the screen shows it elsewhere, "No. 1".
+assert.equal(await text('#route li:first-child .roundel'), 'No. 1');
+// The toast stays where screen readers can hear it, shown only by a class, so a message is heard as it arrives.
+assert.deepEqual(await page.evaluate(() => { const t = document.getElementById('toast'), s = getComputedStyle(t); return [t.hidden, s.display === 'none', s.visibility, s.opacity, t.getAttribute('role')]; }), [false, false, 'visible', '0', 'status']);
 
 // Open the first one. Nothing found yet, no tokens. On a first visit the readout says how to trace, in a note that
 // fits it without moving the map.
@@ -191,8 +195,8 @@ assert.equal(await page.locator('#board .stop.on').count(), 48);
 
 // Sharing falls back to the clipboard, or to text you can select.
 await page.click('#b-share');
-await page.waitForSelector('#toast:not([hidden]), #share-box:not([hidden])', { timeout: 5000 });
-if (await page.isVisible('#toast')) assert.equal(await text('#toast'), 'Result copied');
+await page.waitForSelector('#toast.on, #share-box:not([hidden])', { timeout: 5000 });
+if (await page.isVisible('#toast.on')) assert.equal(await text('#toast'), 'Result copied');
 else assert.match(await page.inputValue('#share-text'), /^Crosstown Main Line No. 1 /);
 
 // On to the next one, with night service on: the clue stays hidden until the first line.
@@ -312,6 +316,7 @@ function contrast(a, b) {
     assert.ok(btn.disabled && contrast(btn.color, btn.bg) >= 4.5, `"All finished" is hard to read in ${colorScheme}: ${JSON.stringify(btn)}`);
     // The stars on the list are small text, so full and empty ones need the contrast text does to tell apart.
     const stars = await tab.evaluate(() => ({ color: getComputedStyle(document.querySelector('#route .st')).color, bg: getComputedStyle(document.body).backgroundColor }));
+    assert.equal(await tab.getAttribute('#route .st', 'role'), 'img', 'the stars on the list should be read by their label, not as star glyphs');
     assert.ok(contrast(stars.color, stars.bg) >= 4.5, `the stars on the list are hard to see in ${colorScheme}: ${JSON.stringify(stars)}`);
   }
   assert.deepEqual(errors, []);
@@ -487,7 +492,7 @@ if (LINES.length > 1) {
   await tab.waitForSelector('#share-box:not([hidden])', { timeout: 5000 });
   const shown = await tab.evaluate(() => {
     const box = document.getElementById('share-text'), label = box.labels[0];
-    return { toast: !document.getElementById('toast').hidden, label: label?.textContent, gap: box.getBoundingClientRect().top - label?.getBoundingClientRect().bottom, focused: document.activeElement === box, value: box.value, selected: box.selectionEnd - box.selectionStart };
+    return { toast: document.getElementById('toast').classList.contains('on'), label: label?.textContent, gap: box.getBoundingClientRect().top - label?.getBoundingClientRect().bottom, focused: document.activeElement === box, value: box.value, selected: box.selectionEnd - box.selectionStart };
   });
   assert.equal(shown.toast, false, 'a toast would cover the text to copy');
   assert.ok(shown.label === 'Select the text and copy it' && shown.gap >= 0 && shown.gap < 12, `the instruction should sit just above the box: ${JSON.stringify(shown)}`);
@@ -497,7 +502,7 @@ if (LINES.length > 1) {
   assert.equal(await tab.isHidden('#share-box'), true, 'the box should go when the sheet closes');
   await clipboard(true);
   await tab.click('#b-share');
-  await tab.waitForSelector('#toast:not([hidden])', { timeout: 5000 });
+  await tab.waitForSelector('#toast.on', { timeout: 5000 });
   assert.equal(await tab.textContent('#toast'), 'Result copied');
   assert.equal(await tab.isHidden('#share-box'), true);
   assert.deepEqual(errors, []);

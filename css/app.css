@@ -343,7 +343,8 @@ a { color: inherit; }
 .share-label { color: var(--muted); font-size: 13.5px; }
 .share-text { width: 100%; border: 2px solid var(--rule); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; font-size: 14px; padding: 8px 10px; resize: none; }
 
-.toast { position: fixed; left: 50%; bottom: calc(96px + var(--safe-bottom)); transform: translateX(-50%); z-index: 20; background: var(--ink); color: var(--bg); font-weight: 700; padding: 10px 16px; border-radius: 22px; max-width: calc(100% - 32px); text-align: center; animation: rise .18s ease-out; }
+.toast { position: fixed; left: 50%; bottom: calc(96px + var(--safe-bottom)); transform: translateX(-50%); z-index: 20; background: var(--ink); color: var(--bg); font-weight: 700; padding: 10px 16px; border-radius: 22px; max-width: calc(100% - 32px); text-align: center; opacity: 0; pointer-events: none; }
+.toast.on { opacity: 1; animation: rise .18s ease-out; }
 
 /* Narrow phones (many Androids are 360 wide): keep the button labels on one line. */
 @media (max-width: 374px) {

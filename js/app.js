@@ -176,7 +176,7 @@ function drawList() {
     if (state === 'done') {
       const n = starsFor(g); finished++; stars += n;
       const st = document.createElement('span'); st.className = 'st'; st.textContent = '★'.repeat(n) + '☆'.repeat(3 - n);
-      st.setAttribute('aria-label', `${n} of 3 stars`);
+      st.setAttribute('role', 'img'); st.setAttribute('aria-label', `${n} of 3 stars`);   // not "black star, white star
       sub.append(p.name, ' ', st);
       if (saved.options.clock && saved.best[p.id]) sub.append(` ${clock(saved.best[p.id])}`);
     } else if (state === 'going') {
@@ -188,7 +188,7 @@ function drawList() {
     const dark = saved.options.night && !g?.done && !g?.found.length;
     const clue = document.createElement('span'); clue.className = 'row-clue' + (dark ? ' dark-hours' : ''); clue.textContent = dark ? 'Night service' : p.clue;
     const main = document.createElement('span'); main.className = 'row-main'; main.append(clue, sub);
-    const num = document.createElement('span'); num.className = 'roundel'; num.textContent = i + 1;
+    const num = document.createElement('span'); num.className = 'roundel'; num.innerHTML = `<span class="sr-only">No. </span>${i + 1}`;   // said as on screen elsewhere
     const go = document.createElement('span'); go.className = 'row-go'; go.setAttribute('aria-hidden', 'true');
     go.textContent = state === 'going' ? 'Resume' : state === 'done' ? 'Map' : '';
     btn.append(num, main, go);
@@ -771,10 +771,12 @@ $('b-share').addEventListener('click', async () => {
   }
 });
 
+// The toast is a live region that's always there, shown with a class, so screen readers hear a message that arrives
+// with it (one that appears and fills at the same moment is often missed).
 let toastTimer = 0;
 function toast(text) {
-  const t = $('toast'); t.textContent = text; t.hidden = false;
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
+  const t = $('toast'); t.textContent = text; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.classList.remove('on'); t.textContent = ''; }, 2200);
 }
 
 // ---- Back -------------------------------------------------------------------------------------------------------
