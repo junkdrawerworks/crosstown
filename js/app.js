@@ -567,7 +567,7 @@ function closeSheets(step = 'back') {
   $('app').inert = false;
   board.classList.remove('paused');
   $('share-box').hidden = true;
-  armed = null; $('m-restart').textContent = 'Start this puzzle over'; $('m-erase').textContent = 'Erase all progress';
+  armed = null; $('m-restart').textContent = 'Start this puzzle over'; $('m-erase').textContent = 'Erase progress on every line';
   if (cur) startClock();
   opener?.focus?.({ preventScroll: true });
 }
@@ -599,8 +599,8 @@ twice($('m-restart'), 'Tap again to clear this puzzle', () => {
   cur.game = fresh(); delete saved.games[cur.p.id]; save();
   const i = cur.i; closeSheets(); openPuzzle(i);
 });
-twice($('m-erase'), 'Tap again to erase everything', () => {
-  dropWaiting(); saved.games = {}; saved.best = {}; save(); closeSheets(); drawList(); toast('Progress erased');
+twice($('m-erase'), 'Tap again to erase every line', () => {
+  dropWaiting(); saved.games = {}; saved.best = {}; save(); closeSheets(); drawList(); toast('Progress erased on every line');
 });
 
 function shareText() {

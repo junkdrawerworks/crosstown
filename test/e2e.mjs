@@ -674,6 +674,25 @@ if (LINES.length > 1) {
   await other.close();
 }
 
+// Erasing, from Options on the list, says it's every line's progress that goes, and takes two taps.
+if (LINES.length > 1) {
+  const [a, b] = [LINES[0].puzzles[0], LINES[1].puzzles[0]];
+  const { other, tab, errors } = await visitor({ options: { line: LINES[1].id }, best: { [a.id]: 1000 }, games: { [a.id]: finished(a), [b.id]: finished(b) } });
+  await tab.click('#b-list-menu');
+  assert.equal(await tab.textContent('#m-erase'), 'Erase progress on every line');
+  await tab.click('#m-erase');
+  assert.equal(await tab.textContent('#m-erase'), 'Tap again to erase every line');
+  await tab.keyboard.press('Escape');
+  await tab.click('#b-list-menu');
+  assert.equal(await tab.textContent('#m-erase'), 'Erase progress on every line', 'closing the sheet should disarm the button');
+  await tab.click('#m-erase'); await tab.click('#m-erase');
+  assert.equal(await tab.textContent('#toast'), 'Progress erased on every line');
+  assert.deepEqual(await tab.evaluate(() => { const s = JSON.parse(localStorage.getItem('crosstown.v1')); return [s.games, s.best]; }), [{}, {}]);
+  assert.equal(await tab.locator('#route li.done').count(), 0);
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // A Back that comes in the middle of a drag (the browser's button, or a mouse's back button with the other one
 // still down) goes to the list, and letting go afterwards does nothing: no error, and no half-traced word kept.
 {
