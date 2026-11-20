@@ -570,6 +570,35 @@ for (const [width, height] of [[360, 780], [320, 568]]) {
   await other.close();
 }
 
+// Touch: a touch the browser takes back (a system gesture, palm rejection) leaves nothing half traced, and a second
+// finger resting on the map while one traces doesn't take the word over.
+{
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  await tab.click('#b-continue');
+  const box = await tab.locator('#board').boundingBox();
+  const at = (i, id = 0) => ({ x: box.x + (i % 6 + 0.5) * box.width / 6, y: box.y + (Math.floor(i / 6) + 0.5) * box.height / 8, id });
+  const cdp = await other.newCDPSession(tab);
+  const touch = (type, touchPoints) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints });
+  const [a, b, c] = p.lines[1];
+  await touch('touchStart', [at(a)]);
+  await touch('touchMove', [at(b)]);
+  await touch('touchMove', [at(c)]);
+  await touch('touchCancel', []);
+  await tab.evaluate(() => new Promise(requestAnimationFrame));
+  assert.deepEqual([await tab.locator('#board .stop.sel').count(), await tab.locator('#board .trace').count(), await tab.textContent('#readout')], [0, 0, ''], 'a cancelled touch left a word half traced');
+
+  const resting = p.lines[3].at(-1);
+  const [first, ...rest] = p.lines[1];
+  await touch('touchStart', [at(first)]);
+  await touch('touchStart', [at(first), at(resting, 1)]);
+  for (const i of rest) await touch('touchMove', [at(i), at(resting, 1)]);
+  await touch('touchEnd', []);
+  assert.equal(await tab.textContent('#count'), `1 of ${p.lines.length} lines`, 'a second finger on the map lost the word being traced');
+  assert.equal(await tab.textContent('#readout'), words[1]);
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // A line's detours that can't be loaded (a first visit on a weak signal, before the offline copy is in) don't make a
 // real detour "Not a word on this map": the readout says they can't be checked, and the next word asks for them
 // again, so once they come the same puzzle counts it.

@@ -157,7 +157,7 @@ function openLines() {
 let cur = null;      // the puzzle on screen: { i, p, words, extra, lineOf, game, waiting }
 let sel = [];        // stops in the word being traced
 let cursor = -1;     // keyboard position
-let drag = null;     // { changed, tapLast, joined }
+let drag = null;     // { pointerId, changed, tapLast, joined }
 let ticking = 0, since = 0;
 const board = $('board');
 const layers = {};
@@ -287,8 +287,12 @@ const taken = i => cur.game.found.includes(cur.lineOf[i]);
 // A stop on a finished line just tells you which line it is, whether you tap it or press Enter on it.
 const nameLine = i => { const k = cur.lineOf[i]; say(k ? cur.words[k] : `Crosstown: ${cur.p.name}`, k ? '' : 'note', k); };
 
+// One finger traces at a time: while it's down, another finger (or a palm) resting on the map is ignored, rather
+// than starting a word of its own and losing the one being traced. (A drag whose finger has gone, without the
+// browser saying so, no longer holds the capture, and so doesn't block the next one.)
+const other = e => drag && e.pointerId !== drag.pointerId;
 board.addEventListener('pointerdown', e => {
-  if (!cur || e.button > 0) return;
+  if (!cur || e.button > 0 || (other(e) && board.hasPointerCapture?.(drag.pointerId))) return;
   const i = stopAt(e, 0.5);
   if (i < 0) return;
   e.preventDefault();
@@ -296,7 +300,7 @@ board.addEventListener('pointerdown', e => {
   if (taken(i)) { sel = []; nameLine(i); paint(); return; }
   if (cur.game.done) return;
   board.setPointerCapture?.(e.pointerId);
-  drag = { changed: false, tapLast: false, joined: false };
+  drag = { pointerId: e.pointerId, changed: false, tapLast: false, joined: false };
   const at = sel.indexOf(i);
   if (at >= 0 && at === sel.length - 1) drag.tapLast = true;
   else if (at >= 0) sel = sel.slice(0, at + 1);
@@ -305,7 +309,7 @@ board.addEventListener('pointerdown', e => {
   showTrace(); paint();
 });
 board.addEventListener('pointermove', e => {
-  if (!drag || !cur) return;
+  if (!drag || !cur || other(e)) return;
   const i = stopAt(e, 0.4);
   if (i < 0 || i === sel[sel.length - 1]) return;
   // A tap beside the tapped letters adds to their word, but a drag from there spells a word of its own, so a stray
@@ -318,13 +322,17 @@ board.addEventListener('pointermove', e => {
   drag.changed = true;
   showTrace(); paint();
 });
-const lift = () => {
-  if (!drag) return;
+board.addEventListener('pointerup', e => {
+  if (!drag || other(e)) return;
   const { changed, tapLast } = drag; drag = null;
   if (changed || tapLast) submit();
-};
-board.addEventListener('pointerup', lift);
-board.addEventListener('pointercancel', () => { drag = null; });
+});
+// The browser takes the touch back (a system gesture, palm rejection): the word being traced goes, not half of it.
+board.addEventListener('pointercancel', e => {
+  if (!drag || other(e)) return;
+  drag = null; sel = [];
+  if (cur) { showTrace(); paint(); }
+});
 
 // Each arrow move is read out to screen readers in a line of its own, kept off the screen and apart from the
 // readout: the letter and where it is, and whether a token has ringed it, or the line it's on once that line is
