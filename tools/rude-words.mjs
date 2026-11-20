@@ -12,9 +12,14 @@ const RUDE = new RegExp([
   '^cocks?$', '^dick(s|ed|head.*)?$', '^puss(y|ies)$', '^anus(es)?$', '^anal$', '^rap(e|ed|es|er|ers|ing|ist|ists)$',
   '^tit(s|ty|ties)$', '^cum(s|ming)?$', '^nigs?$', '^fags?$', '^kikes?$', '^spics?$', '^chink(s|y)?$', '^gooks?$',
   '^wops?$', '^dago(s|es)?$', '^coons?$', '^japs?$', '^pakis?$', '^retard(s|ed)?$', '^spaz.*', '^dykes?$', '^homos?$',
-  '^gyp(s|ped|ping)?$', '^krauts?$', '^arse(s|hole.*)?$', '^turds?$', '^craps?$', '^crapp.*',
+  '^gyp(s|ped|ping|per|pers)?$', '^krauts?$', '^arse(s|hole.*)?$', '^turds?$', '^craps?$', '^crapp.*',
   '^sperm$', '^testes$', '^prick$', '^shag$', '^bonk$', '^harlot$', '^nonce$',
   '^bimbos?$', '^pimp(s|ed|ing)?$', '^ghettos?$', '^spank(s|ed|ing)?$', '^queers?$',
+  '^wogs?$', '^boongs?$', '^lubras?$', '^yids?$', '^sheen(y|ies)$', '^negr(oid|oids|ess)$', '^squaws?$', '^coolies?$',
+  '^poof(s|ter|ters)?$', '^sodomi', '^whor(e|es|ed|ing)', '^shiksas?$',
+  // and sneers, in the same spirit as harlot and bimbo
+  '^cretins?$', '^fatso(s|es)?$', '^wench(es)?$', '^mongols?$', '^harelips?$', '^slappers?$', '^gringos?$', '^midgets?$',
+  '^trollops?$', '^strumpets?$', '^bugger(s|y)?$',
 ].join('|'));
 const refused = w => listed.has(w) || RUDE.test(w);
 

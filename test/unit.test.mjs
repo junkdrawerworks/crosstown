@@ -177,6 +177,17 @@ test('rude words stay out with -s, -es, -d or -ed on the end, and plain words th
   for (const w of ['pimple', 'pimples', 'pimpled', 'pimpernel', 'spanker', 'spangle', 'queerly', 'ghee']) assert.ok(!isRude(w), `${w} should count`);
 });
 
+test('slurs and sneers stay out, with their plurals and other forms, and plain words that start the same way stay in', () => {
+  for (const w of ['wog', 'wogs', 'boong', 'boongs', 'lubra', 'lubras', 'yid', 'yids', 'sheeny', 'sheenies', 'negroid', 'negroids',
+    'negress', 'squaw', 'squaws', 'coolie', 'coolies', 'poof', 'poofs', 'poofter', 'poofters', 'sodomite', 'sodomites', 'sodomise',
+    'sodomises', 'sodomize', 'whore', 'whores', 'whored', 'whoring', 'gyp', 'gypper', 'gyppers', 'shiksa', 'shiksas',
+    'cretin', 'cretins', 'fatso', 'fatsos', 'fatsoes', 'wench', 'wenches', 'mongol', 'mongols', 'harelip', 'harelips',
+    'slapper', 'slappers', 'gringo', 'gringos', 'midget', 'midgets', 'trollop', 'trollops', 'strumpet', 'strumpets',
+    'bugger', 'buggers', 'buggery']) assert.ok(isRude(w), `${w} should stay out`);
+  for (const w of ['woggle', 'coolly', 'mongoose', 'monger', 'mongrel', 'wrench', 'buggy', 'midge', 'midges', 'sheen', 'sheens',
+    'whorl', 'whorls', 'gypsum']) assert.ok(!isRude(w), `${w} should count`);
+});
+
 test('fare and stars', () => {
   assert.equal(fareFor('tape'), 1);
   assert.equal(fareFor('twine'), 2);
