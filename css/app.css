@@ -206,7 +206,7 @@ a { color: inherit; }
 .line-prog .st { color: var(--star); }
 .line-row[aria-current] { border-color: var(--ink); }
 /* On the Lines sheet a row's progress sits beside the line's name, and what the line is about runs under both, so
-   "The first 108, a bit of everything" keeps to one line on a phone. */
+   "Making, fixing, wearing and the home" has the row's whole width on a phone. */
 .line-row { row-gap: 0; min-height: 52px; padding-block: 6px; }
 .line-row .line-main { display: contents; }
 .line-row .line-bar { grid-row: 1 / span 3; }

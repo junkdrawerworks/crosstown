@@ -2,7 +2,7 @@
 // The lines, in the order the list shows them. Each puzzle has its grid (the 48 letters, across then down) and its
 // lines (the stops of each theme word in order, the Crosstown first). A line's fp is a fingerprint of its detours.
 export const LINES = [
-  { id: "main", name: "Main Line", about: "The first 108, a bit of everything", color: "cross", fp: 'dda936ca', puzzles: [
+  { id: "main", name: "Main Line", about: "A bit of everything", color: "cross", fp: 'dda936ca', puzzles: [
     { id: "junk-drawer", name: "Junk drawer", clue: "It’s in here somewhere",
       grid: 'EHCTMKSDKAYERWBNUSAEIATJRNCLRTEORTIEPISSAESCSPES', lines: [[23,16,15,8,7,12,18,13,19,24],[14,21,22,29,35,28,34,41,47],[42,43,37,44,38,31,32,39],[33,40,45,46],[4,9,3,2,1,0,6],[5,11,10,17],[36,30,25,26,20,27]] },
     { id: "spice-rack", name: "Spice rack", clue: "A pinch here, a dash there",
@@ -546,7 +546,7 @@ export const LINES = [
     { id: "ice-fishing", name: "Ice fishing", clue: "Hard water",
       grid: 'GISEHSIGJUYAGNCOTNRIEHNGADUIERBPSSHGIEIUUACFPPIT', lines: [[36,42,37,43,38,33,34,27,22,23],[41,40,35,28,29],[5,4,11,17,16,10],[47,46,45,39,44],[8,1,0,7,6,13,12],[19,14,20,21,15,9,2,3],[32,31,26,25,30,24,18]] },
   ] },
-  { id: "workshop", name: "Workshop Line", about: "Making, fixing and the home", color: "l4", fp: '837ed65c', puzzles: [
+  { id: "workshop", name: "Workshop Line", about: "Making, fixing, wearing and the home", color: "l4", fp: '837ed65c', puzzles: [
     { id: "toolbox", name: "Toolbox", clue: "Righty tighty",
       grid: 'HNUAAWCTPHCSESOETKKCALRNTMLWECLOLBHXEOAHOEVELMMR', lines: [[24,31,37,32,33,40,35],[39,38,45,46,41,47],[27,22,28,23,29,34],[30,36,42,43,44],[9,3,10,17,11,4,5],[13,14,19,18,12,7],[25,20,26,21,15,16],[8,2,1,6,0]] },
     { id: "laundry-day", name: "Laundry day", clue: "Separate the whites",
@@ -1032,7 +1032,7 @@ export const LINES = [
     { id: "numismatics", name: "Numismatics", clue: "Heads or tails",
       grid: 'QURTENNAPNRUCIENYMEKMSINLATLOEMIBORSIECUEVDSDOOB', lines: [[5,11,17,22,21,20,25,26,31,38,43],[8,14,9,15,16],[6,13,12,19,18,24],[42,36,30,37],[0,1,7,2,3,4,10],[46,47,41,40,34,35,29],[44,45,39,32,27,33,28,23]] },
   ] },
-  { id: "airport", name: "Airport Line", about: "Places and getting around", color: "l6", fp: '3e8ad07f', puzzles: [
+  { id: "airport", name: "Airport Line", about: "Places, travel and jobs around town", color: "l6", fp: '3e8ad07f', puzzles: [
     { id: "departures", name: "Departures", clue: "Now boarding",
       grid: 'ASPYURPSOANTGRTWARGUAGMAGALTCSEPAEUEECTRTRDUSOMS', lines: [[42,36,31,32,39,40,34,41,35,29],[6,0,7,1,2,8,13,14],[21,20,27,33],[5,4,10,15,9,3],[37,43,44,38,45,46,47],[26,19,12,18,25,24,30],[11,16,17,22,23,28]] },
     { id: "packing-list", name: "Packing list", clue: "Roll, don’t fold",
