@@ -31,11 +31,11 @@ function detour(avoid, min, skip = new Set()) {
   }
   throw new Error('no detour found');
 }
-// The first detour on a puzzle of any line that can be traced, with its stops.
-async function detourOn(q, min = 4) {
+// The first detour on a puzzle of any line that can be traced (clear of the stops in `avoid`), with its stops.
+async function detourOn(q, min = 4, avoid = []) {
   const { DETOURS } = await import(`../js/detours/${q.line}.js`);
   for (const d of DETOURS[q.id].split(' ')) {
-    const t = d.length >= min && traces(q.grid, d.toUpperCase(), 1)[0];
+    const t = d.length >= min && traces(q.grid, d.toUpperCase(), 20).find(t => !t.some(i => avoid.includes(i)));
     if (t) return { word: d, path: t };
   }
   throw new Error(`no detour found on ${q.id}`);
@@ -773,6 +773,18 @@ assert.deepEqual(await page.evaluate(async () => {
   await document.fonts.ready;
   return { styled: getComputedStyle(document.body).backgroundColor !== 'rgba(0, 0, 0, 0)', font: [...document.fonts].some(f => f.family.replace(/"/g, '') === 'Overpass' && f.status === 'loaded') };
 }), { styled: true, font: true }, 'the styles or the font did not load offline');
+// Every line's detours are in the copy, and count offline.
+for (const [n, l] of LINES.entries()) {
+  await page.click('#b-back');
+  await page.click('#b-line'); await page.click(`#lines li:nth-child(${n + 1}) .line-row`);
+  await page.click('#b-continue');
+  const q = l.puzzles[Number((await text('#where')).match(/No\. (\d+)$/)[1]) - 1];
+  const on = await page.evaluate(() => [...document.querySelectorAll('#board .stop')].flatMap((s, i) => (s.classList.contains('on') ? [i] : [])));
+  const d = await detourOn(q, 4, on);
+  await drag(page, d.path);
+  await page.waitForFunction(() => document.getElementById('readout').textContent.startsWith('Detour:'), null, { timeout: 5000 })
+    .catch(async () => assert.fail(`a detour on the ${l.name} offline read "${await text('#readout')}"`));
+}
 server.down = false;
 
 assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems while using it');
@@ -873,6 +885,37 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
   for (const f of shell) all.update(createHash('sha1').update(await readFile(join(root, f.endsWith('/') ? f + 'index.html' : f))).digest());
   const files = all.digest('hex').slice(0, 8);
   assert.equal(sw.match(/const FILES = '([0-9a-f]*)'/)?.[1], files, `a file sw.js keeps for offline has changed: set FILES in sw.js to '${files}'`);
+}
+
+// The one-file copy (npm run build) plays from a file on its own: another line's detours are in it too, and nothing
+// is asked of any server.
+{
+  const { execFileSync } = await import('node:child_process');
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { fileURLToPath, pathToFileURL } = await import('node:url');
+  const dir = await mkdtemp(join(tmpdir(), 'crosstown-build-'));
+  try {
+    execFileSync(process.execPath, ['scripts/build.mjs', dir], { cwd: fileURLToPath(new URL('..', import.meta.url)), stdio: 'ignore' });
+    const file = pathToFileURL(join(dir, 'crosstown.html')).href;
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const tab = await ctx.newPage();
+    const asked = [], errors = [];
+    tab.on('request', r => { if (r.url() !== file && !r.url().startsWith('data:')) asked.push(r.url()); });
+    tab.on('pageerror', e => errors.push(e.message));
+    await tab.goto(file);
+    const l = LINES.at(-1), q = l.puzzles[0], d = await detourOn(q);
+    await tab.click('#b-line'); await tab.click(`#lines li:nth-child(${LINES.length}) .line-row`);
+    await tab.click('#b-continue');
+    assert.equal(await tab.textContent('#clue'), q.clue);
+    await drag(tab, d.path);
+    await tab.waitForFunction(() => document.getElementById('readout').textContent.startsWith('Detour:'), null, { timeout: 5000 })
+      .catch(async () => assert.fail(`a detour in the one-file copy read "${await tab.textContent('#readout')}"`));
+    assert.deepEqual(asked, [], 'the one-file copy asked for something besides itself');
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  } finally { await rm(dir, { recursive: true, force: true }); }
 }
 
 await browser.close();

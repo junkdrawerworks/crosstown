@@ -1,10 +1,14 @@
 // Bundles the game into one self-contained HTML file, dist/crosstown.html, for sharing as a single page.
 // Also writes dist/artifact.html, the same page without the document wrapper, for hosts that supply their own
-// <html>, <head> and <body>. The repo itself runs without this step.
+// <html>, <head> and <body>. The repo itself runs without this step. `node scripts/build.mjs DIR` writes them to DIR
+// instead (the tests do).
 import { build } from 'esbuild';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const root = new URL('..', import.meta.url);
+const out = process.argv[2] ? pathToFileURL(resolve(process.argv[2]) + '/') : new URL('dist/', root);
 const read = p => readFile(new URL(p, root), 'utf8');
 
 const result = await build({
@@ -47,8 +51,8 @@ for (const [from, to] of swaps) {
   fragment = fragment.replace(from, to);
 }
 
-await mkdir(new URL('dist/', root), { recursive: true });
-await writeFile(new URL('dist/crosstown.html', root), html);
-await writeFile(new URL('dist/artifact.html', root), fragment);
-console.log(`dist/crosstown.html  ${(html.length / 1024).toFixed(1)} KB`);
-console.log(`dist/artifact.html   ${(fragment.length / 1024).toFixed(1)} KB`);
+await mkdir(out, { recursive: true });
+await writeFile(new URL('crosstown.html', out), html);
+await writeFile(new URL('artifact.html', out), fragment);
+console.log(`crosstown.html  ${(html.length / 1024).toFixed(1)} KB`);
+console.log(`artifact.html   ${(fragment.length / 1024).toFixed(1)} KB`);
