@@ -914,6 +914,24 @@ if (LINES.length > 1) {
   await other.close();
 }
 
+// Before the script has run, the list's top already looks as it will: the line card in its place, so nothing jumps
+// when it fills in, and the big button off, so a tap on it can't go nowhere.
+if (LINES.length > 1) {
+  const tops = async script => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+    const tab = await context.newPage();
+    if (!script) await tab.route('**/js/app.js', () => {});   // the script never comes
+    await tab.goto(base, { waitUntil: script ? 'load' : 'commit' });
+    await tab.waitForSelector('#b-continue'); await tab.evaluate(() => document.fonts.ready);
+    const at = await tab.evaluate(() => ({ continue: Math.round(document.getElementById('b-continue').getBoundingClientRect().top), disabled: document.getElementById('b-continue').disabled, about: document.getElementById('line-about').textContent }));
+    await context.close();
+    return at;
+  };
+  const [before, after] = [await tops(false), await tops(true)];
+  assert.deepEqual([before.continue, before.disabled, before.about], [after.continue, true, LINES[0].about], `the list's top moves or offers a dead button before the script runs: ${JSON.stringify({ before, after })}`);
+  assert.equal(after.disabled, false);
+}
+
 // It can be installed.
 const cdp = await ctx.newCDPSession(page);
 const manifest = await cdp.send('Page.getAppManifest');

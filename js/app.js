@@ -133,7 +133,6 @@ function drawList() {
   $('line-name').textContent = line.name;
   $('line-about').textContent = line.about;
   $('b-line').setAttribute('aria-label', `${line.name}: ${line.about}. Change line`);
-  $('b-line').hidden = LINES.length < 2;
 }
 
 // The lines sheet: every line with how far along it you are, starting on the one on show. Picking one shows its list
