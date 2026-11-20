@@ -677,9 +677,11 @@ function judgeWord(word) {
   paint();
 }
 
-// Words traced while the line's detours are on their way wait for them together, for WAIT_LIMIT at most, then
-// count or don't all at once (see land()).
+// Words traced while the line's detours are on their way wait for them together, and count or don't all at once
+// when the file comes or fails (see land()). After WAIT_LIMIT the readout says they're still waiting, rather than
+// leave "One moment" up on a connection that has stalled.
 const WAIT_LIMIT = 6000; // ms
+const SLOW = 'Detours are still on their way. Your words will count when they come';
 const pending = new Set();   // the puzzles (cur as it was) with words waiting, the one on screen or ones left since
 function wait(word) {
   const mine = cur;
@@ -691,7 +693,7 @@ function wait(word) {
     pending.add(mine);
   }
   q.words.push(word);
-  say('One moment', 'note');
+  say(q.late ? SLOW : 'One moment', 'note');
   paint();
 }
 // Starting a puzzle over, or erasing everything, drops the words still waiting on it (`id`), or on any puzzle.
@@ -701,12 +703,18 @@ function dropWaiting(id) {
 
 // The waiting words land: counted if the detours came (`arrived`), and if they didn't, not called anything, since
 // they may well be detours. On a finished map they're dropped, as fare is no use there and the done sheet has
-// already counted the detours. After Back they count in the game that was left, and it's saved.
+// already counted the detours. After Back they count in the game that was left, and it's saved. At WAIT_LIMIT, with
+// the file still coming, they go on waiting for it (`late`), and later words join them.
 function land(mine, q, arrived) {
   if (mine.waiting !== q) return;   // landed already, or dropped
-  mine.waiting = null; clearTimeout(q.timer); pending.delete(mine);
   const shown = cur && cur.p.id === mine.p.id ? cur : null;
   const game = shown ? shown.game : gameFor(mine.p.id) || mine.game;
+  if (!arrived && !q.extra.ready) {
+    q.late = true;
+    if (shown && !game.done) { say(SLOW, 'note'); paint(); }
+    return;
+  }
+  mine.waiting = null; clearTimeout(q.timer); pending.delete(mine);
   if (game.done) return;
   if (!arrived) {
     if (shown) { say(q.extra.stale ? STALE : "Can't check detours right now. Try that word again in a moment", 'note'); paint(); }

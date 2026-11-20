@@ -1414,6 +1414,27 @@ if (LINES.length > 1) {
   assert.deepEqual(errors, []);
   await other.close();
 }
+// A file that takes longer than the wait (8 s here): the readout says the words are still on their way rather than
+// "Try that word again", a word traced meanwhile joins them, and when the file comes the detour counts and is kept.
+{
+  server.slow = { path: 'js/detours/main.js', ms: 8000 };
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { serviceWorkers: 'block' });
+  await tab.click('#b-continue');
+  await drag(tab, first.path);
+  assert.equal(await tab.textContent('#readout'), 'One moment');
+  const SLOW = 'Detours are still on their way. Your words will count when they come';
+  await tab.waitForFunction(() => document.getElementById('readout').textContent !== 'One moment', null, { timeout: 8000 });
+  assert.equal(await tab.textContent('#readout'), SLOW, 'a word waiting on a slow file should hear it is still waiting');
+  await drag(tab, junk);
+  assert.equal(await tab.textContent('#readout'), SLOW);
+  await tab.waitForFunction(s => document.getElementById('readout').textContent !== s, SLOW, { timeout: 8000 });
+  assert.match(await tab.textContent('#readout'), new RegExp(`^Detour: ${first.word.toUpperCase()}, \\+${fareFor(first.word)} fare`), 'a detour traced before a slow file came was dropped');
+  assert.equal(await tab.locator('#pips .full').count(), fareFor(first.word) % FARE_PER_TOKEN);
+  assert.deepEqual(await tab.evaluate(id => JSON.parse(localStorage.getItem('crosstown.v1')).games[id].detours, p.id), [first.word]);
+  server.slow = null;
+  assert.deepEqual(errors, []);
+  await other.close();
+}
 
 // The lines: the list shows one at a time, the button above Continue changes it, and each line keeps its own
 // numbers and progress. Seeded as Mark has it: every Main Line puzzle finished.
