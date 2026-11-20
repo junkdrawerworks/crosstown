@@ -1954,6 +1954,22 @@ assert.deepEqual(manifest.errors, []);
 assert.match(manifest.data, /"name": "Crosstown"/);
 // Installed, it stays upright: held sideways, a phone would leave the map about 144 px wide.
 assert.equal(JSON.parse(manifest.data).orientation, 'portrait', 'the installed app should stay in portrait');
+// It has an id of its own, so an installed copy stays the same app whatever start_url becomes, and pictures for the
+// fuller install sheet Chrome on Android shows when a manifest has a description and a screenshot. Each picture is the
+// size the manifest says, and only the install sheet uses them, so the offline copy doesn't keep them.
+{
+  const { readFile } = await import('node:fs/promises');
+  const app = JSON.parse(manifest.data);
+  assert.deepEqual([app.id, manifest.manifest?.id], ['./', base], 'the manifest should give the app its id');
+  assert.ok(app.description && app.screenshots?.length, 'the manifest should have a description and screenshots');
+  const sw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
+  for (const shot of app.screenshots) {
+    const png = await readFile(new URL(`../${shot.src}`, import.meta.url));
+    assert.equal(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`, shot.sizes, `${shot.src} isn't the size the manifest says`);
+    assert.ok(shot.label && shot.form_factor === 'narrow' && shot.type === 'image/png');
+    assert.ok(!sw.includes(`'${shot.src}'`), `the offline copy needn't keep ${shot.src}`);
+  }
+}
 
 // Works offline once it has been opened: with the server dropping every connection, the page, its styles, its
 // font and the puzzles still load, from the copy the service worker kept.

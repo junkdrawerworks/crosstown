@@ -1,4 +1,5 @@
 {
+  "id": "./",
   "name": "Crosstown",
   "short_name": "Crosstown",
   "description": "A word hunt drawn as a transit map. Every letter is a stop on some line.",
@@ -30,6 +31,29 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "docs/phone-list.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "The list of puzzles on a line, with stars and times"
+    },
+    {
+      "src": "docs/phone-play.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "A puzzle under way: three lines found, a word being traced, and a line ringed by a token"
+    },
+    {
+      "src": "docs/phone-map.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "A finished map in the dark look, every letter on a line"
     }
   ]
 }
