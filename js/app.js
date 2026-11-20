@@ -40,25 +40,33 @@ let saved = blank();
 try { saved = load(); localStorage.setItem(`${KEY}.check`, '1'); localStorage.removeItem(`${KEY}.check`); } catch { readFailed = true; }
 const keeping = () => !readFailed && !writeFailed;
 
-// This window's changes, laid over what's stored (`now`). Where both windows have played the same puzzle, the game
-// further along stays: finished, then more lines found, then more detours. A game this window took out (Start this
-// puzzle over) goes whatever the other has. The faster best time stays.
+// This window's changes, laid over what's stored (`now`). Where both windows have played the same puzzle, the better
+// game stays (see ahead()). A game this window took out (Start this puzzle over) goes whatever the other has. The
+// faster best time stays.
 function mergeInto(now) {
   if (changed.erased) { now.games = {}; now.best = {}; }
   for (const id of changed.games) {
     const mine = saved.games[id];
     if (!mine) delete now.games[id];
-    else if (standing(mine, id) >= standing(now.games[id], id)) now.games[id] = mine;
+    else if (ahead(mine, now.games[id], id) >= 0) now.games[id] = mine;
     const t = saved.best[id];
     if (t && !(now.best[id] <= t)) now.best[id] = t;
   }
   for (const name of changed.options) now.options[name] = saved.options[name];
   return now;
 }
-// How far along a saved game is, as one number to compare: finished first, then lines found, then detours.
-function standing(g, id) {
-  const game = readGame(g, id);
-  return game ? (game.done ? 1e6 : 0) + game.found.length * 1e3 + Math.min(game.detours.length, 999) : -1;
+// Which of two saved games of a puzzle is the better one to keep: above 0 if `a`, below if `b`, 0 for a tie. A finished
+// game beats any unfinished one, then more stars win, then the faster time, then more detours, so a game with detours
+// can never take the place of one with more stars. Of two unfinished games, more lines found wins, then more detours.
+function ahead(a, b, id) {
+  const rank = g => {
+    const game = readGame(g, id);
+    if (!game) return [0];
+    return game.done ? [2, starsFor(game), -Math.round(game.ms), game.detours.length] : [1, game.found.length, game.detours.length];
+  };
+  const x = rank(a), y = rank(b);
+  for (let k = 0; k < Math.max(x.length, y.length); k++) if ((x[k] ?? 0) !== (y[k] ?? 0)) return (x[k] ?? 0) - (y[k] ?? 0);
+  return 0;
 }
 function save() {
   try {
@@ -70,10 +78,10 @@ function save() {
   } catch { writeFailed = true; /* no storage here: play still works, it just isn't kept */ }
 }
 // Takes on what's stored as this window's own. The puzzle on screen keeps the game being played, unless another
-// window has got further with it.
+// window has a better one (see catchUp()).
 function adopt(now) {
   saved = now;
-  if (cur && started(cur.game) && standing(cur.game, cur.p.id) >= standing(now.games[cur.p.id], cur.p.id)) saved.games[cur.p.id] = cur.game;
+  if (cur && started(cur.game) && ahead(cur.game, now.games[cur.p.id], cur.p.id) >= 0) saved.games[cur.p.id] = cur.game;
 }
 const setOption = (name, value) => { saved.options[name] = value; changed.options.add(name); save(); };
 const setGame = (id, game) => { if (game) saved.games[id] = game; else delete saved.games[id]; changed.games.add(id); save(); };
@@ -401,6 +409,26 @@ function openPuzzle(i) {
   board.focus({ preventScroll: true });
 }
 
+// Another window has a better game of the puzzle on screen (finished there, or further along; see ahead()), so this
+// one takes it in and says so, rather than carrying on with a game that can only lose to it when saved. Not while the
+// last line draws or a sheet is open: closing the sheet looks again.
+function catchUp() {
+  if (!cur || cur.finishing || anySheet()) return;
+  const there = saved.games[cur.p.id];
+  if (there === cur.game || ahead(there, cur.game, cur.p.id) <= 0) return;
+  const game = readGame(there, cur.p.id);
+  stopClock();
+  cur.game = { ...game, grid: cur.p.grid };
+  saved.games[cur.p.id] = cur.game;
+  sel = []; drag = null;
+  layers.lines.textContent = '';
+  for (const k of game.found) drawLine(k, false);
+  say(game.done ? 'Finished in another window' : 'Carried on in another window', 'note');
+  paint();
+  startClock();
+  if (!document.activeElement || document.activeElement === document.body || document.activeElement.closest('[hidden]')) board.focus({ preventScroll: true });
+}
+
 const keep = () => setGame(cur.p.id, cur.game);
 // Whether a word has ever been sent here: kept with the options from the first one, and true of a save from before
 // that with a line or a detour in it.
@@ -446,7 +474,15 @@ function stopClock() {
   clearInterval(ticking); ticking = 0;
   if (cur) cur.game.ms += performance.now() - since;
 }
-document.addEventListener('visibilitychange', () => { if (!cur) return; if (document.hidden) { stopClock(); keep(); } else if (!anySheet()) startClock(); });
+// Back on screen, a puzzle another window has got further with since is taken in (see catchUp()), in case this window
+// was asleep when that was saved.
+document.addEventListener('visibilitychange', () => {
+  if (!cur) return;
+  if (document.hidden) { stopClock(); keep(); return; }
+  if (anySheet()) return;
+  try { adopt(mergeInto(load())); } catch { /* nothing stored to look at */ }
+  startClock(); catchUp();
+});
 
 // ---- tracing ----------------------------------------------------------------------------------------------------
 function stopAt(e, reach) {
@@ -712,6 +748,7 @@ function closeSheets(step = 'back') {
   armed = null; $('m-restart').textContent = 'Start this puzzle over'; $('m-erase').textContent = 'Erase progress on every line';
   if (cur) startClock();
   opener?.focus?.({ preventScroll: true });
+  catchUp();
 }
 document.addEventListener('click', e => { if (e.target.closest('[data-close]')) closeSheets(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && anySheet()) closeSheets(); });
@@ -876,11 +913,12 @@ $('b-line').addEventListener('click', openLines);
 $('meter').addEventListener('click', () => { if (cur && !cur.game.done) say(`${cur.game.fare} of ${FARE_PER_TOKEN} fare to the next token`, 'note'); });
 window.addEventListener('pagehide', () => { if (cur) { stopClock(); keep(); } });
 // Another window saved: take in what it saved. The list (and the lines sheet, if it's open) shows it straight away; a
-// puzzle on screen carries on as it is, and so does the line on show.
+// puzzle on screen carries on as it is, unless the other window has a better game of it (see catchUp()). The line on
+// show stays.
 window.addEventListener('storage', e => {
   if (e.key !== KEY && e.key !== null) return;
   try { adopt(mergeInto(load())); } catch { return; }
-  if (cur) return;
+  if (cur) { catchUp(); return; }
   drawList();
   if (!$('sheet-lines').hidden) drawLines();
 });

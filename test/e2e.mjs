@@ -728,6 +728,93 @@ if (LINES.length > 1) {
   await context.close();
 }
 
+// The same puzzle in two windows: the better game is the one kept, whichever window writes last, and a window that
+// has fallen behind takes it in and says so. Stars come before detours, so a game with a token spent can't take the
+// place of one without.
+{
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  const [a, b] = [await context.newPage(), await context.newPage()];
+  const errors = [];
+  for (const tab of [a, b]) tab.on('pageerror', e => errors.push(e.message));
+  const kept = id => a.evaluate(id => JSON.parse(localStorage.getItem('crosstown.v1')).games[id], id);
+  const said = (tab, words) => tab.waitForFunction(w => document.getElementById('readout').textContent === w, words, { timeout: 5000 })
+    .catch(async () => assert.fail(`the window behind said "${await tab.textContent('#readout')}", not "${words}"`));
+  // Detours on a puzzle worth `want` fare, clear of the stops in `avoid`.
+  async function faresOn(q, avoid, want) {
+    const { DETOURS } = await import(`../js/detours/${q.line}.js`);
+    const got = []; let fare = 0;
+    for (const d of DETOURS[q.id].split(' ').sort((x, y) => y.length - x.length)) {
+      const t = fare < want && traces(q.grid, d.toUpperCase(), 20).find(t => !t.some(i => avoid.includes(i)));
+      if (t) { got.push(t); fare += fareFor(d); }
+    }
+    assert.ok(fare >= want, `not enough detours on ${q.id}`);
+    return got;
+  }
+  // B is part way through No. 2, with detours. A starts it over and finishes it with three stars: B takes in A's game
+  // as soon as it's further along than its own, then the finish, and shows the finished map.
+  const [, q, r, t] = PUZZLES;
+  // B can be put to sleep: while window.asleep is set, it hears nothing another window saves.
+  await b.addInitScript(() => {
+    const on = window.addEventListener;
+    window.addEventListener = function (type, fn, ...rest) { return on.call(this, type, type === 'storage' ? e => { if (!window.asleep) fn(e); } : fn, ...rest); };
+  });
+  await b.goto(base); await b.click('#route li:nth-child(2) .row');
+  await drag(b, q.lines[1]);
+  for (const path of await faresOn(q, q.lines[1], FARE_PER_TOKEN)) await drag(b, path);
+  await a.goto(base); await a.click('#route li:nth-child(2) .row');
+  await a.click('#b-menu'); await a.click('#m-restart'); await a.click('#m-restart');
+  await drag(a, q.lines[0]);
+  assert.equal(await b.textContent('#count'), `1 of ${q.lines.length} lines`, 'a game with fewer detours should not take the place of the one on screen');
+  await drag(a, q.lines[1]);
+  await said(b, 'Carried on in another window');
+  assert.equal(await b.textContent('#count'), `2 of ${q.lines.length} lines`);
+  for (const path of q.lines.slice(2)) await drag(a, path);
+  await a.waitForSelector('#sheet-done:not([hidden])');
+  assert.equal(await a.locator('#done-stars .got').count(), 3);
+  await said(b, 'Finished in another window');
+  assert.deepEqual([await b.textContent('#count'), await b.isVisible('#after'), await b.locator('#board .stop.on').count()], ['All found', true, 48], 'the window behind should show the finished map');
+  assert.equal(starsFor({ ...await kept(q.id), done: true }), 3);
+  await a.keyboard.press('Escape'); await a.click('#b-back');
+  await b.click('#b-back');
+  assert.equal(await b.textContent('#route li:nth-child(2) .st'), '★★★');
+
+  // B doesn't hear what A saves (asleep, as a phone leaves an app it isn't showing). B finds a line of No. 3 and earns a
+  // token; A carries on from there and finishes with two stars. B, still asleep, spends its token and finishes with
+  // the same detours and one star: A's two stars are kept, and B shows A's game once its done sheet closes.
+  await b.evaluate(() => { window.asleep = true; });
+  await b.click('#route li:nth-child(3) .row');
+  await drag(b, r.lines[1]);
+  for (const path of await faresOn(r, r.lines[1], FARE_PER_TOKEN)) await drag(b, path);
+  await a.click('#route li:nth-child(3) .row');
+  for (const k of r.lines.keys()) if (k !== 1) await drag(a, r.lines[k]);
+  await a.waitForSelector('#sheet-done:not([hidden])');
+  assert.equal(await a.locator('#done-stars .got').count(), 2);
+  await b.click('#b-token');
+  for (const k of r.lines.keys()) if (k !== 1) await drag(b, r.lines[k]);
+  await b.waitForSelector('#sheet-done:not([hidden])');
+  assert.equal(await b.locator('#done-stars .got').count(), 1);
+  const g = await kept(r.id);
+  assert.deepEqual([g.spent, starsFor({ ...g, done: true })], [0, 2], 'a one-star finish took the place of a two-star one');
+  await b.keyboard.press('Escape');
+  await said(b, 'Finished in another window');
+  await b.click('#b-results');
+  assert.equal(await b.locator('#done-stars .got').count(), 2, 'the window behind should show the game that was kept');
+  await b.keyboard.press('Escape'); await b.click('#b-back');
+  assert.equal(await b.textContent('#route li:nth-child(3) .st'), '★★☆');
+
+  // Still asleep, B has No. 4 open with a line; A finishes it. B, back on screen, takes in the finish.
+  await b.click('#route li:nth-child(4) .row'); await drag(b, t.lines[1]);
+  await a.keyboard.press('Escape'); await a.click('#b-back'); await a.click('#route li:nth-child(4) .row');
+  for (const k of t.lines.keys()) if (k !== 1) await drag(a, t.lines[k]);
+  await a.waitForSelector('#sheet-done:not([hidden])');
+  assert.equal(await b.textContent('#count'), `1 of ${t.lines.length} lines`);
+  await b.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await said(b, 'Finished in another window');
+  assert.equal(await b.textContent('#count'), 'All found');
+  assert.deepEqual(errors, []);
+  await context.close();
+}
+
 // A browser that isn't keeping anything (storage blocked, or full) still plays, and the list says progress isn't
 // being kept. Erasing doesn't claim to have erased anything for good.
 for (const how of ['blocked', 'full']) {
