@@ -374,7 +374,7 @@ export const LINES = [
     { id: "root-cellar", name: "Root cellar", clue: "Dig in",
       grid: 'RPIRUJOONTCIPTPASAOECRNMATLPIATOSLARVSACKIAANODA', lines: [[0,7,6,13,20,19,26,33,34,35],[12,18,25,24,30,31],[9,4,3,8,2,1],[14,15,21,16,22,28,27],[5,11,10,17,23,29],[39,38,32,37,43,36,42],[46,47,41,40,45,44]] },
     { id: "winter-squash", name: "Winter squash", clue: "Gourd times",
-      grid: 'WAUTTAHSNRACUCABIHWIELSAANDSQUCOTRAKRKUEBONRIAHC', lines: [[18,19,25,32,39,33,27,28,29,23,22,17],[24,30,31,36,42],[35,34,40,41,47,46,45],[26,20,21,16,11,5,4,10],[37,38,43,44],[3,2,9,15,14,8],[13,12,7,6,1,0]] },
+      grid: 'TIUNHSTETRAUHGATEQSPTUSRROBAEDNSCTRNDEINIESEWSTM', lines: [[44,38,39,33,28,23,22,17,11,10,5,4],[26,21,20,15,16,9,3,2,8],[27,32,25,24,30],[18,19,14,13,12,7,6,0,1],[42,43,37,36,31],[34,40,35,29],[45,46,41,47]] },
     { id: "fruit-desserts", name: "Fruit desserts", clue: "With a scoop on top",
       grid: 'CRFUKLRUBTCESIIRDEPLESSTSBBENGLCORURMUTBCRPSELMU', lines: [[2,1,7,14,9,16,17,22,21,27,33,38,43],[31,32,26,25,19,20,15],[0,6,13,12,18],[40,41,47,46,39,45,44],[8,3,10,4,5,11],[24,30,37,36,42],[29,35,34,28,23]] },
     { id: "sauce-station", name: "Sauce station", clue: "Mother knows best",
