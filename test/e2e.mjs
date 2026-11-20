@@ -853,6 +853,10 @@ for (const how of ['blocked', 'full']) {
   await tab.keyboard.press('Escape'); await tab.click('#b-back');
   assert.equal(await tab.getAttribute('#route li:nth-child(1)', 'class'), 'done', `a puzzle should still finish (${how})`);
   assert.equal(await tab.isVisible('#unkept'), true);
+  // The Lines sheet doesn't claim each line keeps its progress.
+  await tab.click('#b-line');
+  assert.equal(await tab.textContent('#lines-note'), `Each line is its own set of puzzles. This browser isn't keeping progress, so it goes when the page closes. 1 of ${LINES.reduce((n, l) => n + l.puzzles.length, 0)} finished, 3 stars.`, `the Lines sheet should say progress isn't kept (${how})`);
+  await tab.keyboard.press('Escape');
   await tab.click('#b-list-menu'); await tab.click('#m-erase'); await tab.click('#m-erase');
   assert.equal(await tab.textContent('#toast'), 'Erased for this visit only');
   assert.deepEqual(errors, [], `errors with storage ${how}`);
@@ -1186,10 +1190,17 @@ if (LINES.length > 1) {
   assert.equal(await tab.locator('#lines .line-row').count(), LINES.length);
   assert.equal(await tab.getAttribute('#lines li:nth-child(2) .line-row', 'aria-current'), 'true');
   assert.equal(await tab.evaluate(() => document.activeElement.getAttribute('aria-current')), 'true', 'the Lines sheet should start on the line on show');
-  assert.equal(await tab.textContent('#lines li:nth-child(1) .line-prog'), `${n} of ${n}${n * 3}★`);   // with a dot drawn between
-  assert.equal(await tab.getAttribute('#lines li:nth-child(1) .line-row', 'aria-label'), `${main.name}: ${main.about}. ${n} of ${n} finished, ${n * 3} stars`);
+  assert.equal(await tab.textContent('#lines li:nth-child(1) .line-prog'), `Finished${n * 3}★`, 'a finished line should say so');   // with a dot drawn between
+  assert.equal(await tab.getAttribute('#lines li:nth-child(1) .line-row', 'aria-label'), `${main.name}: ${main.about}. finished, ${n * 3} stars`);
   assert.equal(await tab.textContent('#lines li:nth-child(2) .line-prog'), `${second.puzzles.length} puzzles`);
-  assert.equal(await tab.textContent('#lines-note'), `Each line is its own set of puzzles. Your progress on every line is kept: ${n} of ${all} finished.`);
+  const [nn, aa, ss] = await tab.evaluate(ns => ns.map(v => v.toLocaleString()), [n, all, n * 3]);
+  assert.equal(await tab.textContent('#lines-note'), `Each line is its own set of puzzles and keeps its own progress. ${nn} of ${aa} finished, ${ss} stars.`);
+  // On a phone and a computer the Main Line's about stays on one line beside "Finished · 324★".
+  for (const width of [390, 1280]) {
+    await tab.setViewportSize({ width, height: 844 });
+    assert.equal(await tab.evaluate(() => { const s = document.querySelector('#lines li:nth-child(1) .line-main small:last-child'); return s.getClientRects().length === 1 && s.getBoundingClientRect().height < 25; }), true, `the Main Line's about wraps at ${width} px`);
+  }
+  await tab.setViewportSize({ width: 390, height: 844 });
   assert.deepEqual(await tab.$$eval('#lines .here', h => h.map(x => [x.closest('li') === x.closest('ul').children[1], x.textContent])), [[true, 'You are here']], 'the line on show should say so');
   await tab.click('#lines li:nth-child(1) .line-row');
   await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
@@ -1268,6 +1279,11 @@ if (LINES.length > 1) {
   assert.equal(await tab.textContent('#b-continue'), 'Play No. 8');
   assert.equal(await tab.textContent('#tally'), `28 of ${m.puzzles.length} finished, 84 of ${m.puzzles.length * 3} stars` + 'No. 20 under way');
   assert.equal(await tab.textContent('#tally .tally-link'), 'No. 20 under way', 'a puzzle under way behind one not played should be offered');
+  // The Lines sheet tells a screen reader of it too; on screen the row keeps to the count.
+  await tab.click('#b-line');
+  assert.equal(await tab.getAttribute('#lines li:nth-child(2) .line-row', 'aria-label'), `${m.name}: ${m.about}. 28 of ${m.puzzles.length} finished, 84 stars, 1 under way`);
+  assert.equal(await tab.textContent('#lines li:nth-child(2) .line-prog'), `28 of ${m.puzzles.length}84★`);
+  await tab.keyboard.press('Escape');
   await tab.click('#tally .tally-link');
   assert.equal(await tab.textContent('#where'), `${m.name.replace(/ Line$/, '')}, No. 20`);
   assert.equal(await tab.textContent('#count'), `2 of ${m.puzzles[19].lines.length} lines`);

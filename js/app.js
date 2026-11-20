@@ -249,10 +249,10 @@ function openLines() {
 function drawLines() {
   const ul = $('lines'), at = [...ul.children].findIndex(li => li.contains(document.activeElement));
   ul.textContent = '';
-  let done = 0, all = 0;
+  let done = 0, all = 0, got = 0;
   for (const l of LINES) {
     const { finished, stars, going, total } = tally(l);
-    done += finished; all += total;
+    done += finished; all += total; got += stars;
     const li = document.createElement('li');
     const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'line-row';
     if (l === line) btn.setAttribute('aria-current', 'true');
@@ -264,19 +264,26 @@ function drawLines() {
     const here = l === line ? document.createElement('small') : null;
     if (here) { here.className = 'here'; here.textContent = 'You are here'; }
     const prog = document.createElement('span'); prog.className = 'line-prog';
-    if (finished) {   // "12 of 81 · 30★", the dot drawn, as the font's own has no width
+    // "12 of 81 · 30★", or "Finished · 243★" for a whole line, the dot drawn, as the font's own has no width. A puzzle
+    // under way on a line with some finished is told to a screen reader; the eye has the list for that.
+    const whole = finished === total, stared = `${stars} star${stars === 1 ? '' : 's'}`;
+    if (finished) {
       const sep = document.createElement('span'); sep.className = 'sep';
       const st = document.createElement('span'); st.className = 'st'; st.textContent = `${stars}★`;
-      prog.append(`${finished} of ${total}`, sep, st);
+      prog.append(whole ? 'Finished' : `${finished} of ${total}`, sep, st);
     } else prog.textContent = going ? 'Under way' : `${total} puzzles`;
-    const said = finished ? `${finished} of ${total} finished, ${stars} star${stars === 1 ? '' : 's'}` : going ? 'under way' : `${total} puzzles`;
+    const said = whole ? `finished, ${stared}` : finished ? `${finished} of ${total} finished, ${stared}${going ? `, ${going} under way` : ''}` : going ? 'under way' : `${total} puzzles`;
     btn.setAttribute('aria-label', `${l.name}: ${l.about}. ${said}`);
     const main = document.createElement('span'); main.className = 'line-main'; main.append(name, ...(here ? [here] : []), about);
     btn.append(bar, main, prog);
     btn.addEventListener('click', () => { if (l !== line) showLine(l); closeSheets(); });
     li.append(btn); ul.append(li);
   }
-  $('lines-note').textContent = `Each line is its own set of puzzles. Your progress on every line is kept${done ? `: ${done} of ${all} finished` : ''}.`;
+  // Each line keeps its own progress (unless the browser isn't keeping any), then the count over every line.
+  const [d, a, g] = [done, all, got].map(n => n.toLocaleString());
+  const count = done === all ? ` All ${a} finished, ${g} stars.` : done ? ` ${d} of ${a} finished${got ? `, ${g} star${got === 1 ? '' : 's'}` : ''}.` : '';
+  $('lines-note').textContent = (keeping() ? 'Each line is its own set of puzzles and keeps its own progress.'
+    : "Each line is its own set of puzzles. This browser isn't keeping progress, so it goes when the page closes.") + count;
   ul.children[at]?.querySelector('button').focus({ preventScroll: true });   // drawn again while open: focus stays put
 }
 
