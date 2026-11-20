@@ -258,6 +258,7 @@ assert.equal(await page.isVisible('#clock'), true);
 await drag(page, PUZZLES[1].lines[0]);
 assert.equal(await text('#clue'), PUZZLES[1].clue);
 assert.equal(await text('#readout'), `Crosstown: ${PUZZLES[1].name}, found`);
+assert.equal(await page.getAttribute('#readout', 'class'), 'readout crossed', 'the Crosstown found should be said in full, not in a note');
 
 // Back on the list: one finished with a star, one under way.
 await page.click('#b-back');
@@ -483,6 +484,28 @@ function contrast(a, b) {
   const far = p.lines[0].find(i => !NEIGHBORS[from].includes(i));
   await tap(tab, far);
   assert.deepEqual([await tab.textContent('#readout'), await tab.locator('#board .stop.sel').count()], [`Crosstown: ${p.name}`, 0]);
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
+// Finding the Crosstown says the map's name at the readout's full size, then "Crosstown" small after it. On a small
+// phone the longest name stays whole on one line with its label, and the map doesn't move.
+{
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { viewport: { width: 320, height: 568 } });
+  await tab.click('#b-continue');
+  const top = (await tab.locator('#board').boundingBox()).y;
+  await drag(tab, p.lines[0]);
+  const longest = LINES.flatMap(l => l.puzzles).map(q => q.name).reduce((a, b) => (b.length > a.length ? b : a));
+  for (const name of [p.name, longest]) {
+    const fit = await tab.evaluate(name => {
+      const r = document.getElementById('readout'), label = r.querySelector('.send');
+      [...r.childNodes].find(n => n.nodeType === 3).textContent = name;
+      const range = document.createRange(); range.selectNodeContents([...r.childNodes].find(n => n.nodeType === 3));
+      return { tall: r.getBoundingClientRect().height <= parseFloat(getComputedStyle(r).minHeight) + 0.5, label: label.scrollWidth <= label.clientWidth, after: label.getBoundingClientRect().left > range.getBoundingClientRect().right, page: document.documentElement.scrollWidth <= innerWidth };
+    }, name);
+    assert.deepEqual(fit, { tall: true, label: true, after: true, page: true }, `"${name}", the Crosstown found, doesn't fit the readout at 320 px`);
+  }
+  assert.equal((await tab.locator('#board').boundingBox()).y, top, 'the map moved when the Crosstown was found');
   assert.deepEqual(errors, []);
   await other.close();
 }

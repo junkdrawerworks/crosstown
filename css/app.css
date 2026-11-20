@@ -271,6 +271,13 @@ a { color: inherit; }
 /* Tight lines, so a note that wraps on a small phone still fits the readout's height and the map doesn't jump. */
 .readout.note { font-size: 15px; line-height: 1.1; letter-spacing: .02em; text-transform: none; font-weight: 700; color: var(--muted); }
 .readout.pending { color: var(--muted); white-space: nowrap; }
+/* The Crosstown found: the map's name whole, then "Crosstown" small after it (it comes first for a screen reader). */
+.readout.crossed { white-space: nowrap; }
+.readout.crossed .sep, .readout.crossed .send { order: 1; }
+.readout.crossed .send { color: var(--muted); }
+/* On a narrow phone the name gives up some size, so the longest, LOOK, DON'T TOUCH, still has its label whole. */
+@media (max-width: 374px) { .readout.crossed { font-size: 18px; letter-spacing: .06em; gap: 6px; } }
+@media (max-width: 339px) { .readout.crossed { font-size: 16px; letter-spacing: .05em; } }
 /* How to send a tapped word, after it in smaller type. On a narrow phone it's this that gives way, never the word. */
 .readout .send { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 15px; letter-spacing: .02em; text-transform: none; font-weight: 700; }
 .readout .sep { flex: none; width: 4px; height: 4px; border-radius: 50%; background: currentColor; margin-bottom: 2px; }

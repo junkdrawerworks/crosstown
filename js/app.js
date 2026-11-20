@@ -713,8 +713,17 @@ function found(k) {
   drawLine(k, true);
   // A found word would otherwise sound just like the word as it was traced, so it's heard as found, with the count.
   const n = p.lines.length, all = game.found.length === n;
-  say(k === 0 ? `Crosstown: ${p.name}` : cur.words[k], k === 0 ? 'note' : '', k,
+  say(k === 0 ? p.name : cur.words[k], k === 0 ? 'crossed' : '', k,
     all ? `, found. All ${n} lines found` : k === 0 ? ', found' : `, found. ${game.found.length} of ${n} lines`);
+  // The Crosstown is the map's big find: its name in the readout's full size, then "Crosstown" small after it. A
+  // screen reader hears "Crosstown: Junk drawer, found", the label first.
+  if (k === 0) {
+    const out = $('readout'), sep = document.createElement('span'), label = document.createElement('span'), colon = document.createElement('span');
+    sep.className = 'sep'; sep.setAttribute('aria-hidden', 'true');
+    colon.className = 'sr-only'; colon.textContent = ': ';
+    label.className = 'send'; label.append('Crosstown', colon);
+    out.insertBefore(label, out.firstChild.nextSibling); out.insertBefore(sep, label);
+  }
   // The last line: its word stays while the line draws, then the map says its name, as it does when it's opened again
   // finished. The done sheet rises after that, and only then do Results and Next puzzle take the fare's place.
   if (all) {
