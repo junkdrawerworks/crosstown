@@ -65,6 +65,8 @@ function setLine(l) {
   $('s-list').style.setProperty('--line', c); $('s-list').style.setProperty('--on-line-c', on);
   detoursOf(l.id);   // fetched ahead, so they're in by the time a puzzle opens
 }
+// Another line's list, from the top.
+function showLine(l) { setLine(l); drawList(); $('s-list').querySelector('.list-scroll').scrollTop = 0; }
 
 // Each line's detours come in their own file, loaded the first time one of its puzzles (or the line) is shown.
 // Until it's in, a word that isn't an answer waits for it (see wait()). If it can't be loaded (offline with no copy,
@@ -147,7 +149,7 @@ function openLines() {
     prog.textContent = finished === total ? 'All finished' : finished ? `${finished} of ${total} finished` : `${total} puzzles`;
     const main = document.createElement('span'); main.className = 'line-main'; main.append(name, about);
     btn.append(bar, main, prog);
-    btn.addEventListener('click', () => { const changed = l !== line; closeSheets(); if (changed) { setLine(l); drawList(); $('s-list').querySelector('.list-scroll').scrollTop = 0; } });
+    btn.addEventListener('click', () => { const changed = l !== line; closeSheets(); if (changed) showLine(l); });
     li.append(btn); ul.append(li);
   }
   openSheet('sheet-lines');
@@ -218,7 +220,7 @@ function paint() {
   tok.classList.toggle('ready', !tok.disabled && !held);
   $('token-label').textContent = game.tokens ? `Use a token (${game.tokens})` : 'No tokens';
   $('fare').hidden = game.done; $('after').hidden = !game.done;
-  $('b-next').hidden = nextUp(cur.i) < 0;
+  if (game.done) { const { n, to } = after(); $('b-next').hidden = n < 0 && !to; $('b-next').textContent = to ? `On to ${shortName(to)}` : 'Next puzzle'; }
 }
 
 function say(text, kind = '', chip = null) {
@@ -599,12 +601,30 @@ function showDone() {
     const sw = document.createElement('i'); sw.className = `c${k}`;
     li.append(sw, k === 0 ? `${w} (the Crosstown)` : w); key.append(li);
   });
-  const more = nextUp(cur.i) >= 0;
-  $('b-done-next').hidden = !more;
+  // The last puzzle on a line says the line is finished, how it went, and offers the next line with any left.
+  const { n, to } = after();
+  $('done-eyebrow').textContent = n >= 0 ? 'End of the line' : to ? `${cur.line.name} finished` : 'Every line finished';
+  const t = tally(cur.line);
+  $('done-line').textContent = `${cur.line.name}: ${t.finished} of ${t.total}, ${t.stars} of ${t.total * 3} stars`;
+  $('done-line').hidden = n >= 0;
+  $('b-done-next').hidden = n < 0 && !to;
+  $('b-done-next').textContent = to ? `On to the ${to.name}` : 'Next puzzle';
   openSheet('sheet-done');
 }
 $('b-results').addEventListener('click', showDone);
-const goNext = () => { const n = nextUp(cur.i); closeSheets(); if (n >= 0) { stopClock(); keep(); openPuzzle(n); changeStep(); } };
+// After a finished puzzle: the next one on its line (n), or with the line finished, the next line with one left (to).
+function after() { const n = nextUp(cur.i); return { n, to: n < 0 ? nextLine() : null }; }
+// Next puzzle, or on to the next line's next puzzle. Either way the puzzle's step in the history is changed, not added
+// to, so Back means the list, and after a new line it's that line's list.
+function goNext() {
+  const { n, to } = after();
+  closeSheets();
+  if (n < 0 && !to) return;
+  stopClock(); keep();
+  if (to) showLine(to);
+  openPuzzle(n >= 0 ? n : nextUp());
+  changeStep();
+}
 $('b-next').addEventListener('click', goNext);
 $('b-done-next').addEventListener('click', goNext);
 
@@ -665,7 +685,7 @@ $('b-continue').addEventListener('click', () => {
   const n = nextUp();
   if (n >= 0) { fromList(n); return; }
   const l = nextLine();
-  if (l) { setLine(l); drawList(); $('s-list').querySelector('.list-scroll').scrollTop = 0; $('b-continue').focus({ preventScroll: true }); }
+  if (l) { showLine(l); $('b-continue').focus({ preventScroll: true }); }
 });
 $('b-line').addEventListener('click', openLines);
 window.addEventListener('pagehide', () => { if (cur) { stopClock(); keep(); } });

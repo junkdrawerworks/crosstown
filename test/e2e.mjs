@@ -275,6 +275,7 @@ function contrast(a, b) {
   await tab.waitForSelector('#sheet-done:not([hidden])');
   assert.equal(await letters(tab), 'visible', 'the finished map should show behind the done sheet');
   assert.equal(await tab.isHidden('#b-done-next'), true);
+  assert.equal(await tab.textContent('#sheet-done .eyebrow'), 'Every line finished');
   assert.equal(await tab.evaluate(() => document.activeElement.id), 'b-share', 'the last done sheet should start on Share');
   const earned = await tab.evaluate(() => ({ fill: getComputedStyle(document.querySelector('#done-stars .got svg')).fill, bg: getComputedStyle(document.querySelector('#sheet-done .panel')).backgroundColor }));
   assert.ok(contrast(earned.fill, earned.bg) >= 3, `the stars earned are hard to see on the done sheet: ${JSON.stringify(earned)}`);
@@ -768,6 +769,38 @@ if (LINES.length > 1) {
   assert.equal(await gone.tab.locator('#route li').count(), main.puzzles.length);
   assert.deepEqual(gone.errors, []);
   await gone.other.close();
+}
+
+// The last puzzle on a line: the done sheet says the line is finished, with its tally, and offers the next line. That
+// opens the next line's first puzzle in place of this one, so Back goes to the new line's list.
+if (LINES.length > 2) {
+  const [, second, third] = LINES, last = second.puzzles.at(-1), total = second.puzzles.length;
+  const games = Object.fromEntries(second.puzzles.slice(0, -1).map(q => [q.id, finished(q)]));
+  games[last.id] = { found: last.lines.map((_, k) => k).slice(1), detours: [] };
+  const { other, tab, errors } = await visitor({ options: { line: second.id }, best: {}, games });
+  const left = await tab.evaluate(() => history.length);
+  await tab.click('#b-continue');
+  await drag(tab, last.lines[0]);
+  await tab.waitForSelector('#sheet-done:not([hidden])');
+  assert.equal(await tab.textContent('#sheet-done .eyebrow'), `${second.name} finished`);
+  assert.equal(await tab.textContent('#done-line'), `${second.name}: ${total} of ${total}, ${total * 3 - 1} of ${total * 3} stars`);
+  assert.deepEqual([await tab.evaluate(() => document.activeElement.id), await tab.textContent('#b-done-next')], ['b-done-next', `On to the ${third.name}`], 'a finished line should offer the next one');
+  await tab.keyboard.press('Escape');
+  assert.equal(await tab.textContent('#b-next'), `On to ${third.name.replace(/ Line$/, '')}`, "the map's Next should offer the next line too");
+  await tab.setViewportSize({ width: 320, height: 568 });
+  await tab.evaluate(() => { document.getElementById('b-next').textContent = 'On to University'; });   // the longest
+  assert.ok((await tab.locator('#b-next').boundingBox()).height <= 44.5, "the map's Next wraps at 320 px");
+  await tab.setViewportSize({ width: 390, height: 844 });
+  await tab.click('#b-results');
+  await tab.click('#b-done-next');
+  assert.equal(await tab.textContent('#where'), `${third.name.replace(/ Line$/, '')}, No. 1`);
+  assert.equal(await tab.textContent('#clue'), third.puzzles[0].clue);
+  assert.equal(await tab.evaluate(() => history.length), left + 1, 'going on to the next line should not add a step');
+  await tab.goBack();
+  await tab.waitForSelector('#s-list:not([hidden])');
+  assert.equal(await tab.textContent('#line-name'), third.name, "Back should go to the new line's list");
+  assert.deepEqual(errors, []);
+  await other.close();
 }
 
 // It can be installed.
