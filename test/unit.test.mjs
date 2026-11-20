@@ -57,6 +57,15 @@ test('the Main Line boards are the ones Mark played', async () => {
   assert.deepEqual(now, published, 're-laying a Main Line board resets saved progress on it: put it to Mark before changing test/main-line.json');
 });
 
+// A clue or name changed in a theme only reaches the game when the tool runs, so check that it did.
+test('each puzzle has its theme’s name and clue', () => {
+  for (const p of PUZZLES) {
+    const theme = THEMES.find(t => t.id === p.id);
+    assert.equal(p.name, theme.name ?? theme.id[0].toUpperCase() + theme.id.slice(1).replaceAll('-', ' '), `${p.id}'s name isn't its theme's: run tools/make-puzzles.mjs`);
+    assert.equal(p.clue, theme.clue, `${p.id}'s clue isn't its theme's: run tools/make-puzzles.mjs`);
+  }
+});
+
 // A word that is on two boards of one line is a repeat the player notices, and the second find is free.
 test('no word is on two boards of the same line', () => {
   for (const line of LINES) {
