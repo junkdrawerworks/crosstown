@@ -540,6 +540,8 @@ const anySheet = () => [...document.querySelectorAll('.sheet')].some(s => !s.hid
 let opener = null;
 function openSheet(id) {
   opener = document.activeElement;
+  // On the list a sheet adds a step to the history, so Back closes it rather than leaving the game (see Back below).
+  if (!cur && !single && !sheetStep) try { history.pushState({ sheet: 1 }, ''); sheetStep = true; } catch { /* Back leaves, as before */ }
   // The clock stops while a sheet is open, so the letters go too: no studying the map off the clock.
   if (cur) { stopClock(); board.classList.toggle('paused', !cur.game.done); }
   $('app').inert = true;   // the page behind stays out of reach of Tab and screen readers until the sheet closes
@@ -548,7 +550,10 @@ function openSheet(id) {
   // The main button if it's showing (Next puzzle, Done, Got it), otherwise the first one that is.
   ($(id).querySelector('.btn.primary:not([hidden])') || $(id).querySelector('.btn:not([hidden])'))?.focus({ preventScroll: true });
 }
-function closeSheets() {
+// A list sheet's step comes off the history when the sheet closes (`step`): 'back' takes it off, for a close from the
+// page; 'gone' when Back has already taken it; 'keep' when another sheet is taking this one's place.
+function closeSheets(step = 'back') {
+  if (sheetStep && step !== 'keep') { sheetStep = false; if (step === 'back') { backing = true; history.back(); } }
   for (const s of document.querySelectorAll('.sheet')) s.hidden = true;
   $('app').inert = false;
   board.classList.remove('paused');
@@ -568,7 +573,7 @@ function openMenu() {
 $('b-menu').addEventListener('click', openMenu);
 $('b-list-menu').addEventListener('click', openMenu);
 $('b-how').addEventListener('click', () => openSheet('sheet-how'));
-$('m-how').addEventListener('click', () => { closeSheets(); openSheet('sheet-how'); });
+$('m-how').addEventListener('click', () => { closeSheets('keep'); openSheet('sheet-how'); });
 $('o-clock').addEventListener('change', e => { saved.options.clock = e.target.checked; save(); if (cur) $('clock').hidden = !e.target.checked; else drawList(); });
 $('o-night').addEventListener('change', e => { saved.options.night = e.target.checked; save(); if (cur) paint(); else drawList(); });
 
@@ -662,10 +667,12 @@ function toast(text) {
 // ---- Back -------------------------------------------------------------------------------------------------------
 // Back (the browser's, or the back gesture in the installed app) goes from a puzzle to the list. Opening a puzzle
 // from the list adds a step to the history, and Next puzzle changes that step instead of adding one, so Back always
-// means the list. With a sheet open, Back closes the sheet first; Forward opens the puzzle again. The one-file copy
-// leaves the history alone, since it belongs to the page around it.
+// means the list. With a sheet open, Back closes the sheet first; Forward opens the puzzle again. A sheet opened on
+// the list adds a step of its own ({ sheet: 1 }), so Back closes it there too, and closing it any other way takes the
+// step off again. The one-file copy leaves the history alone, since it belongs to the page around it.
 const STEP = 'crosstown';   // the key in the history's state that names the puzzle open at that step
-let backing = false;        // the back arrow asked the history for a Back that hasn't come through yet
+let backing = false;        // the page asked the history for a Back that hasn't come through yet
+let sheetStep = false;      // a sheet open on the list has its step in the history
 
 function fromList(i) { openPuzzle(i); addStep(); }
 function addStep() {
@@ -684,12 +691,13 @@ window.addEventListener('popstate', e => {
   if (single) return;
   const id = e.state?.[STEP];
   if (backing) { backing = false; if (cur) addStep(); return; }
+  if (sheetStep) { closeSheets('gone'); return; }   // Back with a sheet open on the list
   if (cur && !id) {
     if (anySheet()) { closeSheets(); addStep(); } else leave();
   } else if (!cur && id) {
     const p = PUZZLES.find(q => q.id === id);
-    if (p) { if (anySheet()) closeSheets(); if (p.line !== line.id) { setLine(lineOf(p.line)); drawList(); } openPuzzle(list.indexOf(p)); }
-  }
+    if (p) { if (anySheet()) closeSheets('gone'); if (p.line !== line.id) { setLine(lineOf(p.line)); drawList(); } openPuzzle(list.indexOf(p)); }
+  } else if (!cur && e.state?.sheet) { backing = true; history.back(); }   // Forward to a sheet that's been closed
 });
 
 // ---- start ------------------------------------------------------------------------------------------------------
@@ -704,8 +712,9 @@ $('b-line').addEventListener('click', openLines);
 window.addEventListener('pagehide', () => { if (cur) { stopClock(); keep(); } });
 setLine(line);
 drawList();
-// A reload on a puzzle's step opens on the list, so that step goes too, and Back from the list leaves the game.
-if (!single && history.state?.[STEP]) { backing = true; history.back(); }
+// A reload on a puzzle's step (or a sheet's) opens on the list, so that step goes too, and Back from the list leaves
+// the game.
+if (!single && (history.state?.[STEP] || history.state?.sheet)) { backing = true; history.back(); }
 
 if (!single && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});

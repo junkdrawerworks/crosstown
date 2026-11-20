@@ -607,6 +607,44 @@ if (LINES.length > 1) {
   await other.close();
 }
 
+// On the list, Back with a sheet open closes the sheet and stays on the list. Closing a sheet from the page (Close,
+// the scrim, Escape, picking a line) takes its step off again, so one Back from the list still leaves the game.
+if (LINES.length > 1) {
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} });
+  const open = async (button, sheet) => { await tab.click(button); await tab.waitForSelector(`${sheet}:not([hidden])`); };
+  const listOnly = () => tab.waitForFunction(() => history.state === null && [...document.querySelectorAll('.sheet')].every(s => s.hidden) && !document.getElementById('s-list').hidden, null, { timeout: 5000 });
+  const blank = await tab.evaluate(() => history.length);
+  await open('#b-line', '#sheet-lines');
+  await tab.goBack();
+  await listOnly().catch(() => assert.fail('Back with the Lines sheet open should close it and stay on the list'));
+  await open('#b-list-menu', '#sheet-menu');
+  await tab.click('#m-how');
+  await tab.waitForSelector('#sheet-how:not([hidden])');
+  await tab.goBack();
+  await listOnly().catch(() => assert.fail('Back with How to play open from Options should close it'));
+  await open('#b-how', '#sheet-how');
+  await tab.keyboard.press('Escape');
+  await listOnly();
+  await open('#b-list-menu', '#sheet-menu');
+  await tab.click('#sheet-menu .scrim', { position: { x: 20, y: 20 } });
+  await listOnly();
+  await open('#b-line', '#sheet-lines');
+  const during = await tab.evaluate(() => history.length);
+  await tab.click('#lines li:nth-child(2) .line-row');
+  await listOnly();
+  assert.equal(await tab.textContent('#line-name'), LINES[1].name);
+  assert.equal(await tab.evaluate(() => history.length), during, 'picking a line should not add a step');
+  assert.equal(during, blank + 1, 'a sheet on the list should add one step, no more');
+  await open('#b-line', '#sheet-lines');   // a reload with a sheet open opens on the list, and its step goes
+  await tab.reload(); await tab.evaluate(() => document.fonts.ready);
+  await listOnly().catch(() => assert.fail("a reload with a sheet open should take the sheet's step off"));
+  assert.equal(await tab.textContent('#line-name'), LINES[1].name);
+  assert.deepEqual(errors, []);
+  await tab.goBack();
+  assert.equal(tab.url(), 'about:blank', 'one Back from the list should leave the game');
+  await other.close();
+}
+
 // A Back that comes in the middle of a drag (the browser's button, or a mouse's back button with the other one
 // still down) goes to the list, and letting go afterwards does nothing: no error, and no half-traced word kept.
 {
@@ -755,19 +793,26 @@ if (LINES.length > 1) {
   await drag(tab, q.lines[0]);
   assert.equal(await tab.textContent('#readout'), `Crosstown: ${q.name}`);
 
-  // Back to the list, over to the Main Line, then Forward: the puzzle opens again, on its own line's list.
+  // Back to the list, over to the Main Line.
   await tab.goBack();
   await tab.waitForSelector('#s-list:not([hidden])');
   await tab.click('#b-line');
   assert.equal(await tab.textContent('#lines li:nth-child(2) .line-prog'), 'Under way', 'a line with a puzzle started should say so');
   await tab.click('#lines li:nth-child(1) .line-row');
   assert.equal(await tab.textContent('#line-name'), main.name);
+  // A finished Main Line map, Back, on to the second line by the big button, then Forward: the map opens again, on its
+  // own line's list.
+  await tab.click('#route li:nth-child(5) .row');
+  await tab.goBack();
+  await tab.waitForSelector('#s-list:not([hidden])');
+  await tab.click('#b-continue');
+  assert.equal(await tab.textContent('#line-name'), second.name);
+  assert.equal(await tab.textContent('#route li:nth-child(1) .row-sub'), `1 of ${q.lines.length} lines found`);
   await tab.goForward();
   await tab.waitForSelector('#s-play:not([hidden])');
-  assert.equal(await tab.textContent('#clue'), q.clue);
+  assert.equal(await tab.textContent('#clue'), main.puzzles[4].clue);
   await tab.click('#b-back');
-  assert.equal(await tab.textContent('#line-name'), second.name, 'Forward to a puzzle on another line should bring its list');
-  assert.equal(await tab.textContent('#route li:nth-child(1) .row-sub'), `1 of ${q.lines.length} lines found`);
+  assert.equal(await tab.textContent('#line-name'), main.name, 'Forward to a puzzle on another line should bring its list');
   assert.deepEqual(errors, []);
   await other.close();
 
