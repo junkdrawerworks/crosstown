@@ -334,6 +334,7 @@ function contrast(a, b) {
   assert.equal(await letters(tab), 'visible', 'the finished map should show behind the done sheet');
   assert.equal(await tab.isHidden('#b-done-next'), true);
   assert.equal(await tab.textContent('#sheet-done .eyebrow'), 'Every line finished');
+  assert.equal(await tab.textContent('#done-stats'), 'no detours', 'a map finished without detours should say "no detours", not "0 detours"');
   assert.equal(await tab.evaluate(() => document.activeElement.id), 'b-share', 'the last done sheet should start on Share');
   const earned = await tab.evaluate(() => ({ fill: getComputedStyle(document.querySelector('#done-stars .got svg')).fill, bg: getComputedStyle(document.querySelector('#sheet-done .panel')).backgroundColor }));
   assert.ok(contrast(earned.fill, earned.bg) >= 3, `the stars earned are hard to see on the done sheet: ${JSON.stringify(earned)}`);

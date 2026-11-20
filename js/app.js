@@ -744,7 +744,7 @@ function showDone() {
   const rows = [['Every stop on a line', true], ['No tokens spent', game.spent === 0], ['Crosstown found first', game.crossAt === 0]];
   $('done-stars').innerHTML = rows.map(([label, got]) => `<li class="${got ? 'got' : ''}">${STAR}<span><span class="sr-only">${got ? 'Earned' : 'Missed'}: </span>${label}</span></li>`).join('');
   $('done-sum').textContent = `${rows.filter(([, got]) => got).length} of 3 stars.`;
-  const stats = [`${game.detours.length} detour${game.detours.length === 1 ? '' : 's'}`];
+  const d = game.detours.length, stats = [d ? `${d} detour${d === 1 ? '' : 's'}` : 'no detours'];   // as the share says "no tokens"
   if (game.spent) stats.unshift(`${game.spent} token${game.spent > 1 ? 's' : ''} spent`);
   if (saved.options.clock) stats.unshift(clock(game.ms));
   if (game.night) stats.push('night service');
