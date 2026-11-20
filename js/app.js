@@ -1021,6 +1021,8 @@ function goNext() {
   stopClock(); keep();
   if (to) showLine(to);
   openPuzzle(n >= 0 ? n : nextUp());
+  // A new line says so where the eye is, unless the readout is saying how to trace (a first visit).
+  if (to && !cur.game.done && traced()) say(`Now on the ${to.name}`, 'note');
   changeStep();
   // The map may have had the focus already, so moving it there says nothing new: the new puzzle is said instead.
   const dark = saved.options.night && !cur.game.found.length && !cur.game.done;

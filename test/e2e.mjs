@@ -1734,6 +1734,7 @@ if (LINES.length > 2) {
   await tab.click('#b-results');
   await tab.click('#b-done-next');
   assert.equal(await tab.textContent('#where'), `${third.name.replace(/ Line$/, '')}, No. 1`);
+  assert.equal(await tab.textContent('#readout'), `Now on the ${third.name}`, 'arriving on a new line should say so');
   assert.equal(await tab.textContent('#clue'), third.puzzles[0].clue);
   assert.equal(await tab.evaluate(() => history.length), left + 1, 'going on to the next line should not add a step');
   await tab.goBack();
