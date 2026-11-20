@@ -619,7 +619,8 @@ for (const [width, height] of [[640, 400], [375, 667]]) {
 }
 
 // The fare meter has no number on screen, so its empty slots need the 3:1 a part of the picture needs against the
-// page (WCAG 2.2, 1.4.11), in both palettes, and the full ones stand out from them.
+// page (WCAG 2.2, 1.4.11), in both palettes, and the full ones stand out from them. In the dark palette a traced word's
+// stops stand apart from the Crosstown's white.
 {
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games: { [p.id]: { found: [], detours: [], fare: 2 } } });
   await tab.click('#b-continue');
@@ -629,6 +630,9 @@ for (const [width, height] of [[640, 400], [375, 667]]) {
     const pip = await tab.evaluate(() => ({ empty: getComputedStyle(document.querySelector('#pips i:not(.full)')).borderTopColor, full: getComputedStyle(document.querySelector('#pips i.full')).backgroundColor, bg: getComputedStyle(document.body).backgroundColor }));
     const rgb = c => (c.startsWith('color(srgb') ? `rgb(${c.match(/[\d.]+/g).slice(0, 3).map(v => v * 255).join(', ')})` : c);   // a mixed colour
     assert.ok(contrast(rgb(pip.empty), pip.bg) >= 3 && contrast(pip.full, pip.bg) >= 4.5, `the fare's slots are hard to see in ${colorScheme}: ${JSON.stringify(pip)}`);
+    // A traced word's stops can't be taken for the Crosstown's (white in the dark palette), and their letters read.
+    const c = await tab.evaluate(() => Object.fromEntries(['select', 'on-select', 'cross'].map(v => { const i = document.createElement('i'); i.style.color = `var(--${v})`; document.body.append(i); const got = getComputedStyle(i).color; i.remove(); return [v, got]; })));
+    assert.ok((colorScheme === 'light' || contrast(c.select, c.cross) >= 2.5) && contrast(c.select, c['on-select']) >= 4.5, `a traced word's stops are too like the Crosstown's in ${colorScheme}: ${JSON.stringify(c)}`);
   }
   assert.deepEqual(errors, []);
   await other.close();
