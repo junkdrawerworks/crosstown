@@ -1368,6 +1368,29 @@ if (LINES.length > 1) {
   await other.close();
 }
 
+// A fast swipe (or a busy phone merging its touch moves) can carry the finger over a stop between two events: the
+// stops it passed over still count. Here each move jumps two stops along a straight stretch of a line, so every other
+// stop is passed over without a move on it.
+{
+  const xy = i => [i % 6, Math.floor(i / 6)];
+  const straight = l => l.length > 4 && l.every((s, j) => j % 2 === 0 || j === l.length - 1 || xy(l[j - 1]).every((v, a) => v + xy(l[j + 1])[a] === 2 * xy(s)[a]));
+  const n = PUZZLES.findIndex(q => straight(q.lines[0])), q = PUZZLES[n], line = q.lines[0];
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  await tab.click(`#route li:nth-child(${n + 1}) .row`);
+  assert.equal(await tab.textContent('#where'), `Main, No. ${n + 1}`);
+  const box = await tab.locator('#board').boundingBox();
+  const at = i => ({ x: box.x + (i % 6 + 0.5) * box.width / 6, y: box.y + (Math.floor(i / 6) + 0.5) * box.height / 8, id: 0 });
+  const cdp = await other.newCDPSession(tab);
+  const touch = (type, touchPoints) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints });
+  const hops = line.filter((_, j) => j % 2 === 0 || j === line.length - 1);
+  await touch('touchStart', [at(hops[0])]);
+  for (const i of hops.slice(1)) await touch('touchMove', [at(i)]);
+  await touch('touchEnd', []);
+  assert.equal(await tab.textContent('#readout'), `Crosstown: ${q.name}, found`, `a swipe jumping over every other stop of ${spell(q.grid, line)} lost stops`);
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // A line's detours that can't be loaded (a first visit on a weak signal, before the offline copy is in) don't make a
 // real detour "Not a word on this map": the readout says they can't be checked, and the next word asks for them
 // again, so once they come the same puzzle counts it.

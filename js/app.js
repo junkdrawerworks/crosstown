@@ -527,13 +527,17 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ---- tracing ----------------------------------------------------------------------------------------------------
-function stopAt(e, reach) {
-  const box = board.getBoundingClientRect();
-  const x = (e.clientX - box.left) / box.width * W, y = (e.clientY - box.top) / box.height * H;
+// Where a pointer is on the map, measured in stops (the first stop's middle is at 0.5, 0.5), and the stop within
+// `reach` of a point there, if any.
+function onMap(e, box = board.getBoundingClientRect()) {
+  return { x: (e.clientX - box.left) / box.width * W, y: (e.clientY - box.top) / box.height * H };
+}
+function stopNear({ x, y }, reach) {
   const c = Math.floor(x), r = Math.floor(y);
   if (c < 0 || c >= W || r < 0 || r >= H) return -1;
   return Math.hypot(x - c - 0.5, y - r - 0.5) <= reach ? r * W + c : -1;
 }
+const stopAt = (e, reach) => stopNear(onMap(e), reach);
 const taken = i => cur.game.found.includes(cur.lineOf[i]);
 // A stop on a finished line just tells you which line it is, whether you tap it or press Enter on it.
 const nameLine = i => { const k = cur.lineOf[i]; say(k ? cur.words[k] : `Crosstown: ${cur.p.name}`, k ? '' : 'note', k); };
@@ -556,7 +560,7 @@ board.addEventListener('pointerdown', e => {
   if (taken(i)) { if (!cur.game.done && takenNext(i)) sayTaken(i); else { sel = []; nameLine(i); } paint(); return; }
   if (cur.game.done) return;
   board.setPointerCapture?.(e.pointerId);
-  drag = { pointerId: e.pointerId, changed: false, tapLast: false, joined: false, blocked: -1 };
+  drag = { pointerId: e.pointerId, changed: false, tapLast: false, joined: false, blocked: -1, at: onMap(e) };
   const at = sel.indexOf(i);
   if (at >= 0 && at === sel.length - 1) drag.tapLast = true;
   else if (at >= 0) sel = sel.slice(0, at + 1);
@@ -564,23 +568,41 @@ board.addEventListener('pointerdown', e => {
   else sel = [i];
   showTrace(); paint();
 });
+// A fast swipe, or a phone too busy to report every move, can carry the finger over a stop between two events. So the
+// drag walks from where the finger was to each point it has been since (all of them, where the browser keeps the ones
+// it merged), a quarter of a stop at a time, and every step is a move of its own.
+const PACE = 0.25; // stops
 board.addEventListener('pointermove', e => {
   if (!drag || !cur || other(e) || drag.blocked >= 0) return;
-  const i = stopAt(e, 0.4);
-  if (i < 0 || i === sel[sel.length - 1]) return;
+  const box = board.getBoundingClientRect(), merged = e.getCoalescedEvents?.() || [];
+  let moved = false;
+  for (const pt of merged.length ? merged : [e]) {
+    const to = onMap(pt, box), from = drag.at, n = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / PACE));
+    for (let k = 1; k <= n; k++) {
+      moved = dragOnto(stopNear({ x: from.x + (to.x - from.x) * k / n, y: from.y + (to.y - from.y) * k / n }, 0.4)) || moved;
+      // Into a stop on a found line: the drag goes no further, says why straight away, and sends nothing when it ends.
+      if (drag.blocked >= 0) { if (moved) { showTrace(); paint(); } sayTaken(drag.blocked); return; }
+    }
+    drag.at = to;
+  }
+  if (moved) { showTrace(); paint(); }
+});
+// One step of a drag, onto stop `i` (or between stops, -1): back one stop, or on to a free stop beside the last.
+// Whether the word changed.
+function dragOnto(i) {
+  if (i < 0 || i === sel[sel.length - 1]) return false;
   // A tap beside the tapped letters adds to their word, but a drag from there spells a word of its own, so a stray
   // tap can't end up in front of it. Dragging on from the last tapped letter still carries that word on.
   const word = drag.joined ? sel.slice(-1) : sel;
   if (word.length > 1 && i === word[word.length - 2]) word.pop();
   else if (!word.includes(i) && adjacent(word[word.length - 1], i)) {
-    // Into a stop on a found line: the drag goes no further, says why straight away, and sends nothing when it ends.
-    if (taken(i)) { drag.blocked = i; sayTaken(i); return; }
+    if (taken(i)) { drag.blocked = i; return false; }   // see the pointermove handler
     word.push(i);
-  } else return;
+  } else return false;
   sel = word; drag.joined = false;
   drag.changed = true;
-  showTrace(); paint();
-});
+  return true;
+}
 board.addEventListener('pointerup', e => {
   if (!drag || other(e)) return;
   const { changed, tapLast, blocked } = drag; drag = null;
