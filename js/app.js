@@ -305,7 +305,7 @@ function drawLines() {
 let cur = null;      // the puzzle on screen: { i, p, words, extra, lineOf, game, waiting }
 let sel = [];        // stops in the word being traced
 let cursor = -1;     // keyboard position
-let drag = null;     // { pointerId, changed, tapLast, joined }
+let drag = null;     // { pointerId, changed, tapLast, joined, blocked: the stop on a found line it ran into, or -1 }
 let ticking = 0, since = 0;
 const board = $('board');
 const layers = {};
@@ -520,6 +520,10 @@ function stopAt(e, reach) {
 const taken = i => cur.game.found.includes(cur.lineOf[i]);
 // A stop on a finished line just tells you which line it is, whether you tap it or press Enter on it.
 const nameLine = i => { const k = cur.lineOf[i]; say(k ? cur.words[k] : `Crosstown: ${cur.p.name}`, k ? '' : 'note', k); };
+// A word can't go on through a stop that's on a found line: tracing into one says so, rather than skipping over it to
+// spell a different word, or dropping a tapped word.
+const sayTaken = i => { const k = cur.lineOf[i]; say(`${cur.p.grid[i]} is on the ${k ? `${cur.words[k]} line` : 'Crosstown'} already. Each letter is used once`, 'note nope'); };
+const takenNext = i => taken(i) && sel.length > 0 && !sel.includes(i) && adjacent(sel[sel.length - 1], i);
 
 // One finger traces at a time: while it's down, another finger (or a palm) resting on the map is ignored, rather
 // than starting a word of its own and losing the one being traced. (A drag whose finger has gone, without the
@@ -531,10 +535,11 @@ board.addEventListener('pointerdown', e => {
   if (i < 0) return;
   e.preventDefault();
   cursor = -1;
-  if (taken(i)) { sel = []; nameLine(i); paint(); return; }
+  // A tapped word waiting beside it stays, and hears why the stop can't be added; otherwise the stop names its line.
+  if (taken(i)) { if (!cur.game.done && takenNext(i)) sayTaken(i); else { sel = []; nameLine(i); } paint(); return; }
   if (cur.game.done) return;
   board.setPointerCapture?.(e.pointerId);
-  drag = { pointerId: e.pointerId, changed: false, tapLast: false, joined: false };
+  drag = { pointerId: e.pointerId, changed: false, tapLast: false, joined: false, blocked: -1 };
   const at = sel.indexOf(i);
   if (at >= 0 && at === sel.length - 1) drag.tapLast = true;
   else if (at >= 0) sel = sel.slice(0, at + 1);
@@ -543,23 +548,27 @@ board.addEventListener('pointerdown', e => {
   showTrace(); paint();
 });
 board.addEventListener('pointermove', e => {
-  if (!drag || !cur || other(e)) return;
+  if (!drag || !cur || other(e) || drag.blocked >= 0) return;
   const i = stopAt(e, 0.4);
   if (i < 0 || i === sel[sel.length - 1]) return;
   // A tap beside the tapped letters adds to their word, but a drag from there spells a word of its own, so a stray
   // tap can't end up in front of it. Dragging on from the last tapped letter still carries that word on.
   const word = drag.joined ? sel.slice(-1) : sel;
   if (word.length > 1 && i === word[word.length - 2]) word.pop();
-  else if (!word.includes(i) && !taken(i) && adjacent(word[word.length - 1], i)) word.push(i);
-  else return;
+  else if (!word.includes(i) && adjacent(word[word.length - 1], i)) {
+    // Into a stop on a found line: the drag goes no further, says why straight away, and sends nothing when it ends.
+    if (taken(i)) { drag.blocked = i; sayTaken(i); return; }
+    word.push(i);
+  } else return;
   sel = word; drag.joined = false;
   drag.changed = true;
   showTrace(); paint();
 });
 board.addEventListener('pointerup', e => {
   if (!drag || other(e)) return;
-  const { changed, tapLast } = drag; drag = null;
-  if (changed || tapLast) submit();
+  const { changed, tapLast, blocked } = drag; drag = null;
+  if (blocked >= 0) { sel = []; paint(); }
+  else if (changed || tapLast) submit();
 });
 // The browser takes the touch back (a system gesture, palm rejection): the word being traced goes, not half of it.
 board.addEventListener('pointercancel', e => {
@@ -593,7 +602,7 @@ board.addEventListener('keydown', e => {
   } else if (e.key === 'Enter' || e.key === ' ') {
     if (cursor < 0) return;
     const at = sel.indexOf(cursor);
-    if (taken(cursor)) nameLine(cursor);
+    if (taken(cursor)) { if (!cur.game.done && takenNext(cursor)) sayTaken(cursor); else nameLine(cursor); }
     else if (at >= 0 && at === sel.length - 1) { e.preventDefault(); submit(); return; }
     else if (at >= 0) sel = sel.slice(0, at + 1);
     else if (sel.length && adjacent(sel[sel.length - 1], cursor)) sel.push(cursor);

@@ -57,6 +57,7 @@ assert.deepEqual(await page.evaluate(() => { const t = document.getElementById('
 // fits it without moving the map.
 await page.click('#b-continue');
 const HOW = 'Drag across the letters to trace a word, or tap them and tap the last one again';
+const TOO_SHORT = 'Too short';
 assert.equal(await text('#readout'), HOW);
 for (const [width, height] of [[320, 568], [390, 844]]) {
   await page.setViewportSize({ width, height });
@@ -99,7 +100,7 @@ assert.equal(await text('#count'), `2 of ${p.lines.length} lines`);
 
 // Too short, and not a word.
 await drag(page, p.lines[1].slice(0, 3));
-assert.equal(await text('#readout'), 'Too short');
+assert.equal(await text('#readout'), TOO_SHORT);
 const junk = (() => {   // four neighbouring unfound stops that spell nothing
   const off = new Set([...p.lines[2], ...p.lines[4]]);
   const all = new Set(p.detours.split(' '));
@@ -453,6 +454,39 @@ function contrast(a, b) {
   await other.close();
 }
 
+// A word can't be traced on through a stop on a found line. Dragging into one stops the word there and says why, as
+// soon as the finger gets there, rather than skipping over it to spell another word; nothing is sent when it lifts. A
+// tapped word waiting beside a taken stop stays when that stop is tapped, and hears the same.
+{
+  const { other, tab, errors } = await visitor({ options: { traced: true }, best: {}, games: { [p.id]: { found: [0], detours: [], crossAt: 0 } } });
+  await tab.click('#b-continue');
+  const alien = traces(p.grid, 'ALIEN', 20).find(t => p.lines[0].includes(t[3]) && t.slice(0, 3).every(i => !p.lines[0].includes(i)));
+  assert.ok(alien, 'this check needs ALIEN on the first map, its E on the Crosstown');
+  const taken = `${p.grid[alien[3]]} is on the Crosstown already. Each letter is used once`;
+  const state = async () => [await tab.textContent('#readout'), await tab.getAttribute('#meter', 'aria-label'), await tab.locator('#board .stop.sel').count()];
+  await drag(tab, alien);
+  assert.deepEqual(await state(), [taken, `Fare: 0 of ${FARE_PER_TOKEN}`, 0], 'a drag through a found line should stop there and say so, not spell a word past it');
+  assert.equal(await tab.evaluate(() => document.getElementById('readout').className), 'readout note nope');
+  for (const i of alien.slice(0, 3)) await tap(tab, i);
+  await tap(tab, alien[3]);
+  assert.deepEqual(await state(), [taken, `Fare: 0 of ${FARE_PER_TOKEN}`, 3], 'a tapped word should stay when a taken stop beside it is tapped');
+  await tap(tab, alien[2]);
+  assert.equal(await tab.textContent('#readout'), TOO_SHORT, 'the tapped word should still be there to send');
+  // An ordinary line says its word.
+  const k = p.lines.findIndex((l, k) => k > 0 && !l.some(i => alien.includes(i)));
+  await tapOut(tab, p.lines[k]);
+  const free = j => !p.lines[0].includes(j) && !p.lines[k].includes(j);
+  const by = p.lines[k].find(i => NEIGHBORS[i].some(free)), from = NEIGHBORS[by].find(free);
+  await tap(tab, from); await tap(tab, by);
+  assert.deepEqual([await tab.textContent('#readout'), await tab.locator('#board .stop.sel').count()], [`${p.grid[by]} is on the ${words[k]} line already. Each letter is used once`, 1]);
+  // Away from the word, a taken stop names its line as before, and the word goes.
+  const far = p.lines[0].find(i => !NEIGHBORS[from].includes(i));
+  await tap(tab, far);
+  assert.deepEqual([await tab.textContent('#readout'), await tab.locator('#board .stop.sel').count()], [`Crosstown: ${p.name}`, 0]);
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // On a small phone a long tapped word stays whole on one line, and what to do next gives way, so the map doesn't move.
 {
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { viewport: { width: 320, height: 568 }, hasTouch: true });
@@ -477,7 +511,7 @@ function contrast(a, b) {
   await tab.click('#b-continue');
   assert.equal(await tab.textContent('#readout'), HOW, 'someone who has only looked at a puzzle should still be told how to trace');
   await tap(tab, p.lines[1][0]); await tap(tab, p.lines[1][1]); await tap(tab, p.lines[1][1]);
-  assert.equal(await tab.textContent('#readout'), 'Too short');
+  assert.equal(await tab.textContent('#readout'), TOO_SHORT);
   await tab.click('#b-back');
   await tab.click('#b-continue');
   assert.equal(await tab.textContent('#readout'), '', 'once a word has been sent, the tip should stop');
