@@ -1102,7 +1102,7 @@ function shareText() {
   const bits = [`${p.lines.length} lines`, game.spent ? `${game.spent} token${game.spent > 1 ? 's' : ''}` : 'no tokens'];
   if (saved.options.clock) bits.push(clock(game.ms));
   if (game.night) bits.push('night service');
-  return `Crosstown ${LINES.length > 1 ? `${l.name} ` : ''}No. ${i + 1} ${'★'.repeat(n)}${'☆'.repeat(3 - n)}\n${bits.join(', ')}\n${SITE}`;
+  return `Crosstown ${LINES.length > 1 ? `${l.name} ` : ''}No. ${i + 1} ${'★'.repeat(n)}${'☆'.repeat(3 - n)}\n${bits.join(', ')}\n${SITE}${linkTo(l, i)}`;
 }
 
 function showDone() {
@@ -1275,6 +1275,26 @@ window.addEventListener('popstate', e => {
   } else if (!cur && e.state?.sheet) { backing = true; history.back(); }   // Forward to a sheet that's been closed
 });
 
+// ---- links ------------------------------------------------------------------------------------------------------
+// A shared result ends with a link to its puzzle by line and number, crosstown.junkdrawer.works/#market-47 (not by its
+// name, which is its Crosstown). Opening one goes straight to that puzzle, with its line's list behind it for Back. A
+// line with no puzzle at that number, or a line on its own (#market), opens that line's list. Anything else is left
+// alone, and the list opens as usual. The link comes off the address once it's read, so a reload opens on the list as
+// it always has. A puzzle keeps its number (new puzzles go at the end of a line), so links already shared keep
+// opening theirs.
+const linkTo = (l, i) => `#${l.id}-${i + 1}`;
+function follow() {
+  const m = /^#([a-z]+)(?:-(\d+))?$/.exec(location.hash), l = m && lineOf(m[1]);
+  if (!l) return;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch { /* the link stays in the address */ }
+  const i = m[2] ? Number(m[2]) - 1 : -1, p = l.puzzles[i];
+  if (anySheet()) { sheetStep = false; closeSheets('keep'); }
+  if (cur) leave();
+  if (l !== line) showLine(l);
+  if (p) fromList(i);
+  else if (m[2]) toast(`The ${l.name} has no No. ${i + 1}`);
+}
+
 // ---- start ------------------------------------------------------------------------------------------------------
 $('b-back').addEventListener('click', back);
 $('b-continue').addEventListener('click', () => {
@@ -1311,7 +1331,9 @@ drawList();
 if (!single && (history.state?.[STEP] || history.state?.sheet)) {
   toRow(list.findIndex(q => q.id === history.state[STEP]), matchMedia('(hover: hover)').matches);
   backing = true; history.back();
-}
+} else if (!single) follow();
+// A link opened in a window that's already open (pasted into its address bar, say).
+if (!single) window.addEventListener('hashchange', follow);
 
 // The offline copy. If making it was cut short (the signal went), it's tried again when the signal comes back or the
 // game comes back on screen, rather than at the next page load. update() fetches sw.js afresh, and sets up a new

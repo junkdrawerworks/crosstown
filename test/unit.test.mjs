@@ -34,6 +34,9 @@ test('the lines match the themes, in order, with no repeats', async () => {
   assert.equal(new Set(PUZZLES.map(p => p.id)).size, PUZZLES.length, 'ids are what progress is saved under, so each is used once across every line');
   assert.equal(new Set(THEMES.map(t => t.cross)).size, THEMES.length, 'two puzzles share a Crosstown');
   assert.equal(new Set(LINES.map(l => l.id)).size, LINES.length);
+  // A shared result links to its puzzle as #<line id>-<number> (see follow() in js/app.js), which reads one way only
+  // while a line's id is plain lowercase letters.
+  for (const line of LINES) assert.match(line.id, /^[a-z]+$/, `${line.name}'s id can't go in a link`);
   // Every line's detours file has exactly its own puzzles.
   for (const line of LINES) {
     const { DETOURS } = await LOAD[line.id]();

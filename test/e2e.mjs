@@ -2306,6 +2306,48 @@ for (const [width, height] of [[320, 568], [320, 700], [360, 740], [390, 844], [
   await other.close();
 }
 
+// A shared result ends with a link to its puzzle by line and number, and opening one goes straight to that puzzle,
+// with its line's list behind it for Back. A number the line hasn't got opens the line's list; anything else, the list.
+{
+  const market = LINES.find(l => l.id === 'market'), q = market.puzzles[46];
+  const { other, tab: first, errors } = await visitor({ options: {}, best: {}, games: { [q.id]: finished(q) } });
+  await first.close();
+  // Opened in a new tab, as a link someone tapped would be.
+  const tab = await other.newPage();
+  tab.on('pageerror', e => errors.push(e.message));
+  await tab.goto(`${base}#market-47`);
+  await tab.waitForSelector('#s-play:not([hidden])');
+  assert.deepEqual([await tab.textContent('#where'), await tab.textContent('#clue')], ['Market, No. 47', q.clue], 'a link should open its puzzle');
+  assert.equal(tab.url(), base, 'the link should come off the address once read');
+  // Its share text, from the done sheet (in the box to copy from, with no clipboard here).
+  await tab.evaluate(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('no clipboard')); });
+  await tab.click('#b-results');
+  await tab.click('#b-share');
+  await tab.waitForSelector('#share-box:not([hidden])', { timeout: 5000 });
+  assert.equal((await tab.inputValue('#share-text')).split('\n').at(-1), 'https://crosstown.junkdrawer.works/#market-47', 'the share should end with a link to its puzzle');
+  await tab.keyboard.press('Escape');
+  await tab.goBack();
+  await tab.waitForSelector('#s-list:not([hidden])', { timeout: 5000 }).catch(() => assert.fail("Back from a linked puzzle should go to its line's list"));
+  assert.equal(await tab.textContent('#line-name'), 'Market Line');
+  // Out of range: the line's list, and it says so. A line on its own: its list. Something else: the list as it was.
+  for (const [hash, name, said] of [['#park-999', 'Park Line', 'The Park Line has no No. 999'], ['#airport', 'Airport Line', ''], ['#nowhere-3', 'Airport Line', ''], ['#main-0', 'Main Line', 'The Main Line has no No. 0']]) {
+    await tab.goto(`${base}${hash}`);
+    await tab.waitForSelector('#s-list:not([hidden])');
+    assert.equal(await tab.textContent('#line-name'), name, `${hash} should open the ${name}'s list`);
+    if (said) assert.equal(await tab.textContent('#toast'), said);
+  }
+  // A link opened in a window that's already open, on a puzzle: that puzzle, and Back to its line.
+  await tab.click('#b-continue');
+  await tab.waitForSelector('#s-play:not([hidden])');
+  await tab.evaluate(() => { location.hash = 'workshop-3'; });
+  await tab.waitForFunction(() => document.getElementById('where').textContent === 'Workshop, No. 3', null, { timeout: 5000 });
+  await tab.goBack();
+  await tab.waitForSelector('#s-list:not([hidden])', { timeout: 5000 });
+  assert.equal(await tab.textContent('#line-name'), 'Workshop Line');
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // It can be installed.
 const cdp = await ctx.newCDPSession(page);
 const manifest = await cdp.send('Page.getAppManifest');
