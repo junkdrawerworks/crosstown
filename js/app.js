@@ -715,7 +715,10 @@ board.addEventListener('pointerup', e => {
   if (held) catchUp();   // what another window saved while the word was traced (see catchUp())
 });
 // The browser takes the touch back (a system gesture, palm rejection): the word being traced goes, not half of it.
+// When it was taken for the phone's back gesture, a Back follows: see slip().
+let takenAt = -Infinity;
 board.addEventListener('pointercancel', e => {
+  takenAt = performance.now();
   if (!drag || other(e)) return;
   drag = null; sel = [];
   if (cur) { showTrace(); paint(); if (held) catchUp(); }
@@ -1240,6 +1243,13 @@ let backing = false;        // the page asked the history for a Back that hasn't
 let sheetStep = false;      // a sheet open on the list has its step in the history
 
 function fromList(i) { openPuzzle(i); addStep(); }
+// A Back that comes while a finger is tracing a word, or within SLIP of the browser taking a touch away from the map,
+// is a slip: a finger tracing near the screen's side can set off Android's back gesture (or Chrome's swipe to go back),
+// which takes the touch and then goes Back. A web page can't keep those gestures off its edges as an app can, so the
+// puzzle stays, its step goes back on the history, and the game is as it was. (A drag whose finger went without the
+// browser saying so holds no capture, so it never holds Back up.)
+const SLIP = 1000; // ms
+const slip = () => (!!drag && !!board.hasPointerCapture?.(drag.pointerId)) || performance.now() - takenAt < SLIP;
 function addStep() {
   if (single || backing) return;   // a Back on its way adds the step when it comes through
   try { history.pushState({ [STEP]: cur.p.id }, ''); } catch { /* no history to add to: the back arrow still works */ }
@@ -1258,7 +1268,7 @@ window.addEventListener('popstate', e => {
   if (backing) { backing = false; if (cur) addStep(); return; }
   if (sheetStep) { closeSheets('gone'); return; }   // Back with a sheet open on the list
   if (cur && !id) {
-    if (anySheet()) { closeSheets(); addStep(); } else leave();
+    if (anySheet()) { closeSheets(); addStep(); } else if (slip()) addStep(); else leave();
   } else if (!cur && id) {
     const p = PUZZLES.find(q => q.id === id);
     if (p) { if (anySheet()) closeSheets('gone'); if (p.line !== line.id) { pickLine(lineOf(p.line)); drawList(); } openPuzzle(list.indexOf(p)); }

@@ -1561,8 +1561,8 @@ if (LINES.length > 1) {
   await other.close();
 }
 
-// A Back that comes in the middle of a drag (the browser's button, or a mouse's back button with the other one
-// still down) goes to the list, and letting go afterwards does nothing: no error, and no half-traced word kept.
+// Leaving for the list in the middle of a drag (the back arrow tapped with another finger, say: a Back from the browser
+// mid-drag is taken for a slip, see below), letting go afterwards does nothing: no error, and no half-traced word kept.
 {
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} });
   await tab.click('#route li:nth-child(1) .row');
@@ -1571,7 +1571,7 @@ if (LINES.length > 1) {
   await tab.mouse.move(...at(p.lines[1][0]));
   await tab.mouse.down();
   for (const i of p.lines[1].slice(1, 3)) await tab.mouse.move(...at(i), { steps: 3 });
-  await tab.goBack();
+  await tab.evaluate(() => document.getElementById('b-back').click());
   await tab.waitForFunction(() => !document.getElementById('s-list').hidden, null, { timeout: 5000 });
   await tab.mouse.up();
   await tab.evaluate(() => new Promise(requestAnimationFrame));
@@ -2259,6 +2259,50 @@ for (const [width, height] of [[320, 568], [320, 700], [360, 740], [390, 844], [
   const { other, tab } = await visitor({ options: {}, best: {}, games: {} });
   await tab.click('#b-continue');
   assert.equal(await tab.evaluate(() => Math.round(document.getElementById('board').getBoundingClientRect().left)), 16);
+  await other.close();
+}
+
+// A Back that comes while a word is being traced, or just after the browser took the touch away from the map (as
+// Android's back gesture does when a finger tracing near the screen's side is taken for it), is taken for a slip:
+// the puzzle stays, with its step in the history put back, and the game is as it was. Later, Back goes to the list.
+{
+  const a = PUZZLES[0];
+  const { other, tab, errors } = await visitor({ options: { traced: true }, best: {}, games: {} }, { hasTouch: true });
+  const onPuzzle = () => tab.waitForFunction(id => !document.getElementById('s-play').hidden && history.state?.crosstown === id, a.id, { timeout: 5000 });
+  const where = async i => { const box = await tab.locator('#board').boundingBox(); return { x: box.x + (i % 6 + 0.5) * box.width / 6, y: box.y + (Math.floor(i / 6) + 0.5) * box.height / 8 }; };
+  const steps = await tab.evaluate(() => history.length);
+  await tab.click('#route li:nth-child(1) .row');
+  await onPuzzle();
+  // Back in the middle of a drag: the drag carries on, and letting go sends the word.
+  const line = a.lines[2], first = await where(line[0]);
+  await tab.mouse.move(first.x, first.y); await tab.mouse.down();
+  for (const i of line.slice(1, 3)) { const p = await where(i); await tab.mouse.move(p.x, p.y, { steps: 3 }); }
+  await tab.evaluate(() => history.back());
+  await tab.waitForTimeout(300);
+  await onPuzzle().catch(() => assert.fail('Back in the middle of a word should stay on the puzzle'));
+  for (const i of line.slice(3)) { const p = await where(i); await tab.mouse.move(p.x, p.y, { steps: 3 }); }
+  await tab.mouse.up();
+  assert.equal(await tab.textContent('#count'), `1 of ${a.lines.length} lines`, 'the word traced across a Back should still count');
+  assert.equal(await tab.evaluate(() => history.length), steps + 1, 'the puzzle should still have one step in the history');
+  // The browser takes the touch (pointercancel) and a Back follows: the word goes, the puzzle stays, nothing is said.
+  const cdp = await other.newCDPSession(tab);
+  const touch = async (type, i) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: i === undefined ? [] : [{ x: (await where(i)).x, y: (await where(i)).y }] });
+  const next = a.lines[4];
+  await touch('touchStart', next[0]); await touch('touchMove', next[1]);
+  assert.equal(await tab.evaluate(() => document.querySelectorAll('#board .stop.sel').length), 2);
+  await touch('touchCancel');
+  await tab.evaluate(() => history.back());
+  await tab.waitForTimeout(300);
+  await onPuzzle().catch(() => assert.fail('Back just after the touch was taken should stay on the puzzle'));
+  assert.deepEqual([await tab.textContent('#count'), await tab.evaluate(() => document.querySelectorAll('#board .stop.sel').length), await tab.textContent('#readout')],
+    [`1 of ${a.lines.length} lines`, 0, ''], 'the game should be as it was, with nothing said');
+  assert.equal(await tab.evaluate(() => history.length), steps + 1);
+  // A second on, Back goes to the list as it always has.
+  await tab.waitForTimeout(1100);
+  await tab.evaluate(() => history.back());
+  await tab.waitForSelector('#s-list:not([hidden])', { timeout: 5000 }).catch(() => assert.fail('Back a while after a touch was taken should go to the list'));
+  assert.equal(await tab.textContent('#route li:nth-child(1) .row-sub'), `1 of ${a.lines.length} lines found`);
+  assert.deepEqual(errors, []);
   await other.close();
 }
 
