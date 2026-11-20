@@ -396,6 +396,9 @@ a { color: inherit; }
 .stars svg { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--stop-edge); stroke-width: 1.8; stroke-linejoin: round; }
 .stars li.got svg { fill: var(--star); stroke: var(--star); }
 .done-stats { color: var(--muted); font-variant-numeric: tabular-nums; }
+/* "12 detours", which shows the detours found under the line: a link in looks, with room enough to tap. */
+.done-stats .more { padding: 10px 0; margin: -10px 0; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; touch-action: manipulation; }
+.done-detours { font-size: 14px; font-weight: 700; letter-spacing: .03em; overflow-wrap: anywhere; margin-top: -4px; }
 /* The finish that ends a line: its tally on a strip in its colour (set from app.js as --c), over a route that runs to
    a terminus bar, as a finished line's route ends on the list. The route draws in as the sheet rises. */
 .done-line { display: flex; flex-direction: column; gap: 8px; }

@@ -1041,13 +1041,20 @@ function showDone() {
   const rows = [['Every stop on a line', true], ['No tokens spent', game.spent === 0], ['Crosstown found first', game.crossAt === 0]];
   $('done-stars').innerHTML = rows.map(([label, got]) => `<li class="${got ? 'got' : ''}">${STAR}<span><span class="sr-only">${got ? 'Earned' : 'Missed'}: </span>${label}</span></li>`).join('');
   $('done-sum').textContent = `${rows.filter(([, got]) => got).length} of 3 stars.`;
-  const d = game.detours.length, stats = [d ? `${d} detour${d === 1 ? '' : 's'}` : 'no detours'];   // as the share says "no tokens"
+  // The detours found are a button, "12 detours", that shows them in capitals, A to Z, under the line (closed each time
+  // the sheet opens). None is "no detours", as the share says "no tokens".
+  const d = game.detours.length, more = document.createElement('button');
+  more.type = 'button'; more.className = 'more'; more.textContent = `${d} detour${d === 1 ? '' : 's'}`;
+  more.setAttribute('aria-expanded', 'false'); more.setAttribute('aria-controls', 'done-detours');
+  const stats = [d ? more : 'no detours'];
   if (game.spent) stats.unshift(`${game.spent} token${game.spent > 1 ? 's' : ''} spent`);
   if (saved.options.clock) stats.unshift(clock(game.ms));
   if (game.night) stats.push('night service');
   if (!keeping()) stats.push('not kept in this browser');
-  const said = stats.join(', ');
-  $('done-stats').textContent = said[0].toUpperCase() + said.slice(1);   // "No detours" on its own
+  const out = $('done-stats'); out.textContent = '';
+  stats.forEach((part, n) => out.append(n ? ', ' : '', n || typeof part !== 'string' ? part : part[0].toUpperCase() + part.slice(1)));   // "No detours" on its own
+  const list = $('done-detours'); list.hidden = true;
+  list.textContent = game.detours.slice().sort().map(w => w.toUpperCase()).join(', ');
   // The Crosstown is keyed by the map's name, spaces and all ("JUNK DRAWER"), where its letters are the line's.
   const key = $('done-key'); key.textContent = '';
   const named = p.name.toUpperCase(), xt = named.normalize('NFD').replace(/[^A-Z]/g, '') === words[0] ? named : words[0];
@@ -1079,6 +1086,12 @@ function showDone() {
   openSheet('sheet-done');
 }
 $('b-results').addEventListener('click', showDone);
+$('done-stats').addEventListener('click', e => {
+  const more = e.target.closest('.more');
+  if (!more) return;
+  const open = more.getAttribute('aria-expanded') !== 'true';
+  more.setAttribute('aria-expanded', String(open)); $('done-detours').hidden = !open;
+});
 // "Market Line" and "81 of 81 · 243★" over a route to a terminus bar (every one of them finished, so the count is the
 // total too). A screen reader hears it in words: "Market Line: 81 of 81, 243 of 243 stars".
 function terminus(name, color, n, stars) {
@@ -1178,7 +1191,12 @@ $('b-continue').addEventListener('click', () => {
   if (l) { showLine(l); $('b-continue').focus({ preventScroll: true }); }
 });
 $('b-line').addEventListener('click', openLines);
-$('meter').addEventListener('click', () => { if (cur && !cur.game.done) say(`${cur.game.fare} of ${FARE_PER_TOKEN} fare to the next token`, 'note'); });
+// The fare meter, tapped, gives the count, and how many detours so far.
+$('meter').addEventListener('click', () => {
+  if (!cur || cur.game.done) return;
+  const d = cur.game.detours.length;
+  say(`${cur.game.fare} of ${FARE_PER_TOKEN} fare to the next token. ${d ? `${d} detour${d === 1 ? '' : 's'}` : 'No detours'} so far`, 'note');
+});
 window.addEventListener('pagehide', () => { if (cur) { stopClock(); keep(); } });
 // Another window saved: take in what it saved. The list (and the lines sheet, if it's open) shows it straight away; a
 // puzzle on screen carries on as it is, unless the other window has a better game of it (see catchUp()). The line on

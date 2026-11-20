@@ -93,7 +93,11 @@ for (const [width, height] of [[320, 568], [390, 844]]) {
 }
 assert.equal(await text('#token-label'), 'No tokens');
 await page.click('#meter');
-assert.equal(await text('#readout'), `0 of ${FARE_PER_TOKEN} fare to the next token`, 'a tap on the fare meter should give the count');
+assert.equal(await text('#readout'), `0 of ${FARE_PER_TOKEN} fare to the next token. No detours so far`, 'a tap on the fare meter should give the count');
+for (const [width, height] of [[320, 568], [390, 844]]) {
+  await page.setViewportSize({ width, height });
+  assert.equal(await page.evaluate(() => { const r = document.getElementById('readout'); return r.getBoundingClientRect().height <= parseFloat(getComputedStyle(r).minHeight) + 0.5; }), true, `the fare meter's note is taller than the readout at ${width} px`);
+}
 assert.equal(await page.evaluate(() => document.getElementById('meter').tagName), 'BUTTON');
 
 // Drag out one line, tap out another. A stray tap just before, beside where the drag starts, stays out of its word.
@@ -136,7 +140,7 @@ assert.match(await text('#readout'), new RegExp(`^Detour: ${first.word.toUpperCa
 let fare = fareFor(first.word);
 assert.equal(await page.locator('#pips .full').count(), fare % FARE_PER_TOKEN);
 await page.click('#meter');
-assert.equal(await text('#readout'), `${fare % FARE_PER_TOKEN} of ${FARE_PER_TOKEN} fare to the next token`);
+assert.equal(await text('#readout'), `${fare % FARE_PER_TOKEN} of ${FARE_PER_TOKEN} fare to the next token. 1 detour so far`, 'a tap on the fare meter should give the detours so far too');
 await drag(page, first.path);
 assert.equal(await text('#readout'), `${first.word.toUpperCase()} already counted`, 'a detour should be in capitals whether new or counted already');
 
@@ -255,6 +259,18 @@ assert.equal(await page.locator('#done-key li').count(), p.lines.length);
 assert.equal(await text('#done-key li.xt'), `${p.name.toUpperCase()} (the Crosstown)`, 'the key should give the Crosstown as the map names it, spaces and all');
 assert.notEqual(p.name.toUpperCase(), words[0], 'the first map should have a Crosstown of two words, to test the key');
 assert.equal(await page.locator('#board .stop.on').count(), 48);
+// The detours found are a button on the done sheet, closed to begin with, that shows them in capitals, A to Z.
+{
+  const mine = await page.evaluate(id => JSON.parse(localStorage.getItem('crosstown.v1')).games[id].detours, p.id);
+  const more = '#done-stats .more', shown = async () => [await page.getAttribute(more, 'aria-expanded'), await page.isHidden('#done-detours')];
+  assert.ok(mine.length > 1);
+  assert.equal(await text(more), `${mine.length} detours`);
+  assert.deepEqual(await shown(), ['false', true]);
+  await page.click(more);
+  assert.deepEqual([...await shown(), await text('#done-detours')], ['true', false, mine.map(w => w.toUpperCase()).sort().join(', ')], 'the detours found should show, in capitals, A to Z');
+  await page.click(more);
+  assert.deepEqual(await shown(), ['false', true]);
+}
 
 // Sharing falls back to the clipboard, or to text you can select.
 await page.click('#b-share');
