@@ -66,6 +66,19 @@ assert.equal(await text('#clue'), p.clue);
 assert.equal(await text('#count'), `0 of ${p.lines.length} lines`);
 assert.equal(await page.locator('#board .stop').count(), 48);
 assert.equal(await page.isDisabled('#b-token'), true);
+// With no tokens the button is off but still says, when tapped, how to get one; the meter, tapped, gives the count.
+// Both notes fit the readout without moving the map, on a small phone too.
+const NO_TOKENS = `No tokens yet. Detours, words that aren't lines, earn fare: ${FARE_PER_TOKEN} fare is a token`;
+await page.click('#b-token', { force: true });
+assert.equal(await text('#readout'), NO_TOKENS, 'a tap on the token button with none should say how fare works');
+for (const [width, height] of [[320, 568], [390, 844]]) {
+  await page.setViewportSize({ width, height });
+  assert.equal(await page.evaluate(() => { const r = document.getElementById('readout'); return r.getBoundingClientRect().height <= parseFloat(getComputedStyle(r).minHeight) + 0.5; }), true, `the note on tokens is taller than the readout at ${width} px`);
+}
+assert.equal(await text('#token-label'), 'No tokens');
+await page.click('#meter');
+assert.equal(await text('#readout'), `0 of ${FARE_PER_TOKEN} fare to the next token`, 'a tap on the fare meter should give the count');
+assert.equal(await page.evaluate(() => document.getElementById('meter').tagName), 'BUTTON');
 
 // Drag out one line, tap out another. A stray tap just before, beside where the drag starts, stays out of its word.
 const stray = NEIGHBORS[p.lines[2][0]].find(j => !p.lines[2].includes(j));
@@ -106,6 +119,8 @@ await drag(page, first.path);
 assert.match(await text('#readout'), new RegExp(`^Detour: ${first.word}, \\+${fareFor(first.word)} fare`));
 let fare = fareFor(first.word);
 assert.equal(await page.locator('#pips .full').count(), fare % FARE_PER_TOKEN);
+await page.click('#meter');
+assert.equal(await text('#readout'), `${fare % FARE_PER_TOKEN} of ${FARE_PER_TOKEN} fare to the next token`);
 await drag(page, first.path);
 assert.match(await text('#readout'), /already counted$/);
 

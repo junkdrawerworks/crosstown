@@ -306,14 +306,14 @@ function paint() {
   const pips = $('pips'); pips.textContent = '';
   for (let n = 0; n < FARE_PER_TOKEN; n++) { const pip = document.createElement('i'); if (n < game.fare) pip.className = 'full'; pips.append(pip); }
   $('meter').setAttribute('aria-label', `Fare: ${game.fare} of ${FARE_PER_TOKEN}`);
-  // A token rings a line's stops, then draws its route. While a route shows on a line not yet found the button is
-  // off: the route already gives the line away, and another token would ring a different line and lose it. It can
-  // still be tapped then, to say why (see routeFirst()).
+  // A token rings a line's stops, then draws its route. With no tokens the button is off, and while a route shows on a
+  // line not yet found it's off too: the route already gives the line away, and another token would ring a different
+  // line and lose it. Either way it can still be tapped, to say how to get one or why it's off (see the click below).
   const tok = $('b-token');
-  tok.disabled = !game.tokens || !left;
-  const held = !tok.disabled && routeFirst(game);
-  if (held) tok.setAttribute('aria-disabled', 'true'); else tok.removeAttribute('aria-disabled');
-  tok.classList.toggle('ready', !tok.disabled && !held);
+  tok.disabled = !left;
+  const off = !!left && (!game.tokens || routeFirst(game));
+  if (off) tok.setAttribute('aria-disabled', 'true'); else tok.removeAttribute('aria-disabled');
+  tok.classList.toggle('ready', !!left && !off);
   $('token-label').textContent = game.tokens ? `Use a token (${game.tokens})` : 'No tokens';
   // The buttons for after a finish wait for the done sheet (see found()).
   const over = game.done && !cur.finishing;
@@ -651,7 +651,8 @@ function nextHint(game, p) {
 const routeFirst = game => game.hint?.level === 2 && !game.found.includes(game.hint.line);
 $('b-token').addEventListener('click', () => {
   const { p, game } = cur;
-  if (!game.tokens || game.done) return;
+  if (game.done) return;
+  if (!game.tokens) { say(`No tokens yet. Detours, words that aren't lines, earn fare: ${FARE_PER_TOKEN} fare is a token`, 'note'); return; }
   if (routeFirst(game)) { say('Trace the dashed route first. Your tokens keep', 'note'); return; }
   if (game.hint && game.hint.level === 1) { game.hint.level = 2; say('The dashed route starts at the solid ring', 'note'); }
   else {
@@ -850,6 +851,7 @@ $('b-continue').addEventListener('click', () => {
   if (l) { showLine(l); $('b-continue').focus({ preventScroll: true }); }
 });
 $('b-line').addEventListener('click', openLines);
+$('meter').addEventListener('click', () => { if (cur && !cur.game.done) say(`${cur.game.fare} of ${FARE_PER_TOKEN} fare to the next token`, 'note'); });
 window.addEventListener('pagehide', () => { if (cur) { stopClock(); keep(); } });
 // Another window saved: take in what it saved. The list (and the lines sheet, if it's open) shows it straight away; a
 // puzzle on screen carries on as it is, and so does the line on show.
