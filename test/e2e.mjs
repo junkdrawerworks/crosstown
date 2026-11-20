@@ -548,6 +548,39 @@ function contrast(a, b) {
   }
 }
 
+// A sheet too tall for the window (zoomed in to 200% on a laptop, or a small phone) would put the focus on a button out
+// of sight at its foot, so the focus goes to the sheet itself, at its top, with a ring. The arrow keys scroll it, Tab
+// reaches its buttons, Escape closes it and the focus goes back where it was. A sheet that fits starts on its button.
+for (const [width, height] of [[640, 400], [375, 667]]) {
+  const { other, tab, errors } = await visitor({ options: { traced: true }, best: {}, games: { [p.id]: { found: p.lines.map((_, k) => k).slice(1), detours: [] } } }, { viewport: { width, height } });
+  const where = () => tab.evaluate(() => {
+    const a = document.activeElement, panel = a.closest('.panel'), pr = panel?.getBoundingClientRect(), ar = a.getBoundingClientRect();
+    return { focus: a.classList.contains('panel') ? 'panel' : a.id || a.textContent.trim(), seen: !!panel && ar.top >= pr.top - 1 && ar.bottom <= pr.bottom + 1, top: panel?.scrollTop, ring: getComputedStyle(a).outlineStyle !== 'none' };
+  });
+  const sheets = [['b-how', 'Got it'], ['b-list-menu', 'Done'], ['b-menu', 'Done'], ['board', 'b-done-next']];
+  for (const [from, button] of sheets) {
+    if (from === 'b-menu') await tab.click('#b-continue');
+    await tab.focus(`#${from}`);
+    if (from === 'board') await drag(tab, p.lines[0]); else await tab.keyboard.press('Enter');
+    await tab.waitForSelector('.sheet:not([hidden])');
+    const over = await tab.evaluate(() => { const panel = document.querySelector('.sheet:not([hidden]) .panel'); return panel.scrollHeight > panel.clientHeight + 1; });
+    const at = await where();
+    if (over) {
+      assert.deepEqual(at, { focus: 'panel', seen: true, top: 0, ring: from === 'board' ? at.ring : true }, `a sheet too tall for ${width}x${height}, opened from ${from}, should start with the focus on itself`);
+      await tab.keyboard.press('PageDown');
+      await tab.waitForFunction(() => document.activeElement.scrollTop > 0, null, { timeout: 3000 }).catch(() => assert.fail('Page Down should scroll a sheet that has the focus'));
+      await tab.keyboard.press('Tab');
+      assert.equal((await where()).seen, true, 'Tab from the sheet should reach a button in sight');
+    } else assert.deepEqual([at.focus, at.seen], [button, true], `a sheet that fits ${width}x${height} should start on its button`);
+    await tab.keyboard.press('Escape');
+    assert.equal(await tab.evaluate(() => document.activeElement.id), from, 'closing a sheet should hand the focus back');
+  }
+  // At 200% on a laptop every one of them is too tall; on a 375x667 phone How to play is.
+  assert.ok(width === 640 || await tab.evaluate(() => document.getElementById('sheet-how').querySelector('.panel').getAttribute('tabindex') === '-1'), 'How to play should be too tall for a 375x667 phone, for this check');
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // On a small phone a long tapped word stays whole on one line, and what to do next gives way, so the map doesn't move.
 {
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { viewport: { width: 320, height: 568 }, hasTouch: true });

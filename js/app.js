@@ -797,9 +797,17 @@ function openSheet(id) {
   if (cur) { stopClock(); board.classList.toggle('paused', !cur.game.done); }
   $('app').inert = true;   // the page behind stays out of reach of Tab and screen readers until the sheet closes
   $(id).hidden = false;
-  $(id).querySelector('.panel').focus?.();
-  // The main button if it's showing (Next puzzle, Done, Got it), otherwise the first one that is.
-  ($(id).querySelector('.btn.primary:not([hidden])') || $(id).querySelector('.btn:not([hidden])'))?.focus({ preventScroll: true });
+  // The main button if it's showing (Next puzzle, Done, Got it), otherwise the first one that is. Where the sheet is
+  // too tall for the window (zoomed in, or a small phone), that button is out of sight at the foot, so the focus goes
+  // to the sheet itself: its top shows, the arrow keys scroll it, Tab reaches the buttons, and a screen reader starts
+  // at its title.
+  const panel = $(id).querySelector('.panel');
+  panel.scrollTop = 0;
+  if (panel.scrollHeight > panel.clientHeight + 1) { panel.tabIndex = -1; panel.focus({ preventScroll: true }); }
+  else {
+    panel.removeAttribute('tabindex');
+    ($(id).querySelector('.btn.primary:not([hidden])') || $(id).querySelector('.btn:not([hidden])'))?.focus({ preventScroll: true });
+  }
 }
 // A list sheet's step comes off the history when the sheet closes (`step`): 'back' takes it off, for a close from the
 // page; 'gone' when Back has already taken it; 'keep' when another sheet is taking this one's place.

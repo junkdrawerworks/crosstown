@@ -345,6 +345,9 @@ a { color: inherit; }
   display: flex; flex-direction: column; gap: 14px;
   animation: rise .22s ease-out;
 }
+/* A sheet too tall for the window takes the focus itself (see openSheet()): a thin ring inside its edge. */
+.panel:focus { outline: none; }
+.panel:focus-visible { outline: 2px solid var(--l2); outline-offset: -2px; }
 @keyframes rise { from { transform: translateY(24px); opacity: 0; } }
 @media (min-width: 620px) { .sheet { align-items: center; } .panel { border-radius: 18px; padding: 26px 26px 22px; } }
 .panel h2 { font-size: 26px; line-height: 1.1; font-weight: 850; letter-spacing: -.01em; text-wrap: balance; }
