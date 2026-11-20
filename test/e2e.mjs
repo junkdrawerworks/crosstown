@@ -1746,6 +1746,24 @@ if (LINES.length > 2) {
   await other.close();
 }
 
+// On a first visit the offline copy waits for the line on show to have its detours: the service worker fetching every
+// other line's at the same time would share a weak signal with them, and a word traced meanwhile would wait.
+{
+  server.slow = { path: 'js/detours/main.js', ms: 1500 };
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const log = [], name = r => new URL(r.url()).pathname.replace(/^\//, '');
+  context.on('request', r => log.push(`start ${name(r)}`));
+  context.on('requestfinished', r => log.push(`end ${name(r)}`));
+  const tab = await context.newPage();
+  await tab.goto(base);
+  await tab.waitForFunction(() => navigator.serviceWorker?.controller, null, { timeout: 20000 });
+  server.slow = null;
+  const detours = log.filter(s => s.includes('js/detours/'));
+  const mainIn = detours.indexOf('end js/detours/main.js'), others = detours.findIndex(s => s.startsWith('start') && !s.endsWith('/main.js'));
+  assert.ok(mainIn >= 0 && others > mainIn, `another line's detours were asked for before the open line's had come: ${detours.slice(0, 5).join(', ')}`);
+  await context.close();
+}
+
 // It can be installed.
 const cdp = await ctx.newCDPSession(page);
 const manifest = await cdp.send('Page.getAppManifest');

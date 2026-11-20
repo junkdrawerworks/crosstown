@@ -1088,10 +1088,12 @@ if (!single && (history.state?.[STEP] || history.state?.sheet)) {
 
 // The offline copy. If making it was cut short (the signal went), it's tried again when the signal comes back or the
 // game comes back on screen, rather than at the next page load. update() fetches sw.js afresh, and sets up a new
-// release if it's changed or the last one didn't finish.
+// release if it's changed or the last one didn't finish. It's first asked for once the line on show has its detours
+// (or they've failed): on a first visit on a weak signal, the copy's every other line would otherwise share the
+// signal with them, and a word traced meanwhile would wait.
 if (!single && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   const sw = navigator.serviceWorker;
-  sw.register('sw.js').catch(() => {});
+  detoursOf(line.id).wait.finally(() => sw.register('sw.js').catch(() => {}));
   const again = () => sw.getRegistration().then(r => (r ? r.update() : sw.register('sw.js'))).catch(() => {});
   window.addEventListener('online', again);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) again(); });
