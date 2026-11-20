@@ -195,11 +195,18 @@ function drawList() {
     btn.addEventListener('click', () => fromList(i));
     li.append(btn); route.append(li);
   });
-  const up = nextUp(), onward = up < 0 ? nextLine() : null;
-  $('b-continue').textContent = up >= 0 ? `${started(gameFor(list[up].id)) ? 'Resume' : 'Play'} No. ${up + 1}` : onward ? `On to ${shortName(onward)}` : 'All finished';
-  $('b-continue').disabled = up < 0 && !onward;
+  // The big button plays the next puzzle, or moves on to the next line with one left. With every line finished it goes,
+  // rather than staying as a button that does nothing, and the tally gives the whole network's.
+  const up = nextUp(), onward = up < 0 ? nextLine() : null, end = up < 0 && !onward;
+  $('b-continue').textContent = up >= 0 ? `${started(gameFor(list[up].id)) ? 'Resume' : 'Play'} No. ${up + 1}` : onward ? `On to ${shortName(onward)}` : '';
+  $('b-continue').disabled = false;   // off in the page as sent, until this has run
+  $('b-continue').hidden = end;
   $('unkept').hidden = keeping();
-  $('tally').textContent = finished ? `${finished} of ${list.length} finished, ${stars} of ${list.length * 3} stars` : `${list.length} puzzles`;
+  if (end) {
+    let all = 0, got = 0;
+    for (const l of LINES) { const t = tally(l); all += t.total; got += t.stars; }
+    $('tally').textContent = `Every line finished: ${all.toLocaleString()} puzzles, ${got.toLocaleString()} of ${(all * 3).toLocaleString()} stars`;
+  } else $('tally').textContent = finished ? `${finished} of ${list.length} finished, ${stars} of ${list.length * 3} stars` : `${list.length} puzzles`;
   route.setAttribute('aria-label', `${line.name} puzzles`);
   $('line-name').textContent = line.name;
   $('line-about').textContent = line.about;

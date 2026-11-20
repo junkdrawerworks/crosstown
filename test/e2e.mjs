@@ -350,16 +350,16 @@ function contrast(a, b) {
   }
   assert.equal(await tab.locator('#board .stop.cursor').count(), 1);
 
-  // With every puzzle finished, the big button on the list says so in letters you can read, in either palette.
+  // With every puzzle finished, the big button on the list goes rather than sitting there doing nothing, and the tally
+  // gives the whole network's: every puzzle, and the stars, with the one star missed on the last puzzle.
   await tab.click('#b-back');
+  const all = LINES.reduce((n, l) => n + l.puzzles.length, 0);
+  const [puzzles, got, most] = await tab.evaluate(ns => ns.map(n => n.toLocaleString()), [all, all * 3 - 1, all * 3]);
+  assert.equal(await tab.isHidden('#b-continue'), true, 'with every line finished, the big button should go, not sit there off');
+  assert.equal(await tab.textContent('#tally'), `Every line finished: ${puzzles} puzzles, ${got} of ${most} stars`);
+  assert.equal(await tab.evaluate(() => document.querySelector('.mast-row button:not([hidden])').id), 'b-how', 'How to play should move up to the front of the row');
   for (const colorScheme of ['light', 'dark']) {
     await tab.emulateMedia({ colorScheme });
-    const btn = await tab.evaluate(() => {
-      const b = document.getElementById('b-continue'), s = getComputedStyle(b);
-      return { text: b.textContent, disabled: b.disabled, color: s.color, bg: s.backgroundColor === 'rgba(0, 0, 0, 0)' ? getComputedStyle(document.body).backgroundColor : s.backgroundColor };
-    });
-    assert.equal(btn.text, 'All finished');
-    assert.ok(btn.disabled && contrast(btn.color, btn.bg) >= 4.5, `"All finished" is hard to read in ${colorScheme}: ${JSON.stringify(btn)}`);
     // The stars on the list are small text, so full and empty ones need the contrast text does to tell apart.
     const stars = await tab.evaluate(() => ({ color: getComputedStyle(document.querySelector('#route .st')).color, bg: getComputedStyle(document.body).backgroundColor }));
     assert.equal(await tab.getAttribute('#route .st', 'role'), 'img', 'the stars on the list should be read by their label, not as star glyphs');
