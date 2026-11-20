@@ -9,7 +9,7 @@
 // only when this file changes by a byte, so FILES is a fingerprint of every file in SHELL: change any of them and
 // test/e2e.mjs fails until FILES is changed to match (it says what to), which changes this file.
 const CACHE = 'crosstown-v2'; // bump the number when the file list changes
-const FILES = 'e951a584'; // test/e2e.mjs checks this
+const FILES = 'b460bda7'; // test/e2e.mjs checks this
 const SHELL = [
   './', 'index.html', 'icon.svg', 'manifest.webmanifest',
   'css/app.css', 'js/app.js', 'js/board.js', 'js/rules.js', 'js/puzzles.js', 'fonts/overpass.woff2',

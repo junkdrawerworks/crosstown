@@ -333,8 +333,17 @@ function say(text, kind = '', chip = null, heard = '') {
   if (kind.includes('nope')) { out.style.animation = 'none'; void out.offsetWidth; out.style.animation = ''; }
 }
 // A word built by taps (or the keyboard) isn't sent until its last letter is tapped again, so until then it shows
-// muted, unlike a word that's been found. A word being dragged is sent as the finger lifts, and shows as usual.
-const showTrace = () => say(sel.length ? spell(cur.p.grid, sel) : '', sel.length > 1 && !drag?.changed ? 'pending' : '');
+// muted, unlike a word that's been found, and says how to send it: "KEYS · tap S again", or with the keys, "Enter
+// again on S". A word being dragged is sent as the finger lifts, and shows as usual.
+function showTrace(keys = false) {
+  const word = sel.length ? spell(cur.p.grid, sel) : '';
+  if (sel.length < 2 || drag?.changed) { say(word); return; }
+  say(word, 'pending');
+  const part = (cls, text = '') => { const s = document.createElement('span'); s.className = cls; s.textContent = text; return s; };
+  const sep = part('sep'), last = word.at(-1);
+  sep.setAttribute('aria-hidden', 'true');
+  $('readout').append(sep, part('sr-only', ', '), part('send', keys ? `Enter again on ${last}` : `tap ${last} again`));
+}
 
 // The bar names the line and the number, "Main · No. 1". On a narrow phone with the clock on, only the line's name
 // gives way, so the number always shows. The dot is drawn, since the font's own has no width and hugs the number;
@@ -360,9 +369,10 @@ function openPuzzle(i) {
   buildBoard();
   for (const k of game.found) drawLine(k, false);
   $('s-list').hidden = true; $('s-play').hidden = false;
-  // A first visit, with nothing saved yet, is told how to trace, until the first word replaces it.
+  // Until a first word is sent, the puzzle opens saying how to trace one. (A puzzle only looked at is saved too, for
+  // its clock, so what's saved can't say whether anyone has traced yet.)
   if (game.done) sayName();
-  else if (!Object.keys(saved.games).length) say('Drag across the letters to trace a word, or tap them and tap the last one again', 'note');
+  else if (!traced()) say('Drag across the letters to trace a word, or tap them and tap the last one again', 'note');
   else say('');
   paint();
   startClock();
@@ -372,6 +382,9 @@ function openPuzzle(i) {
 }
 
 const keep = () => setGame(cur.p.id, cur.game);
+// Whether a word has ever been sent here: kept with the options from the first one, and true of a save from before
+// that with a line or a detour in it.
+const traced = () => saved.options.traced === true || Object.keys(saved.games).some(id => started(gameFor(id)));
 // A finished map says its name, with the Crosstown's colour, however it was reached.
 const sayName = () => say(cur.p.name, 'note', 0);
 
@@ -504,10 +517,10 @@ board.addEventListener('keydown', e => {
     else if (at >= 0) sel = sel.slice(0, at + 1);
     else if (sel.length && adjacent(sel[sel.length - 1], cursor)) sel.push(cursor);
     else sel = [cursor];
-    if (!taken(cursor)) showTrace();
+    if (!taken(cursor)) showTrace(true);
   } else if ((e.key === 'Escape' || e.key === 'Backspace') && !cur.game.done) {
     if (e.key === 'Backspace') sel.pop(); else { if (sel.length) $('spoken').textContent = 'Word cleared'; sel = []; }
-    showTrace();
+    showTrace(true);
   } else return;
   e.preventDefault(); paint();
 });
@@ -517,6 +530,7 @@ board.addEventListener('blur', () => { $('spoken').textContent = ''; if (cursor 
 function submit() {
   const word = spell(cur.p.grid, sel);
   sel = [];
+  if (word.length > 1 && saved.options.traced !== true) setOption('traced', true);
   judgeWord(word);
 }
 function judgeWord(word) {

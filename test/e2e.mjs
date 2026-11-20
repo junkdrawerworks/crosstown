@@ -149,7 +149,11 @@ const walk = async (to, on = page) => {
   for (; at < to; at += 6) await on.keyboard.press('ArrowDown');
   for (; at > to; at -= 6) await on.keyboard.press('ArrowUp');
 };
-for (const stop of p.lines[3]) { await walk(stop); await page.keyboard.press('Enter'); }
+for (const [n, stop] of p.lines[3].entries()) {
+  await walk(stop); await page.keyboard.press('Enter');
+  // A word built with Enter waits for Enter again on its last letter, and says so.
+  if (n === 1) assert.equal(await text('#readout'), `${words[3].slice(0, 2)}, Enter again on ${words[3][1]}`);
+}
 await page.keyboard.press('Enter');
 assert.equal(await text('#count'), `3 of ${p.lines.length} lines`);
 
@@ -394,6 +398,8 @@ function contrast(a, b) {
   await tap(tab, p.lines[1][0]);
   await tap(tab, p.lines[1][1]);
   assert.equal(await pending(), true, 'a tapped word not yet sent looks like a found one');
+  // It says how to send it: tap the last letter again.
+  assert.equal(await tab.textContent('#readout'), `${words[1].slice(0, 2)}, tap ${words[1][1]} again`, 'a tapped word should say how to send it');
   const box = await tab.locator('#board').boundingBox();
   const at = i => [box.x + (i % 6 + 0.5) * box.width / 6, box.y + (Math.floor(i / 6) + 0.5) * box.height / 8];
   await tab.mouse.move(...at(p.lines[1][1]));
@@ -405,6 +411,38 @@ function contrast(a, b) {
   await tab.mouse.up();
   assert.equal(await tab.textContent('#count'), `1 of ${p.lines.length} lines`, 'dragging on from the last tapped letter should carry the word on');
   assert.equal(await tab.textContent('#readout'), `${words[1]}, found. 1 of ${p.lines.length} lines`);
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
+// On a small phone a long tapped word stays whole on one line, and what to do next gives way, so the map doesn't move.
+{
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { viewport: { width: 320, height: 568 }, hasTouch: true });
+  await tab.click('#b-continue');
+  const long = p.lines.reduce((a, b) => (b.length > a.length ? b : a));
+  for (const i of long) await tap(tab, i);
+  for (const word of [spell(p.grid, long), 'M'.repeat(14)]) {   // 14 letters, the longest line on any map
+    const fit = await tab.evaluate(word => {
+      const r = document.getElementById('readout'); r.firstChild.textContent = word;
+      return { tall: r.getBoundingClientRect().height <= parseFloat(getComputedStyle(r).minHeight) + 0.5, wide: r.scrollWidth <= r.clientWidth, page: document.documentElement.scrollWidth <= innerWidth };
+    }, word);
+    assert.deepEqual(fit, { tall: true, wide: true, page: true }, `a tapped word of ${word.length} letters doesn't fit the readout at 320 px`);
+  }
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
+// A puzzle only looked at is saved for its clock, but nothing was traced, so the next one still says how to trace.
+// Once a word has been sent, it doesn't.
+{
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: { [p.id]: { found: [], detours: [], ms: 6000 } } });
+  await tab.click('#b-continue');
+  assert.equal(await tab.textContent('#readout'), HOW, 'someone who has only looked at a puzzle should still be told how to trace');
+  await tap(tab, p.lines[1][0]); await tap(tab, p.lines[1][1]); await tap(tab, p.lines[1][1]);
+  assert.equal(await tab.textContent('#readout'), 'Too short');
+  await tab.click('#b-back');
+  await tab.click('#b-continue');
+  assert.equal(await tab.textContent('#readout'), '', 'once a word has been sent, the tip should stop');
   assert.deepEqual(errors, []);
   await other.close();
 }
