@@ -267,7 +267,10 @@ function buildBoard() {
   stops.length = 0;
   for (let i = 0; i < N; i++) {
     const g = svg('g', { class: 'stop' });
-    g.append(svg('circle', { class: 'dot', cx: cx(i), cy: cy(i), r: 3.75 }), svg('circle', { class: 'ring', cx: cx(i), cy: cy(i), r: 4.45 }));
+    // The dot, a token's ring, and the keyboard's cursor: a ring of its own outside the dot, with the map showing
+    // between, so it shows on any stop (a blue one too) and can't be taken for a token's ring.
+    g.append(svg('circle', { class: 'dot', cx: cx(i), cy: cy(i), r: 3.75 }), svg('circle', { class: 'ring', cx: cx(i), cy: cy(i), r: 4.45 }),
+      svg('circle', { class: 'cur', cx: cx(i), cy: cy(i), r: 4.9 }));
     const t = svg('text', { x: cx(i), y: cy(i) + 1.75 }); t.textContent = cur.p.grid[i];
     g.append(t); layers.stops.append(g); stops.push(g);
   }
