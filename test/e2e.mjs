@@ -1003,8 +1003,16 @@ if (LINES.length > 1) {
   await pick(b, 1);
   s = await stored();
   assert.deepEqual([s.games[m.id], s.games[p.id]?.done, s.options.clock], [undefined, true, true], 'one window brought back a puzzle started over in the other');
-  // B erases every line: A's list empties, and A's next write doesn't bring anything back.
+  // B erases every line while A has Market No. 2 open with a line found: A's puzzle starts afresh, and A leaving it
+  // doesn't write it back. A's list empties, and A's next write doesn't bring anything back.
+  const m2 = LINES[1].puzzles[1];
+  await a.click('#route li:nth-child(2) .row'); await drag(a, m2.lines[1]);
   await b.click('#b-list-menu'); await b.click('#m-erase'); await b.click('#m-erase');
+  await a.waitForFunction(() => document.getElementById('readout').textContent === 'Progress erased in another window', null, { timeout: 5000 })
+    .catch(() => assert.fail('erasing in one window should start the puzzle open in the other afresh'));
+  assert.deepEqual([await a.textContent('#count'), await a.locator('#board .line').count()], [`0 of ${m2.lines.length} lines`, 0]);
+  await a.click('#b-back');
+  assert.deepEqual((await stored()).games, {}, 'leaving a puzzle wrote back a game erased in the other window');
   await a.waitForFunction(() => document.getElementById('tally').textContent.endsWith(' puzzles'), null, { timeout: 5000 })
     .catch(() => assert.fail('erasing in one window should empty the other\'s list'));
   await pick(a, 4);
@@ -1099,6 +1107,46 @@ if (LINES.length > 1) {
   await b.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await said(b, 'Finished in another window');
   assert.equal(await b.textContent('#count'), 'All found');
+
+  // Both awake on No. 5, which A has a line of. A earns a token and spends it: B shows the ring at once. B then finds a
+  // detour: the token stays spent, so the ring stays and the 'No tokens spent' star stays out of reach, in both.
+  await b.evaluate(() => { window.asleep = false; });
+  const [u, v] = PUZZLES.slice(4);
+  await a.keyboard.press('Escape'); await a.click('#b-back'); await a.click('#route li:nth-child(5) .row');
+  await b.click('#b-back'); await b.click('#route li:nth-child(5) .row');
+  await drag(a, u.lines[1]);
+  await said(b, 'Carried on in another window');
+  const paid = await faresOn(u, u.lines[1], FARE_PER_TOKEN);
+  for (const path of paid) await drag(a, path);
+  await a.click('#b-token');
+  const rung = await a.locator('#board .stop.hint').count();
+  await b.waitForFunction(n => document.querySelectorAll('#board .stop.hint').length === n, rung, { timeout: 5000 })
+    .catch(() => assert.fail('a token spent in one window should ring its line in the other'));
+  const { DETOURS: uDetours } = await import(`../js/detours/${u.line}.js`);
+  const more = uDetours[u.id].split(' ').map(d => traces(u.grid, d.toUpperCase(), 20).find(t => !t.some(i => u.lines[1].includes(i))))
+    .find(path => path && !paid.some(x => x.join() === path.join()));
+  await drag(b, more);
+  await said(a, 'Carried on in another window');
+  assert.equal(await a.locator('#board .stop.hint').count(), rung, 'the ring a token bought went when the other window found a detour');
+  const g5 = await kept(u.id);
+  assert.deepEqual([g5.spent, !!g5.hint, g5.detours.length], [1, true, paid.length + 1], 'a token spent in one window came back when the other saved');
+  assert.equal(g5.tokens * FARE_PER_TOKEN + g5.fare, g5.detours.reduce((n, d) => n + fareFor(d), 0) - FARE_PER_TOKEN, 'fare and tokens should add up to the detours, less the token spent');
+
+  // On No. 6, B holds a word half traced when A saves a line: letting go still sends B's word, and B shows both lines.
+  await a.click('#b-back'); await a.click('#route li:nth-child(6) .row');
+  await b.click('#b-back'); await b.click('#route li:nth-child(6) .row');
+  const at = async i => { const box = await b.locator('#board').boundingBox(); return { x: box.x + (i % 6 + 0.5) * box.width / 6, y: box.y + (Math.floor(i / 6) + 0.5) * box.height / 8 }; };
+  const held = v.lines[2], start = await at(held[0]);
+  await b.mouse.move(start.x, start.y); await b.mouse.down();
+  for (const i of held.slice(1, -1)) { const pt = await at(i); await b.mouse.move(pt.x, pt.y, { steps: 3 }); }
+  await drag(a, v.lines[1]);
+  await b.waitForFunction(id => JSON.parse(localStorage.getItem('crosstown.v1')).games[id]?.found.length === 1, v.id, { timeout: 5000 });
+  await b.waitForTimeout(300);   // for B to hear of it
+  const end = await at(held.at(-1));
+  await b.mouse.move(end.x, end.y, { steps: 3 }); await b.mouse.up();
+  await said(b, 'Carried on in another window');
+  assert.deepEqual([await b.locator('#board .line').count(), (await kept(v.id)).found.sort()], [2, [1, 2]], 'a word traced in one window was lost when the other saved');
+  assert.equal(await a.locator('#board .line').count(), 2, 'the other window should show the line traced while it saved');
   assert.deepEqual(errors, []);
   await context.close();
 }

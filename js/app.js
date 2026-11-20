@@ -18,7 +18,8 @@ const KEY = 'crosstown.v1';
 const UNREADABLE = 'crosstown.v1.unreadable';   // a save that couldn't be read, put aside to be got back by hand
 const fresh = () => ({ found: [], detours: [], fare: 0, tokens: 0, spent: 0, hint: null, ms: 0, done: false, crossAt: -1, night: false });
 const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
-const blank = () => ({ options: { clock: false, night: false, line: LINES[0].id }, games: {}, best: {} });
+// `erasedAt` is when progress on every line was last erased, in any window (see mergeInto()).
+const blank = () => ({ options: { clock: false, night: false, line: LINES[0].id }, games: {}, best: {}, erasedAt: 0 });
 // What's stored, read into shape. Best times are kept only if they're times. A save that can't be read at all, or
 // has the wrong shape (its games in a list, say, as a hand edit could leave it), is put aside first (unless one
 // already is), before anything can write over it. `putAside` says what went: 'games' when the games couldn't be read.
@@ -36,7 +37,8 @@ function load() {
   const s = blank();
   if (!isObject(raw)) return s;
   const best = isObject(raw.best) ? Object.entries(raw.best).filter(([, t]) => Number.isFinite(t) && t > 0) : [];
-  return { options: { ...s.options, ...(isObject(raw.options) ? raw.options : {}) }, games: isObject(raw.games) ? raw.games : {}, best: Object.fromEntries(best) };
+  return { options: { ...s.options, ...(isObject(raw.options) ? raw.options : {}) }, games: isObject(raw.games) ? raw.games : {}, best: Object.fromEntries(best),
+    erasedAt: Number.isFinite(raw.erasedAt) ? raw.erasedAt : 0 };
 }
 // What this window has changed since its last write: games by id (a game taken out counts too), options by name, and
 // whether every game was erased.
@@ -50,15 +52,19 @@ try { saved = load(); localStorage.setItem(`${KEY}.check`, '1'); localStorage.re
 const startedFresh = putAside === 'games';
 const keeping = () => !readFailed && !writeFailed;
 
-// This window's changes, laid over what's stored (`now`). Where both windows have played the same puzzle, the better
-// game stays (see ahead()). A game this window took out (Start this puzzle over) goes whatever the other has. The
-// faster best time stays.
+// This window's changes, laid over what's stored (`now`). Where both windows have played the same puzzle, the two
+// games are put together (see combine()). A game this window took out (Start this puzzle over) goes whatever the
+// other has. The faster best time stays. An erase stamps the save with its time, so a window that hears of an erase
+// made elsewhere since it last read drops every game it holds, the one on screen too (see catchUp()), rather than
+// writing them back: whatever it played since was played on top of progress that was erased.
+let erasedThere = false;
 function mergeInto(now) {
-  if (changed.erased) { now.games = {}; now.best = {}; }
+  if (changed.erased) { saved.erasedAt = now.erasedAt = Math.max(Date.now(), now.erasedAt + 1); now.games = {}; now.best = {}; }
+  else if (now.erasedAt > saved.erasedAt) { saved.games = {}; saved.best = {}; changed.games.clear(); erasedThere = true; }
   for (const id of changed.games) {
     const mine = saved.games[id];
     if (!mine) delete now.games[id];
-    else if (ahead(mine, now.games[id], id) >= 0) now.games[id] = mine;
+    else now.games[id] = combine(mine, now.games[id], id);
     const t = saved.best[id];
     if (t && !(now.best[id] <= t)) now.best[id] = t;
   }
@@ -78,6 +84,30 @@ function ahead(a, b, id) {
   for (let k = 0; k < Math.max(x.length, y.length); k++) if ((x[k] ?? 0) !== (y[k] ?? 0)) return (x[k] ?? 0) - (y[k] ?? 0);
   return 0;
 }
+// The game of a puzzle to keep, of two saved in different windows: `a`, `b` or the two put together. Two unfinished
+// games are put together, since each may have something the other hasn't: every line and detour either found, every
+// token either spent, and the ring or route of the one that spent more. Lines never share stops, so any lines found
+// make a board that can be played on. Fare and tokens are counted again from the detours, less the tokens spent. The
+// Crosstown counts as found first if it was in either. Otherwise (one is finished, or one was started over since the
+// other began: see `restartedAt`) the better game stays whole (see ahead()). A game put together that has nothing `a`
+// hasn't is `a` itself.
+function combine(a, b, id) {
+  const x = readGame(a, id), y = readGame(b, id);
+  if (!x || !y || x.done || y.done || x.restartedAt !== y.restartedAt) return ahead(a, b, id) >= 0 ? a : b;
+  const found = [...new Set([...x.found, ...y.found])], detours = [...new Set([...x.detours, ...y.detours])];
+  const spent = Math.max(x.spent, y.spent), h = (y.spent > x.spent ? y : x).hint || (y.spent > x.spent ? x : y).hint;
+  const hint = h && !found.includes(h.line) ? h : null;
+  const same = (p, q) => p.length === q.length && p.every(v => q.includes(v));
+  if (same(found, x.found) && same(detours, x.detours) && spent === x.spent && JSON.stringify(hint) === JSON.stringify(x.hint)
+    && (x.crossAt === 0 || y.crossAt !== 0)) return a;
+  const total = detours.reduce((n, d) => n + fareFor(d), 0);
+  return {
+    ...x, found, detours, spent, hint,
+    tokens: Math.max(0, Math.floor(total / FARE_PER_TOKEN) - spent), fare: total % FARE_PER_TOKEN,
+    crossAt: x.crossAt === 0 || y.crossAt === 0 ? 0 : found.indexOf(0),
+    ms: Math.max(x.ms, y.ms), done: found.length === byId.get(id).lines.length, night: x.found.length ? x.night : y.night,
+  };
+}
 function save() {
   try {
     const now = mergeInto(load());
@@ -87,11 +117,14 @@ function save() {
     writeFailed = false;
   } catch { writeFailed = true; /* no storage here: play still works, it just isn't kept */ }
 }
-// Takes on what's stored as this window's own. The puzzle on screen keeps the game being played, unless another
-// window has a better one (see catchUp()).
+// Takes on what's stored as this window's own. The puzzle on screen keeps the game being played, put together with
+// what another window has saved of it (see combine()), and shows that once it can (see catchUp()). After an erase in
+// another window it starts afresh.
 function adopt(now) {
   saved = now;
-  if (cur && started(cur.game) && ahead(cur.game, now.games[cur.p.id], cur.p.id) >= 0) saved.games[cur.p.id] = cur.game;
+  if (!cur) { erasedThere = false; return; }
+  if (erasedThere) { erasedThere = false; cur.game = { ...fresh(), grid: cur.p.grid }; cur.erased = true; return; }
+  if (started(cur.game)) saved.games[cur.p.id] = combine(cur.game, now.games[cur.p.id], cur.p.id);
 }
 const setOption = (name, value) => { saved.options[name] = value; changed.options.add(name); save(); };
 const setGame = (id, game) => { if (game) saved.games[id] = game; else delete saved.games[id]; changed.games.add(id); save(); };
@@ -460,18 +493,32 @@ function openPuzzle(i) {
   board.focus({ preventScroll: true });
 }
 
-// Another window has a better game of the puzzle on screen (finished there, or further along; see ahead()), so this
-// one takes it in and says so, rather than carrying on with a game that can only lose to it when saved. Not while the
-// last line draws or a sheet is open: closing the sheet looks again.
+// Another window has saved something of the puzzle on screen that this one hasn't got (a line, a detour, a token spent,
+// or the finish; see combine()), so this one takes it in and says so, rather than carrying on without it. Not while the
+// last line draws or a sheet is open: closing the sheet looks again. Not while a finger (or the mouse) is tracing a
+// word either: letting go sends the word, then looks again (`held`). A word being tapped out stays, unless a line
+// taken in now runs through it. After an erase in another window (see adopt()) the puzzle starts afresh.
+let held = false;
 function catchUp() {
+  held = false;
   if (!cur || cur.finishing || anySheet()) return;
+  if (cur.erased) {
+    cur.erased = false; drag = null; sel = [];
+    stopClock();
+    layers.lines.textContent = '';
+    say('Progress erased in another window', 'note');
+    paint();
+    startClock();
+    return;
+  }
+  if (drag) { held = true; return; }
   const there = saved.games[cur.p.id];
-  if (there === cur.game || ahead(there, cur.game, cur.p.id) <= 0) return;
-  const game = readGame(there, cur.p.id);
-  stopClock();
+  if (there === cur.game || combine(cur.game, there, cur.p.id) === cur.game) return;
+  stopClock();   // so the time on this window's clock counts
+  const game = readGame(combine(cur.game, there, cur.p.id), cur.p.id);
   cur.game = { ...game, grid: cur.p.grid };
   saved.games[cur.p.id] = cur.game;
-  sel = []; drag = null;
+  if (sel.some(taken)) sel = [];
   layers.lines.textContent = '';
   for (const k of game.found) drawLine(k, false);
   say(game.done ? 'Finished in another window' : 'Carried on in another window', 'note');
@@ -619,12 +666,13 @@ board.addEventListener('pointerup', e => {
   const { changed, tapLast, blocked } = drag; drag = null;
   if (blocked >= 0) { sel = []; paint(); }
   else if (changed || tapLast) submit();
+  if (held) catchUp();   // what another window saved while the word was traced (see catchUp())
 });
 // The browser takes the touch back (a system gesture, palm rejection): the word being traced goes, not half of it.
 board.addEventListener('pointercancel', e => {
   if (!drag || other(e)) return;
   drag = null; sel = [];
-  if (cur) { showTrace(); paint(); }
+  if (cur) { showTrace(); paint(); if (held) catchUp(); }
 });
 
 // Each arrow move is read out to screen readers in a line of its own, kept off the screen and apart from the
@@ -953,6 +1001,9 @@ twice($('m-restart'), restartAsk, () => {
   dropWaiting(cur.p.id);
   cur.game = fresh(); setGame(cur.p.id, null);
   const i = cur.i; closeSheets(); openPuzzle(i);
+  // The new game is marked as started over, so it isn't put together with the game it replaced, still open in another
+  // window, say: the better of the two stays (see combine()).
+  cur.game.restartedAt = Date.now();
 });
 twice($('m-erase'), 'Tap again to erase every line', () => {
   // Every game goes, here and in any other window, rather than being merged with what's stored.
