@@ -364,6 +364,9 @@ function contrast(a, b) {
   const [puzzles, got, most] = await tab.evaluate(ns => ns.map(n => n.toLocaleString()), [all, all * 3 - 1, all * 3]);
   assert.equal(await tab.isHidden('#b-continue'), true, 'with every line finished, the big button should go, not sit there off');
   assert.equal(await tab.textContent('#tally'), `Every line finished: ${puzzles} puzzles, ${got} of ${most} stars`);
+  // In ink and heavier than an ordinary tally: it's the biggest moment the list has.
+  const look = await tab.evaluate(() => { const s = getComputedStyle(document.getElementById('tally')), h = getComputedStyle(document.querySelector('h1')); return [s.color === h.color, s.fontSize, s.fontWeight]; });
+  assert.deepEqual(look, [true, '15px', '700'], 'the network\'s tally should be in ink, 15px, bold');
   assert.equal(await tab.evaluate(() => document.querySelector('.mast-row button:not([hidden])').id), 'b-how', 'How to play should move up to the front of the row');
   for (const colorScheme of ['light', 'dark']) {
     await tab.emulateMedia({ colorScheme });

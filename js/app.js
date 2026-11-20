@@ -212,10 +212,14 @@ function drawList() {
   $('b-continue').disabled = false;   // off in the page as sent, until this has run
   $('b-continue').hidden = end;
   $('unkept').hidden = keeping();
+  $('tally').classList.toggle('end', end);   // the network's tally, in ink where the big button was
   if (end) {
     let all = 0, got = 0;
     for (const l of LINES) { const t = tally(l); all += t.total; got += t.stars; }
-    $('tally').textContent = `Every line finished: ${all.toLocaleString()} puzzles, ${got.toLocaleString()} of ${(all * 3).toLocaleString()} stars`;
+    // Broken, where it has to be, between its parts rather than inside one.
+    const part = text => { const s = document.createElement('span'); s.className = 'nb'; s.textContent = text; return s; };
+    $('tally').textContent = 'Every line finished: ';
+    $('tally').append(part(`${all.toLocaleString()} puzzles,`), ' ', part(`${got.toLocaleString()} of ${(all * 3).toLocaleString()} stars`));
   } else $('tally').textContent = finished ? `${finished} of ${list.length} finished, ${stars} of ${list.length * 3} stars` : `${list.length} puzzles`;
   // The big button takes the line in order, so a puzzle under way further down, behind one not yet played, would be
   // lost from sight: the tally ends with a way to the nearest, "· No. 20 under way" (or "· 3 under way, next No. 20").
