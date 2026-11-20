@@ -1,4 +1,4 @@
-// The Workshop Line: making, fixing and the home.
+// The Workshop Line: making, fixing, wearing and the home.
 // Each puzzle starts as a clue, the Crosstown and more theme words than will fit, best first; see tools/themes/main.mjs.
 // All of it is written for this game.
 

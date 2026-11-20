@@ -1,4 +1,4 @@
-// The Airport Line: places and getting around.
+// The Airport Line: places, travel and jobs around town.
 // Each puzzle starts as a clue, the Crosstown and more theme words than will fit, best first; see tools/themes/main.mjs.
 // All of it is written for this game.
 
