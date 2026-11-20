@@ -1925,6 +1925,25 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
   assert.equal(sw.match(/const FILES = '([0-9a-f]*)'/)?.[1], files, `a file sw.js keeps for offline has changed: set FILES in sw.js to '${files}'`);
 }
 
+// An error from something else on the page (an extension's script, say) before app.js has run doesn't count as the
+// game failing to start: the game starts, so the list stays, and the page doesn't load itself again.
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  await ctx.addInitScript(() => document.addEventListener('readystatechange', () => {
+    if (document.readyState !== 'interactive') return;
+    const s = document.createElement('script'); s.textContent = 'throw new Error("not the game")'; document.head.append(s);
+  }));
+  const tab = await ctx.newPage();
+  let loads = 0;
+  tab.on('framenavigated', f => { if (f === tab.mainFrame()) loads++; });
+  await tab.goto(base, { waitUntil: 'load' });
+  await tab.waitForTimeout(300);
+  assert.deepEqual(await tab.evaluate(() => [window.crosstownStarted, document.getElementById('reload-line').hidden, document.getElementById('mast-row').hidden, document.querySelectorAll('#route li').length]),
+    [true, true, false, LINES[0].puzzles.length], "another script's error hid a game that started");
+  assert.equal(loads, 1, "another script's error made the page load again");
+  await ctx.close();
+}
+
 // The one-file copy (npm run build) plays from a file on its own: another line's detours are in it too, and nothing
 // is asked of any server.
 {

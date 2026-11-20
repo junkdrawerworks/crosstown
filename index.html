@@ -200,10 +200,13 @@
         document.getElementById('reload-line').hidden = false;
       }
       document.getElementById('b-reload').addEventListener('click', function () { location.reload(); });
-      addEventListener('error', function (e) { if (e instanceof ErrorEvent || (e.target && e.target.tagName === 'SCRIPT')) stuck(); }, true);
+      // An error is only noted here, and looked at once the page has loaded, by when app.js has either run or failed:
+      // an error from something else on the page (an extension's script, say) mustn't stop a game that starts.
+      var failed = false;
+      addEventListener('error', function (e) { if (e instanceof ErrorEvent || (e.target && e.target.tagName === 'SCRIPT')) failed = true; }, true);
       addEventListener('load', function () {
-        if (!window.crosstownStarted) setTimeout(stuck, 5000);
-        else try { sessionStorage.removeItem('crosstown.reloaded'); } catch (e) {}
+        if (window.crosstownStarted) { try { sessionStorage.removeItem('crosstown.reloaded'); } catch (e) {} return; }
+        if (failed) stuck(); else setTimeout(stuck, 5000);
       });
     })();
   </script>
