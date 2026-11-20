@@ -898,6 +898,22 @@ if (LINES.length > 2) {
   await other.close();
 }
 
+// A finished roundel's number is text, so on every line, in either palette, it needs 4.5:1 against the roundel.
+if (LINES.length > 1) {
+  const games = Object.fromEntries(LINES.map(l => [l.puzzles[0].id, finished(l.puzzles[0])]));
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games });
+  for (const [n, l] of LINES.entries()) {
+    await tab.click('#b-line'); await tab.click(`#lines li:nth-child(${n + 1}) .line-row`);
+    for (const colorScheme of ['light', 'dark']) {
+      await tab.emulateMedia({ colorScheme });
+      const roundel = await tab.evaluate(() => { const s = getComputedStyle(document.querySelector('#route li.done .roundel')); return { color: s.color, bg: s.backgroundColor }; });
+      assert.ok(contrast(roundel.color, roundel.bg) >= 4.5, `a finished roundel's number on the ${l.name} is hard to read in ${colorScheme}: ${JSON.stringify(roundel)}`);
+    }
+  }
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // It can be installed.
 const cdp = await ctx.newCDPSession(page);
 const manifest = await cdp.send('Page.getAppManifest');

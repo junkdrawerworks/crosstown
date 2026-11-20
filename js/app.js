@@ -52,7 +52,9 @@ const lineOf = id => LINES.find(l => l.id === id);
 let line = lineOf(saved.options.line) || LINES[0];
 let list = line.puzzles;
 const shortName = l => l.name.replace(/ Line$/, '');
-const tint = l => (l.color === 'cross' ? ['var(--cross)', 'var(--on-cross)'] : [`var(--${l.color})`, 'var(--on-line)']);
+// A line's colour, the colour of text on it, and the colour of a finished roundel (a shade deeper on three lines in
+// the light palette, so its white number has the contrast text needs).
+const tint = l => (l.color === 'cross' ? ['var(--cross)', 'var(--on-cross)', 'var(--cross)'] : [`var(--${l.color})`, 'var(--on-line)', `var(--${l.color}-deep, var(--${l.color}))`]);
 function tally(l) {
   let finished = 0, stars = 0, going = 0;
   for (const p of l.puzzles) { const g = gameFor(p.id); if (g?.done) { finished++; stars += starsFor(g); } else if (started(g)) going++; }
@@ -61,8 +63,8 @@ function tally(l) {
 function setLine(l) {
   line = l; list = l.puzzles;
   saved.options.line = l.id; save();
-  const [c, on] = tint(l);
-  $('s-list').style.setProperty('--line', c); $('s-list').style.setProperty('--on-line-c', on);
+  const [c, on, deep] = tint(l);
+  $('s-list').style.setProperty('--line', c); $('s-list').style.setProperty('--on-line-c', on); $('s-list').style.setProperty('--line-deep', deep);
   detoursOf(l.id);   // fetched ahead, so they're in by the time a puzzle opens
 }
 // Another line's list, from the top.

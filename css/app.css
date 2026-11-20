@@ -32,6 +32,10 @@
   --l7: #c93b80;
   --l8: #8a5c33;
   --on-line: #ffffff;
+  /* a finished roundel's fill on the list: the line's colour, a shade deeper where white on it is under 4.5:1 */
+  --l3-deep: #1b8649;
+  --l4-deep: #b35e05;
+  --l6-deep: #0a818a;
   /* the station sign */
   --sign: #16233b;
   --on-sign: #ffffff;
@@ -68,6 +72,9 @@
     --l7: #f074af;
     --l8: #c99664;
     --on-line: #0f141b;
+    --l3-deep: var(--l3);
+    --l4-deep: var(--l4);
+    --l6-deep: var(--l6);
     --sign: #222c39;
     --on-sign: #eef2f6;
     --sign-muted: #9aa6b5;
@@ -97,6 +104,9 @@
   --l7: #f074af;
   --l8: #c99664;
   --on-line: #0f141b;
+  --l3-deep: var(--l3);
+  --l4-deep: var(--l4);
+  --l6-deep: var(--l6);
   --sign: #222c39;
   --on-sign: #eef2f6;
   --sign-muted: #9aa6b5;
@@ -188,7 +198,7 @@ a { color: inherit; }
 .route li::before { top: 0; height: 50%; }
 .route li::after { top: 50%; height: 50%; }
 .route li:first-child::before, .route li:last-child::after { display: none; }
-.route li.done::before, .route li.done::after, .route li.after-done::before { background: var(--line, var(--cross)); }
+.route li.done::before, .route li.done::after, .route li.after-done::before { background: var(--line-deep, var(--cross)); }   /* the roundels' shade */
 .row {
   position: relative; z-index: 1;
   display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 14px;
@@ -201,7 +211,7 @@ a { color: inherit; }
   font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; line-height: 1; padding-top: 2px;
 }
 .going .roundel { border-color: var(--line, var(--cross)); color: var(--ink); }
-.done .roundel { background: var(--line, var(--cross)); border-color: var(--line, var(--cross)); color: var(--on-line-c, var(--on-cross)); }
+.done .roundel { background: var(--line-deep, var(--cross)); border-color: var(--line-deep, var(--cross)); color: var(--on-line-c, var(--on-cross)); }
 .row-main { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .row-clue { font-weight: 700; font-size: 17px; line-height: 1.25; }
 .row-clue.dark-hours { font-weight: 600; color: var(--muted); }
