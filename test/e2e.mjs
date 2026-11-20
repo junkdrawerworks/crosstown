@@ -4,7 +4,7 @@ import { playwright, serve, drag, tap, tapOut } from '../tools/play.mjs';
 import { LINES } from '../js/puzzles.js';
 import { DETOURS } from '../js/detours/main.js';
 import { traces, spell, adjacent, NEIGHBORS } from '../js/board.js';
-import { fareFor, FARE_PER_TOKEN } from '../js/rules.js';
+import { fareFor, starsFor, FARE_PER_TOKEN } from '../js/rules.js';
 
 const { server, base } = serve();
 const browser = await playwright.chromium.launch();
@@ -949,6 +949,78 @@ if (LINES.length > 1) {
   const [before, after] = [await tops(false), await tops(true)];
   assert.deepEqual([before.continue, before.disabled, before.about], [after.continue, true, LINES[0].about], `the list's top moves or offers a dead button before the script runs: ${JSON.stringify({ before, after })}`);
   assert.equal(after.disabled, false);
+}
+
+// One sitting of four puzzles across two lines, with no reload, moving on by Next puzzle, by on to the next line and
+// by the map's Next. One spends tokens, one is left by Back halfway and resumed. Each one has to end clean: nothing
+// half traced or still held, no hint carried into the next, the clock stopped on screen and in the save, the fare in
+// the save adding up to the fare its detours earned, the done sheet's stars the save's, and the map no bigger.
+if (LINES.length > 2) {
+  const [x, y] = [LINES[1], LINES[2]];
+  const games = Object.fromEntries(x.puzzles.slice(0, -2).map(q => [q.id, finished(q)]));
+  const { other, tab, errors } = await visitor({ options: { line: x.id, clock: true }, best: {}, games });
+  const savedGame = id => tab.evaluate(id => JSON.parse(localStorage.getItem('crosstown.v1')).games[id], id);
+  const board = () => tab.evaluate(() => ({ size: document.querySelectorAll('#board *').length, marks: document.querySelectorAll('#board .sel, #board .trace, #board .hint, #board .guide').length }));
+  const sitting = [[x, x.puzzles.length - 2, 'tokens', 'next'], [x, x.puzzles.length - 1, 'back', 'on'], [y, 0, '', 'map'], [y, 1, '', 'end']];
+  let size = 0;
+  await tab.click('#b-continue');
+  for (const [l, n, style, move] of sitting) {
+    const q = l.puzzles[n], tag = `${l.name} No. ${n + 1}`;
+    assert.equal(await tab.textContent('#where'), `${l.name.replace(/ Line$/, '')}, No. ${n + 1}`);
+    const opened = await board();
+    size ||= opened.size;
+    assert.deepEqual(opened, { size, marks: 0 }, `${tag} opened with marks on the map, or a bigger map, than the first`);
+    const [a, b] = [q.lines[1][0], q.lines[1][1]];
+    const box = await tab.locator('#board').boundingBox(), at = i => [box.x + (i % 6 + 0.5) * box.width / 6, box.y + (Math.floor(i / 6) + 0.5) * box.height / 8];
+    await tab.mouse.move(...at(a)); await tab.mouse.move(...at(b), { steps: 3 });
+    assert.equal((await board()).marks, 0, `${tag}: a move with no button down traced something, so a drag was held`);
+    let earned = 0;
+    if (style === 'tokens') {
+      const { DETOURS } = await import(`../js/detours/${l.id}.js`);
+      const ds = DETOURS[q.id].split(' ').map(w => [w, traces(q.grid, w.toUpperCase(), 1)[0]]).filter(([, t]) => t);
+      while (earned < 2 * FARE_PER_TOKEN) {
+        const [w, t] = ds.shift();
+        await drag(tab, t);
+        await tab.waitForFunction(() => document.getElementById('readout').textContent !== 'One moment', null, { timeout: 8000 });
+        if ((await tab.textContent('#readout')).startsWith(`Detour: ${w},`)) earned += fareFor(w);
+      }
+      await tab.click('#b-token'); await tab.click('#b-token');
+      assert.equal(await tab.locator('#board .guide').count(), 1);
+    }
+    for (const [j, k] of q.lines.map((_, k) => k).entries()) {
+      if (style === 'back' && j === 2) {
+        await tap(tab, q.lines[k][0]); await tap(tab, q.lines[k][1]);
+        await tab.click('#b-back');
+        assert.equal(await tab.textContent('#b-continue'), `Resume No. ${n + 1}`);
+        await tab.click('#b-continue');
+        assert.equal((await board()).marks, 0, `${tag}: a half-traced word came back with Resume`);
+      }
+      await drag(tab, q.lines[k]);
+    }
+    await tab.waitForSelector('#sheet-done:not([hidden])');
+    const end = await tab.evaluate(() => ({ clock: document.getElementById('clock').textContent, stars: document.querySelectorAll('#done-stars .got').length, marks: document.querySelectorAll('#board .sel, #board .trace, #board .hint, #board .guide').length }));
+    const g = await savedGame(q.id);
+    assert.equal(end.marks, 0, `${tag} ended with marks on the map`);
+    assert.ok(g.done && g.hint === null && g.spent === (style === 'tokens' ? 2 : 0), `${tag} was saved unfinished, with a hint or the wrong tokens spent: ${JSON.stringify(g)}`);
+    assert.equal(g.fare + FARE_PER_TOKEN * (g.tokens + g.spent), earned, `${tag}: the fare in the save doesn't add up to the ${earned} its detours earned`);
+    assert.equal(g.detours.reduce((f, w) => f + fareFor(w), 0), earned);
+    assert.equal(end.stars, starsFor(g), `${tag}: the done sheet's stars aren't the save's`);
+    await tab.waitForTimeout(1100);
+    assert.deepEqual([await tab.textContent('#clock'), (await savedGame(q.id)).ms], [end.clock, g.ms], `${tag}: the clock ran on after the end`);
+    if (move === 'next') await tab.click('#b-done-next');
+    else if (move === 'on') {
+      assert.equal(await tab.textContent('#b-done-next'), `On to the ${y.name}`);
+      await tab.click('#b-done-next');
+    } else if (move === 'map') {
+      await tab.click('#sheet-done .panel [data-close]');
+      await tab.waitForTimeout(1100);
+      assert.equal(await tab.textContent('#clock'), end.clock, `${tag}: the clock started again on the finished map`);
+      assert.equal(await tab.textContent('#b-next'), 'Next puzzle');
+      await tab.click('#b-next');
+    }
+  }
+  assert.deepEqual(errors, []);
+  await other.close();
 }
 
 // It can be installed.
