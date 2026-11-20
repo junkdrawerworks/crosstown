@@ -57,6 +57,20 @@ test('the Main Line boards are the ones Mark played', async () => {
   assert.deepEqual(now, published, 're-laying a Main Line board resets saved progress on it: put it to Mark before changing test/main-line.json');
 });
 
+// A word that is on two boards of one line is a repeat the player notices, and the second find is free.
+test('no word is on two boards of the same line', () => {
+  for (const line of LINES) {
+    const seen = new Map();
+    const twice = [];
+    for (const p of line.puzzles) {
+      for (const w of p.lines.map(l => spell(p.grid, l))) {
+        if (seen.has(w)) twice.push(`${w} (${seen.get(w)}, ${p.id})`); else seen.set(w, p.id);
+      }
+    }
+    assert.deepEqual(twice, [], `${line.name} repeats words`);
+  }
+});
+
 for (const p of PUZZLES) {
   const theme = THEMES.find(t => t.id === p.id);
   const words = p.lines.map(l => spell(p.grid, l));
