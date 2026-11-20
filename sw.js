@@ -1,7 +1,7 @@
 // Offline support: keep a copy of the app so it works with no signal.
 // Anything the person saves lives in localStorage, not here.
 // Network first, so a new version shows up as soon as you're online, but a page the network hasn't answered in a few
-// seconds opens from the copy instead (see page()).
+// seconds opens from the copy instead (see page()), and so does a line's detours (see detours()).
 
 // An installed copy downloads the whole list again only when this file changes by a byte. Otherwise each file in it is
 // refreshed only when a page that loads it is visited online, and the copy could mix two releases. So FILES is a
@@ -43,6 +43,7 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   if (e.request.mode === 'navigate') e.respondWith(page(e));
   else if (fromCopy.has(e.clientId)) e.respondWith(kept(e.request).then(r => r || network(e)));
+  else if (url.pathname.includes('/js/detours/')) e.respondWith(detours(e));
   else e.respondWith(network(e).catch(() => offline(e.request)));
 });
 
@@ -66,6 +67,22 @@ function page(e) {
       if (fromCopy.size > 50) fromCopy.delete(fromCopy.values().next().value); // the oldest, long gone
       answer(copy);
     }), PATIENCE);
+    net.then(res => { clearTimeout(slow); answer(res); },
+      () => { clearTimeout(slow); offline(e.request).then(answer, reject); });
+  });
+}
+
+// A line's detours, which load while the game is open (when a line is shown), not with the page. On a connection that
+// has stopped answering since the page opened, a word traced meanwhile would wait on them for good, so they come from
+// the copy after PATIENCE, as a page does. The network's answer still goes into the copy when it comes. Only the
+// detours: they're plain data, but an older app.js from the copy beside a page that came from the network would be a
+// mix of two releases, which is worse than waiting.
+function detours(e) {
+  const net = network(e);
+  return new Promise((resolve, reject) => {
+    let answered = false;
+    const answer = res => { if (!answered) { answered = true; resolve(res); } };
+    const slow = setTimeout(() => kept(e.request).then(copy => { if (copy) answer(copy); }), PATIENCE);
     net.then(res => { clearTimeout(slow); answer(res); },
       () => { clearTimeout(slow); offline(e.request).then(answer, reject); });
   });

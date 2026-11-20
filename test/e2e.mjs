@@ -31,6 +31,15 @@ function detour(avoid, min, skip = new Set()) {
   }
   throw new Error('no detour found');
 }
+// The first detour on a puzzle of any line that can be traced, with its stops.
+async function detourOn(q, min = 4) {
+  const { DETOURS } = await import(`../js/detours/${q.line}.js`);
+  for (const d of DETOURS[q.id].split(' ')) {
+    const t = d.length >= min && traces(q.grid, d.toUpperCase(), 1)[0];
+    if (t) return { word: d, path: t };
+  }
+  throw new Error(`no detour found on ${q.id}`);
+}
 
 await page.goto(base);
 await page.evaluate(() => document.fonts.ready);
@@ -709,6 +718,22 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
   assert.equal(await page.title(), title, 'the page did not open on a stalled connection');
   net = 'up';
   for (const [req, res] of held.splice(0)) serve(req, res);
+
+  // A line's detours load while the game is open (when the line is shown), so a connection that stalls after the page
+  // has opened from the network would leave every detour traced on that line waiting. They come from the copy after
+  // the worker's few seconds' wait too.
+  await page.reload();
+  await page.waitForFunction(() => navigator.serviceWorker?.controller, null, { timeout: 15000 });
+  net = 'stalled';
+  const q = LINES[1].puzzles[0], d = await detourOn(q);
+  await page.click('#b-line'); await page.click('#lines li:nth-child(2) .line-row');
+  await page.click('#b-continue');
+  await drag(page, d.path);
+  await page.waitForFunction(() => document.getElementById('readout').textContent.startsWith('Detour:'), null, { timeout: 8000 })
+    .catch(async () => assert.fail(`a detour on a stalled connection read "${await page.textContent('#readout')}" after 8 s`));
+  net = 'up';
+  for (const [req, res] of held.splice(0)) serve(req, res);
+  await page.click('#b-back');
 
   // A new release: every file in the new copy comes from the server, though the browser still has its own copies of
   // the old ones for ten minutes. (The next release changes index.html, and so FILES in sw.js, as a real one does.)
