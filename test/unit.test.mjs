@@ -47,6 +47,16 @@ test('the Main Line keeps the first 108 puzzles, in order, so saved progress and
   assert.equal(main.puzzles[107].id, 'fairgrounds');
 });
 
+// A saved game is dropped when its board's letters change (js/app.js, gameFor), so a Main Line board laid out again
+// would quietly wipe Mark's progress on it. test/main-line.json is every Main Line board as published.
+test('the Main Line boards are the ones Mark played', async () => {
+  const published = JSON.parse(await readFile(new URL('./main-line.json', import.meta.url), 'utf8'));
+  const now = LINES[0].puzzles.map(p => [p.id, p.grid]);
+  const ids = new Set(now.map(([id]) => id));
+  assert.deepEqual(published.map(([id]) => id).filter(id => !ids.has(id)), [], 'a Main Line puzzle is gone: its saved progress would be lost');
+  assert.deepEqual(now, published, 're-laying a Main Line board resets saved progress on it: put it to Mark before changing test/main-line.json');
+});
+
 for (const p of PUZZLES) {
   const theme = THEMES.find(t => t.id === p.id);
   const words = p.lines.map(l => spell(p.grid, l));
