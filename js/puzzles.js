@@ -1,8 +1,8 @@
 // Written by tools/make-puzzles.mjs from tools/themes/. Don't edit by hand: change the theme and run the tool.
 // The lines, in the order the list shows them. Each puzzle has its grid (the 48 letters, across then down) and its
-// lines (the stops of each theme word in order, the Crosstown first).
+// lines (the stops of each theme word in order, the Crosstown first). A line's fp is a fingerprint of its detours.
 export const LINES = [
-  { id: "main", name: "Main Line", about: "The first 108, a bit of everything", color: "cross", puzzles: [
+  { id: "main", name: "Main Line", about: "The first 108, a bit of everything", color: "cross", fp: 'c11d03fb', puzzles: [
     { id: "junk-drawer", name: "Junk drawer", clue: "It’s in here somewhere",
       grid: 'EHCTMKSDKAYERWBNUSAEIATJRNCLRTEORTIEPISSAESCSPES', lines: [[23,16,15,8,7,12,18,13,19,24],[14,21,22,29,35,28,34,41,47],[42,43,37,44,38,31,32,39],[33,40,45,46],[4,9,3,2,1,0,6],[5,11,10,17],[36,30,25,26,20,27]] },
     { id: "spice-rack", name: "Spice rack", clue: "A pinch here, a dash there",
@@ -220,7 +220,7 @@ export const LINES = [
     { id: "fairgrounds", name: "Fairgrounds", clue: "Blue ribbon",
       grid: 'GDDSUMONRNOICODRDWRIEGYALIQSRLSTUISEZEACRUIRPFAO', lines: [[45,38,33,28,21,15,10,4,9,2,3],[12,13,8,7,1,6,0],[39,46,40,47,41,34,35,29],[5,11,16,17,23,22],[18,19,14,20,27],[44,43,42,36,37],[26,32,25,24,31,30]] },
   ] },
-  { id: "market", name: "Market Line", about: "Food and drink", color: "l1", puzzles: [
+  { id: "market", name: "Market Line", about: "Food and drink", color: "l1", fp: '3c75f2d1', puzzles: [
     { id: "pizzeria", name: "Pizzeria", clue: "Extra cheese",
       grid: 'LSDTRCIOGSUACZUHISEIZRVEPOIELIRENZZOPPOAELPEMRLA', lines: [[24,19,13,20,27,21,16,11],[42,43,36,37,31,30,25,32,26],[44,38,33,34,39,45,40,46,41,47],[35,28,29,22,23,17],[5,4,10,9,3],[1,0,6,12,18],[2,7,14,8,15]] },
     { id: "candy-shop", name: "Candy shop", clue: "Sweet tooth",
@@ -384,7 +384,7 @@ export const LINES = [
     { id: "sauce-station", name: "Sauce station", clue: "Mother knows best",
       grid: 'NIAEYVOTTLOAETSMRGUOVEUSLEATCAAYOMOBRNTCEEMOHAML', lines: [[23,29,22,28,21,14,8,2,7,1,6,0],[35,40,39,44,45,46,41,47],[20,25,24,19,18,13,12],[38,32,33,26,27,34],[15,10,9,3],[17,16,11,5,4],[42,43,36,37,30,31]] },
   ] },
-  { id: "park", name: "Park Line", about: "Nature and the outdoors", color: "l3", puzzles: [
+  { id: "park", name: "Park Line", about: "Nature and the outdoors", color: "l3", fp: 'dfc5e3d1', puzzles: [
     { id: "barnyard", name: "Barnyard", clue: "E-I-E-I-O",
       grid: 'RCHCNEDANIKBEYORAPSRHREEYGBBAHEOITESUKODKYTRSEON', lines: [[11,16,15,8,13,7,0,6],[20,14,19,18,12],[35,29,22,23,17],[1,2,9,3,10,5,4],[39,46,47,40,34,41],[42,36,43,37,30,24],[25,31,38,44,45],[21,28,27,26,32,33]] },
     { id: "animal-sounds", name: "Animal sounds", clue: "What does the fox say?",
@@ -544,7 +544,7 @@ export const LINES = [
     { id: "ice-fishing", name: "Ice fishing", clue: "Hard water",
       grid: 'GISEHSIGJUYAGNCOTNRIEHNGADUIERBPSSHGIEIUUACFPPIT', lines: [[36,42,37,43,38,33,34,27,22,23],[41,40,35,28,29],[5,4,11,17,16,10],[47,46,45,39,44],[8,1,0,7,6,13,12],[19,14,20,21,15,9,2,3],[32,31,26,25,30,24,18]] },
   ] },
-  { id: "workshop", name: "Workshop Line", about: "Making, fixing and the home", color: "l4", puzzles: [
+  { id: "workshop", name: "Workshop Line", about: "Making, fixing and the home", color: "l4", fp: 'b92cec10', puzzles: [
     { id: "toolbox", name: "Toolbox", clue: "Righty tighty",
       grid: 'HNUAAWCTPHCSESOETKKCALRNTMLWECLOLBHXEOAHOEVELMMR', lines: [[24,31,37,32,33,40,35],[39,38,45,46,41,47],[27,22,28,23,29,34],[30,36,42,43,44],[9,3,10,17,11,4,5],[13,14,19,18,12,7],[25,20,26,21,15,16],[8,2,1,6,0]] },
     { id: "laundry-day", name: "Laundry day", clue: "Separate the whites",
@@ -700,7 +700,7 @@ export const LINES = [
     { id: "spinning-wheel", name: "Spinning wheel", clue: "Straw into gold",
       grid: 'LGNINFEHWLNLEGOIEYNIWOPRDACFFSRNGITAIVFDSCROLEEE', lines: [[29,22,15,10,4,3,2,1,8,7,12,6,0],[39,33,40,34,35,28,27],[5,11,17,16,23],[42,43,37,36,31,32],[38,44,45,46,41,47],[26,25,30,24,19,18,13],[20,21,14,9]] },
   ] },
-  { id: "theater", name: "Theater Line", about: "Arts, play and pastimes", color: "l5", puzzles: [
+  { id: "theater", name: "Theater Line", about: "Arts, play and pastimes", color: "l5", fp: 'a50811e8', puzzles: [
     { id: "birthday-party", name: "Birthday party", clue: "Make a wish",
       grid: 'ABAEKALCRSDCOLDATHONPYIRSTACNBYRPNADSAIAALEMGTES', lines: [[29,22,23,16,17,10,15,21,20,26,31,25,30],[11,5,4,3],[27,34,28,35,41,46,47],[1,0,6,13,12,18,19,24],[32,38,33,40,45,39],[44,37,43,42,36],[7,2,8,14,9]] },
     { id: "basketball", name: "Basketball", clue: "Nothing but net",
@@ -866,7 +866,7 @@ export const LINES = [
     { id: "opera-house", name: "Opera house", clue: "Till the fat lady sings",
       grid: 'ESRONNMATADOVOBAIRAROMSPAHLUBEOREIREAPDRTTVIAIAO', lines: [[30,37,32,31,24,25,20,27,22,29],[46,39,45,44],[38,43,42,36],[26,33,28,34,35,40,41,47],[6,7,0,1,8,2,3],[14,19,18,12,13],[23,17,16,21,15,10,11,5,4,9]] },
   ] },
-  { id: "university", name: "University Line", about: "Science, history, language and the body", color: "l2", puzzles: [
+  { id: "university", name: "University Line", about: "Science, history, language and the body", color: "l2", fp: 'd3165705', puzzles: [
     { id: "periodic-table", name: "Periodic table", clue: "Elementary, my dear",
       grid: 'IONNDLRBYGEOLAOXRGETIDIEMCNEOPUCGRDCILOYOAACHNBR', lines: [[29,23,16,22,28,21,20,25,19,13,7,12,18],[44,39,34,33,38,32,27,26],[14,15,8,9,10,3],[35,41,47,46,40,45],[0,6,1,2],[17,11,5,4],[43,42,37,31,36,30,24]] },
     { id: "five-senses", name: "Five senses", clue: "Take it all in",
@@ -1030,7 +1030,7 @@ export const LINES = [
     { id: "numismatics", name: "Numismatics", clue: "Heads or tails",
       grid: 'QURTENNAPNRUCIENYMEKMSINLATLOEMIBORSIECUEVDSDOOB', lines: [[5,11,17,22,21,20,25,26,31,38,43],[8,14,9,15,16],[6,13,12,19,18,24],[42,36,30,37],[0,1,7,2,3,4,10],[46,47,41,40,34,35,29],[44,45,39,32,27,33,28,23]] },
   ] },
-  { id: "airport", name: "Airport Line", about: "Places and getting around", color: "l6", puzzles: [
+  { id: "airport", name: "Airport Line", about: "Places and getting around", color: "l6", fp: 'e458ed7f', puzzles: [
     { id: "departures", name: "Departures", clue: "Now boarding",
       grid: 'ASPYURPSOANTGRTWARGUAGMAGALTCSEPAEUEECTRTRDUSOMS', lines: [[42,36,31,32,39,40,34,41,35,29],[6,0,7,1,2,8,13,14],[21,20,27,33],[5,4,10,15,9,3],[37,43,44,38,45,46,47],[26,19,12,18,25,24,30],[11,16,17,22,23,28]] },
     { id: "packing-list", name: "Packing list", clue: "Roll, don’t fold",

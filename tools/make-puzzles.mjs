@@ -11,6 +11,7 @@
 import { createRequire } from 'node:module';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { cpus } from 'node:os';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { W, H, N, row, col, NEIGHBORS, diagonalSquare, spell, traces } from '../js/board.js';
@@ -299,17 +300,21 @@ async function main() {
   }
 
   const puzzleOf = t => made.get(t.id)?.puzzle ?? kept.get(t.id);
+  // Each line's detours, and a fingerprint of them that both files carry (`fp` in puzzles.js, FOR in the line's
+  // detours file), so a page left open across a release can tell that the detours it was just sent are for other boards.
+  const detours = new Map(LINES.map(line => [line.id, Object.fromEntries(line.themes.map(t => [t.id, puzzleOf(t).detours]))]));
+  const fp = new Map([...detours].map(([id, d]) => [id, createHash('sha1').update(JSON.stringify(d)).digest('hex').slice(0, 8)]));
   const header = '// Written by tools/make-puzzles.mjs from tools/themes/. Don\'t edit by hand: change the theme and run the tool.\n';
   const lines = LINES.map(line => {
     const puzzles = line.themes.map(t => {
       const p = puzzleOf(t);
       return `    { id: ${JSON.stringify(p.id)}, name: ${JSON.stringify(p.name)}, clue: ${JSON.stringify(p.clue)},\n      grid: '${p.grid}', lines: ${JSON.stringify(p.lines)} },`;
     });
-    return `  { id: ${JSON.stringify(line.id)}, name: ${JSON.stringify(line.name)}, about: ${JSON.stringify(line.about)}, color: ${JSON.stringify(line.color)}, puzzles: [\n${puzzles.join('\n')}\n  ] },`;
+    return `  { id: ${JSON.stringify(line.id)}, name: ${JSON.stringify(line.name)}, about: ${JSON.stringify(line.about)}, color: ${JSON.stringify(line.color)}, fp: '${fp.get(line.id)}', puzzles: [\n${puzzles.join('\n')}\n  ] },`;
   });
   await writeFile(new URL('../js/puzzles.js', import.meta.url),
 `${header}// The lines, in the order the list shows them. Each puzzle has its grid (the 48 letters, across then down) and its
-// lines (the stops of each theme word in order, the Crosstown first).
+// lines (the stops of each theme word in order, the Crosstown first). A line's fp is a fingerprint of its detours.
 export const LINES = [
 ${lines.join('\n')}
 ];
@@ -325,9 +330,11 @@ export const PUZZLES = LINES.flatMap(line => line.puzzles.map(p => Object.assign
 `);
   await mkdir(new URL('../js/detours/', import.meta.url), { recursive: true });
   for (const line of LINES) {
-    const body = line.themes.map(t => `  ${JSON.stringify(t.id)}: '${puzzleOf(t).detours}',`).join('\n');
+    const body = Object.entries(detours.get(line.id)).map(([id, d]) => `  ${JSON.stringify(id)}: '${d}',`).join('\n');
     await writeFile(new URL(`../js/detours/${line.id}.js`, import.meta.url),
 `${header}// Every word of four letters or more, other than the answers, that can be traced on each board of the ${line.name}.
+// FOR is the line's fp in the puzzles.js these were made with (a fingerprint of them): another means another release.
+export const FOR = '${fp.get(line.id)}';
 export const DETOURS = {
 ${body}
 };

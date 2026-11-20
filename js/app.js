@@ -159,13 +159,21 @@ function showLine(l) {
 
 // Each line's detours come in their own file, loaded the first time one of its puzzles (or the line) is shown.
 // Until it's in, a word that isn't an answer waits for it (see wait()). If it can't be loaded (offline with no copy,
-// or a weak signal), the next word asks for it again.
+// or a weak signal), the next word asks for it again. A file made for other boards than these (`stale`: a new release
+// went out since the page opened, and its detours came instead) can't be used, and asking again would bring the same
+// file, so words aren't checked against it and the page says once that a new version is out.
 const detourSets = new Map();
+const STALE = "Can't check detours right now. Reload to play the new version";
+let toldNewer = false;
 function detoursOf(lineId) {
   let d = detourSets.get(lineId);
-  if (d && !d.failed) return d;
-  d = { words: {}, ready: false, failed: false };
-  d.wait = DETOURS[lineId]().then(m => { d.words = m.DETOURS; }, () => { d.failed = true; }).finally(() => { d.ready = true; });
+  if (d && (!d.failed || d.stale)) return d;
+  d = { words: {}, ready: false, failed: false, stale: false };
+  d.wait = DETOURS[lineId]().then(m => {
+    if (m.FOR === lineOf(lineId).fp) { d.words = m.DETOURS; return; }
+    d.failed = d.stale = true;
+    if (!toldNewer) { toldNewer = true; toast('A new version of Crosstown is out. Reload to play it', 5000); }
+  }, () => { d.failed = true; }).finally(() => { d.ready = true; });
   detourSets.set(lineId, d);
   return d;
 }
@@ -662,6 +670,7 @@ function judgeWord(word) {
   if (k >= 0) return found(k);
   if (cur.extra.failed) cur.extra = detoursOf(cur.line.id);   // ask again: the signal may be back
   if (cur.waiting || (!cur.extra.ready && !game.detours.includes(word.toLowerCase()))) { wait(word); return; }
+  if (cur.extra.stale && !game.detours.includes(word.toLowerCase())) { say(STALE, 'note'); paint(); return; }
   const { news, counted } = fares(game, cur.p, cur.extra, [word]);
   say(...news);
   if (counted) keep();
@@ -700,7 +709,7 @@ function land(mine, q, arrived) {
   const game = shown ? shown.game : gameFor(mine.p.id) || mine.game;
   if (game.done) return;
   if (!arrived) {
-    if (shown) { say("Can't check detours right now. Try that word again in a moment", 'note'); paint(); }
+    if (shown) { say(q.extra.stale ? STALE : "Can't check detours right now. Try that word again in a moment", 'note'); paint(); }
     return;
   }
   const { news, counted } = fares(game, mine.p, q.extra, q.words);
@@ -997,9 +1006,9 @@ $('b-share').addEventListener('click', async () => {
 // The toast is a live region that's always there, shown with a class, so screen readers hear a message that arrives
 // with it (one that appears and fills at the same moment is often missed).
 let toastTimer = 0;
-function toast(text) {
+function toast(text, ms = 2200) {
   const t = $('toast'); t.textContent = text; t.classList.add('on');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.classList.remove('on'); t.textContent = ''; }, 2200);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.classList.remove('on'); t.textContent = ''; }, ms);
 }
 
 // ---- Back -------------------------------------------------------------------------------------------------------

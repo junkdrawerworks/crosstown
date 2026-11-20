@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { W, H, N, row, col, adjacent, diagonalSquare, spell, spans, traces } from '../js/board.js';
 import { LINES, DETOURS as LOAD } from '../js/puzzles.js';
 import { LINES as THEME_LINES, THEMES } from '../tools/themes.mjs';
@@ -37,6 +38,18 @@ test('the lines match the themes, in order, with no repeats', async () => {
     const { DETOURS } = await LOAD[line.id]();
     assert.deepEqual(Object.keys(DETOURS), line.puzzles.map(p => p.id));
   }
+});
+
+// A page left open across a release can be sent the next release's detours (they load when a line is shown), so each
+// detours file says which line it was made with (FOR, a fingerprint of its words), and puzzles.js says the same (fp).
+test('every line\'s detours file carries the fingerprint puzzles.js has for it', async () => {
+  for (const line of LINES) {
+    const { FOR, DETOURS } = await LOAD[line.id]();
+    assert.match(line.fp, /^[0-9a-f]{8}$/, `${line.name} has no fingerprint: run tools/make-puzzles.mjs`);
+    assert.equal(FOR, line.fp, `${line.name}'s detours are from another run of tools/make-puzzles.mjs than puzzles.js`);
+    assert.equal(FOR, createHash('sha1').update(JSON.stringify(DETOURS)).digest('hex').slice(0, 8), `${line.name}'s fingerprint isn't of its detours`);
+  }
+  assert.equal(new Set(LINES.map(l => l.fp)).size, LINES.length);
 });
 
 test('the Main Line keeps the first 108 puzzles, in order, so saved progress and puzzle numbers stay put', () => {

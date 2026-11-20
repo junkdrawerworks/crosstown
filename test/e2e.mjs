@@ -1774,7 +1774,7 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
   const { createHash } = await import('node:crypto');
   const root = fileURLToPath(new URL('..', import.meta.url));
   const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
-  let net = 'up', release = '', drop = '', dropped = 0;
+  let net = 'up', release = '', drop = '', dropped = 0, gone = '';
   const held = [];
   const server = createServer((req, res) => {
     if (net === 'down') { req.socket.destroy(); return; }
@@ -1792,6 +1792,9 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
     // The third release's app.js needs something only its own puzzles.js has.
     if (release === 'third' && path === '/js/app.js') body = Buffer.from(String(body).replace("import { LINES, DETOURS, PUZZLES } from './puzzles.js';", "import { LINES, DETOURS, PUZZLES, RELEASE } from './puzzles.js';"));
     if (release === 'third' && path === '/js/puzzles.js') body = Buffer.concat([body, Buffer.from("export const RELEASE = 'third';\n")]);
+    // In the relaid release, a board on the Park Line has been laid out again, so its detours have changed (one, `gone`,
+    // is no longer on it), and so has their fingerprint.
+    if (release === 'relaid' && path === '/js/detours/park.js') body = Buffer.from(String(body).replace(/export const FOR = '\w+'/, "export const FOR = 'relaid00'").replace(` ${gone} `, ' '));
     const etag = `"${createHash('sha1').update(body).digest('hex').slice(0, 16)}"`;
     const head = { etag, 'cache-control': 'max-age=600', 'content-type': TYPES[extname(path)] || 'text/html' };
     if (req.headers['if-none-match'] === etag) { res.writeHead(304, head); res.end(); return; }
@@ -1890,6 +1893,20 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
   await page.waitForFunction(() => document.querySelectorAll('#route li').length > 0 && !document.getElementById('b-continue').disabled, null, { timeout: 15000 });
   assert.equal(await page.isHidden('#reload-line'), true);
   assert.equal(await page.evaluate(() => sessionStorage.getItem('crosstown.reloaded')), null, 'a page that started should let the next one that doesn\'t load again by itself');
+
+  // A page left open while a release goes out loads a line's detours when the line is shown, so it can be sent the new
+  // release's, made for other boards. It doesn't check words against them (a real detour on the board on screen would
+  // be "Not a word on this map"), and says a new version is out.
+  const park = LINES.findIndex(l => l.id === 'park'), pq = LINES[park].puzzles[0], pd = await detourOn(pq);
+  gone = pd.word; release = 'relaid';
+  await page.click('#b-line'); await page.click(`#lines li:nth-child(${park + 1}) .line-row`);
+  await page.waitForFunction(() => document.getElementById('toast').textContent === 'A new version of Crosstown is out. Reload to play it', null, { timeout: 5000 })
+    .catch(async () => assert.fail(`detours for other boards said "${await page.textContent('#toast')}" in the toast`));
+  await page.click('#b-continue');
+  assert.equal(await page.textContent('#clue'), pq.clue);
+  await drag(page, pd.path);
+  assert.equal(await page.textContent('#readout'), "Can't check detours right now. Reload to play the new version");
+  release = '';
   assert.deepEqual(problems, [], 'problems while offline or on a stalled connection');
   await ctx.close();
   server.close();
