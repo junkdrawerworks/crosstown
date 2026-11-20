@@ -2,6 +2,7 @@
 import { LINES, DETOURS, PUZZLES } from './puzzles.js';
 import { W, H, N, row, col, adjacent, spell } from './board.js';
 import { MIN_LENGTH, FARE_PER_TOKEN, fareFor, starsFor, clock } from './rules.js';
+import { KEY, fresh, isObject, blank, shape, byId, readGame, started, combine } from './saves.js';
 
 const $ = id => document.getElementById(id);
 const SVG = 'http://www.w3.org/2000/svg';
@@ -14,13 +15,7 @@ const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l2.7 5
 // Two windows can be open at once (the installed app and a browser tab, say), so nothing simply writes its own copy
 // over the other's. Each write reads what's stored first and changes only what this window changed since its last
 // write (see save()), and a write from another window is read in here as it happens (see the storage listener).
-const KEY = 'crosstown.v1';
 const UNREADABLE = 'crosstown.v1.unreadable';   // a save that couldn't be read, put aside to be got back by hand
-const fresh = () => ({ found: [], detours: [], fare: 0, tokens: 0, spent: 0, hint: null, ms: 0, done: false, crossAt: -1, night: false });
-const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
-// `erasedAt` is when progress on every line was last erased, in any window (see mergeInto()). `stars` is each puzzle's
-// best stars, as `best` is its best time, kept when it's played again (see bestStars()).
-const blank = () => ({ options: { clock: false, night: false, line: LINES[0].id }, games: {}, best: {}, stars: {}, erasedAt: 0 });
 // What's stored, read into shape. Best times are kept only if they're times. A save that can't be read at all, or
 // has the wrong shape (its games in a list, say, as a hand edit could leave it), is put aside first (unless one
 // already is), before anything can write over it. `putAside` says what went: 'games' when the games couldn't be read.
@@ -35,12 +30,7 @@ function load() {
     localStorage.setItem(UNREADABLE, text);
     putAside = isObject(raw) && fits('games') ? 'part' : 'games';
   }
-  const s = blank();
-  if (!isObject(raw)) return s;
-  const best = isObject(raw.best) ? Object.entries(raw.best).filter(([, t]) => Number.isFinite(t) && t > 0) : [];
-  const stars = isObject(raw.stars) ? Object.entries(raw.stars).filter(([, n]) => [1, 2, 3].includes(n)) : [];
-  return { options: { ...s.options, ...(isObject(raw.options) ? raw.options : {}) }, games: isObject(raw.games) ? raw.games : {}, best: Object.fromEntries(best),
-    stars: Object.fromEntries(stars), erasedAt: Number.isFinite(raw.erasedAt) ? raw.erasedAt : 0 };
+  return shape(raw);
 }
 // What this window has changed since its last write: games by id (a game taken out counts too), options by name, and
 // whether every game was erased.
@@ -79,43 +69,6 @@ function mergeInto(now) {
   for (const name of changed.options) now.options[name] = saved.options[name];
   return now;
 }
-// Which of two saved games of a puzzle is the better one to keep: above 0 if `a`, below if `b`, 0 for a tie. A finished
-// game beats any unfinished one, then more stars win, then the faster time, then more detours, so a game with detours
-// can never take the place of one with more stars. Of two unfinished games, more lines found wins, then more detours.
-function ahead(a, b, id) {
-  const rank = g => {
-    const game = readGame(g, id);
-    if (!game) return [0];
-    return game.done ? [2, starsFor(game), -Math.round(game.ms), game.detours.length] : [1, game.found.length, game.detours.length];
-  };
-  const x = rank(a), y = rank(b);
-  for (let k = 0; k < Math.max(x.length, y.length); k++) if ((x[k] ?? 0) !== (y[k] ?? 0)) return (x[k] ?? 0) - (y[k] ?? 0);
-  return 0;
-}
-// The game of a puzzle to keep, of two saved in different windows: `a`, `b` or the two put together. Two unfinished
-// games are put together, since each may have something the other hasn't: every line and detour either found, every
-// token either spent, and the ring or route of the one that spent more. Lines never share stops, so any lines found
-// make a board that can be played on. Fare and tokens are counted again from the detours, less the tokens spent. The
-// Crosstown counts as found first if it was in either. Otherwise (one is finished, or one was started over since the
-// other began: see `restartedAt`) the better game stays whole (see ahead()). A game put together that has nothing `a`
-// hasn't is `a` itself.
-function combine(a, b, id) {
-  const x = readGame(a, id), y = readGame(b, id);
-  if (!x || !y || x.done || y.done || x.restartedAt !== y.restartedAt) return ahead(a, b, id) >= 0 ? a : b;
-  const found = [...new Set([...x.found, ...y.found])], detours = [...new Set([...x.detours, ...y.detours])];
-  const spent = Math.max(x.spent, y.spent), h = (y.spent > x.spent ? y : x).hint || (y.spent > x.spent ? x : y).hint;
-  const hint = h && !found.includes(h.line) ? h : null;
-  const same = (p, q) => p.length === q.length && p.every(v => q.includes(v));
-  if (same(found, x.found) && same(detours, x.detours) && spent === x.spent && JSON.stringify(hint) === JSON.stringify(x.hint)
-    && (x.crossAt === 0 || y.crossAt !== 0)) return a;
-  const total = detours.reduce((n, d) => n + fareFor(d), 0);
-  return {
-    ...x, found, detours, spent, hint,
-    tokens: Math.max(0, Math.floor(total / FARE_PER_TOKEN) - spent), fare: total % FARE_PER_TOKEN,
-    crossAt: x.crossAt === 0 || y.crossAt === 0 ? 0 : found.indexOf(0),
-    ms: Math.max(x.ms, y.ms), done: found.length === byId.get(id).lines.length, night: x.found.length ? x.night : y.night,
-  };
-}
 function save() {
   try {
     const now = mergeInto(load());
@@ -137,33 +90,7 @@ function adopt(now) {
 const setOption = (name, value) => { saved.options[name] = value; changed.options.add(name); save(); };
 const setGame = (id, game) => { if (game) saved.games[id] = game; else delete saved.games[id]; changed.games.add(id); save(); };
 
-// A saved game, read against its puzzle, so a damaged save or one from an older layout of the board can't stop
-// the page: line numbers the board doesn't have are dropped, and anything else that can't be read starts fresh.
-// Each game keeps the letters of the board it was played on (`grid`). If the board has been laid out again since,
-// its line numbers would draw lines on the wrong letters, so the puzzle starts fresh; its best time stays. A game
-// saved before games kept their letters counts as one on the board as it is now.
-const byId = new Map(PUZZLES.map(p => [p.id, p]));
 const gameFor = id => readGame(saved.games[id], id);
-function readGame(g, id) {
-  const p = byId.get(id);
-  if (!isObject(g) || !p) return null;
-  if (typeof g.grid === 'string' && g.grid !== p.grid) return null;
-  const n = p.lines.length;
-  const count = v => (Number.isInteger(v) && v >= 0 ? v : 0);
-  const found = Array.isArray(g.found) ? [...new Set(g.found.filter(k => Number.isInteger(k) && k >= 0 && k < n))] : [];
-  const h = g.hint;
-  // Whole tokens' worth of fare is counted as tokens, as it is when it's earned.
-  const fare = count(g.fare) % FARE_PER_TOKEN, tokens = count(g.tokens) + Math.floor(count(g.fare) / FARE_PER_TOKEN);
-  const hint = isObject(h) && Number.isInteger(h.line) && h.line >= 0 && h.line < n && !found.includes(h.line) ? { line: h.line, level: h.level > 1 ? 2 : 1 } : null;
-  return {
-    ...fresh(), ...g, found, hint,
-    detours: Array.isArray(g.detours) ? g.detours.filter(d => typeof d === 'string') : [],
-    fare, tokens, spent: count(g.spent),
-    ms: Number.isFinite(g.ms) && g.ms > 0 ? g.ms : 0,
-    done: found.length === n, crossAt: Number.isInteger(g.crossAt) ? g.crossAt : -1, night: g.night === true,
-  };
-}
-const started = g => !!g && (g.done || g.found.length > 0 || g.detours.length > 0);
 // A puzzle's best stars: the most any finished game of it has got. A finished game keeps it, as it keeps its best time,
 // however it's played again (see keepBest()), and a finished game saved before stars were kept counts for itself, so
 // stars already won carry over as they are. A puzzle with any is finished: the list, the tallies and the Lines sheet

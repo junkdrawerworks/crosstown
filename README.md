@@ -49,7 +49,8 @@ To put it online with GitHub Pages: **Settings → Pages → Build and deploymen
 
 ### Files
 
-- `js/app.js`: the list, the map, tracing with a finger, mouse or keyboard, tokens, and what's saved.
+- `js/app.js`: the list, the map, tracing with a finger, mouse or keyboard, tokens, and reading and writing what's saved.
+- `js/saves.js`: what's saved, and how two saved games of a puzzle are put together.
 - `js/board.js`: the grid's geometry, shared by the game, the puzzle tool and the tests.
 - `js/rules.js`: fare, stars and the clock's arithmetic.
 - `js/puzzles.js`: the lines and their boards, written by `tools/make-puzzles.mjs`. Don't edit it by hand.

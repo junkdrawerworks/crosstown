@@ -264,7 +264,7 @@ test('fare and stars', () => {
 
 test('the offline copy lists every file the page loads', async () => {
   const sw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
-  for (const f of ['index.html', 'css/app.css', 'js/app.js', 'js/board.js', 'js/rules.js', 'js/puzzles.js', 'fonts/overpass.woff2', 'icon.svg', 'manifest.webmanifest', ...LINES.map(l => `js/detours/${l.id}.js`)]) {
+  for (const f of ['index.html', 'css/app.css', 'js/app.js', 'js/saves.js', 'js/board.js', 'js/rules.js', 'js/puzzles.js', 'fonts/overpass.woff2', 'icon.svg', 'manifest.webmanifest', ...LINES.map(l => `js/detours/${l.id}.js`)]) {
     assert.ok(sw.includes(`'${f}'`), `sw.js doesn't keep ${f}`);
   }
 });
