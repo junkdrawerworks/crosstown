@@ -80,6 +80,24 @@ const clueLines = await page.evaluate(() => {
 assert.ok(clueLines.every((w, k) => k === clueLines.length - 1 || w >= 0.55 * clueLines[k + 1]), `the clue "${p.clue}" wraps lopsided at 360 px: ${clueLines}`);
 await page.setViewportSize({ width: 390, height: 844 });
 assert.equal(await text('#count'), `0 of ${p.lines.length} lines`);
+// Beside the count, the three stars still in reach: all three at the start, each going dim the moment it's lost.
+const signStars = () => page.$$eval('#sign-stars svg', l => l.map(s => !s.classList.contains('lost')));
+assert.deepEqual([await signStars(), await page.getAttribute('#sign-stars', 'aria-label')], [[true, true, true], '3 of 3 stars still in reach']);
+// They sit beside the count (over it on a narrow phone, so the clue keeps its width), inside the sign, gold that shows
+// on it, and an outline once lost, in either palette.
+for (const colorScheme of ['light', 'dark']) for (const [width, height] of [[320, 568], [390, 844]]) {
+  await page.emulateMedia({ colorScheme }); await page.setViewportSize({ width, height });
+  const look = await page.evaluate(() => {
+    const st = document.getElementById('sign-stars'), c = document.getElementById('count'), sign = document.querySelector('.sign').getBoundingClientRect();
+    const a = st.getBoundingClientRect(), b = c.getBoundingClientRect();
+    const beside = Math.abs((a.top + a.bottom) - (b.top + b.bottom)) < 4 && a.right <= b.left, over = a.bottom <= b.top + 1 && Math.abs(a.right - b.right) < 1;
+    return { oneLine: innerWidth >= 375 ? beside : over, inside: a.left >= sign.left && b.right <= sign.right,
+      fill: getComputedStyle(st.querySelector('svg')).fill, bg: getComputedStyle(document.querySelector('.sign')).backgroundColor };
+  });
+  assert.deepEqual([look.oneLine, look.inside], [true, true], `the sign's stars should sit beside the count (over it under 375 px) at ${width} px in ${colorScheme}`);
+  assert.ok(contrast(look.fill, look.bg) >= 3, `the sign's stars are hard to see in ${colorScheme}: ${JSON.stringify(look)}`);
+}
+await page.emulateMedia({ colorScheme: 'light' }); await page.setViewportSize({ width: 390, height: 844 });
 assert.equal(await page.locator('#board .stop').count(), 48);
 assert.equal(await page.isDisabled('#b-token'), true);
 // With no tokens the button is off but still says, when tapped, how to get one; the meter, tapped, gives the count.
@@ -106,6 +124,8 @@ assert.ok(stray !== undefined, 'no stop beside the line to tap by mistake');
 await tap(page, stray);
 await drag(page, p.lines[2]);
 assert.equal(await text('#count'), `1 of ${p.lines.length} lines`, 'a stray tap ended up in front of the dragged word');
+// Another line found before the Crosstown: that star goes dim, and the others stay.
+assert.deepEqual([await signStars(), await page.getAttribute('#sign-stars', 'aria-label')], [[true, true, false], '2 of 3 stars still in reach'], 'a line found before the Crosstown should dim its star');
 // A found word is heard as found, with the count, in words kept off the screen.
 assert.equal(await text('#readout'), `${words[2]}, found. 1 of ${p.lines.length} lines`);
 assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#readout .sr-only')].map(s => s.getBoundingClientRect().width <= 1)), [true], 'what the readout says after a found word should not show');
@@ -161,8 +181,10 @@ while (fare < FARE_PER_TOKEN * 2) {
 }
 assert.equal(await text('#token-label'), `Use a token (${Math.floor(fare / FARE_PER_TOKEN)})`);
 
-// The first token rings a line's stops; the second draws its route.
+// The first token rings a line's stops; the second draws its route. The first dims the star for no tokens.
+assert.deepEqual(await signStars(), [true, true, false]);
 await page.click('#b-token');
+assert.deepEqual([await signStars(), await page.getAttribute('#sign-stars', 'aria-label')], [[true, false, false], '1 of 3 stars still in reach'], 'the first token should dim the star for no tokens');
 const ringed = await page.locator('#board .stop.hint').count();
 assert.ok(p.lines.some((l, k) => k && l.length === ringed), 'the ringed stops should be one whole line');
 assert.equal(await page.locator('#board .guide').count(), 0);
@@ -272,6 +294,8 @@ assert.equal(await page.locator('#done-key li').count(), p.lines.length);
 assert.equal(await text('#done-key li.xt'), `${p.name.toUpperCase()} (the Crosstown)`, 'the key should give the Crosstown as the map names it, spaces and all');
 assert.notEqual(p.name.toUpperCase(), words[0], 'the first map should have a Crosstown of two words, to test the key');
 assert.equal(await page.locator('#board .stop.on').count(), 48);
+// The sign's stars, once the map is finished, are the stars it got.
+assert.deepEqual([await signStars(), await page.getAttribute('#sign-stars', 'aria-label')], [[true, false, false], '1 of 3 stars']);
 // The detours found are a button on the done sheet, closed to begin with, that shows them in capitals, A to Z.
 {
   const mine = await page.evaluate(id => JSON.parse(localStorage.getItem('crosstown.v1')).games[id].detours, p.id);

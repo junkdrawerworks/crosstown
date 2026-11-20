@@ -405,6 +405,14 @@ function paint() {
 
   const left = p.lines.length - game.found.length;
   $('count').textContent = game.done ? 'All found' : `${game.found.length} of ${p.lines.length} lines`;
+  // Beside the count, the three stars as the done sheet gives them, each going dim the moment it's lost: no tokens at
+  // the first token spent, the Crosstown first once another line is found before it. The first is finishing, so it
+  // stays. Once the map is finished they're the stars it got.
+  const signStars = $('sign-stars');
+  if (!signStars.children.length) signStars.innerHTML = STAR.repeat(3);
+  const kept = [true, game.spent === 0, game.crossAt === 0 || !game.found.length], n3 = kept.filter(Boolean).length;
+  kept.forEach((k, at) => signStars.children[at].classList.toggle('lost', !k));
+  signStars.setAttribute('aria-label', game.done ? `${n3} of 3 stars` : `${n3} of 3 stars still in reach`);
   const hidden = saved.options.night && !game.found.length && !game.done;
   $('clue').textContent = hidden ? 'Night service. The clue shows up with your first line.' : p.clue;
   $('clue').classList.toggle('dark-hours', hidden);

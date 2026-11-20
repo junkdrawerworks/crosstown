@@ -40,6 +40,7 @@
   --sign: #16233b;
   --on-sign: #ffffff;
   --sign-muted: #b6c0cf;
+  --sign-star: #f2b83a;   /* the stars on the sign, gold on its dark ground in either palette */
   --warn: #b3261e;
   --star: #946500;
 
@@ -285,7 +286,13 @@ a { color: inherit; }
 .sign-label { grid-column: 1 / -1; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--sign-muted); }
 .sign-clue { font-size: 22px; line-height: 1.15; font-weight: 800; letter-spacing: -.005em; text-wrap: pretty; padding-top: 2px; }
 .sign-clue.dark-hours { font-size: 16px; font-weight: 600; color: var(--sign-muted); }
-.sign-count { font-size: 13.5px; font-weight: 700; color: var(--sign-muted); font-variant-numeric: tabular-nums; white-space: nowrap; padding-bottom: 2px; }
+.sign-count { display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 700; color: var(--sign-muted); font-variant-numeric: tabular-nums; white-space: nowrap; padding-bottom: 2px; }
+/* The stars still in reach, beside the count: gold while kept, an outline once lost. */
+.sign-stars { display: inline-flex; gap: 1px; }
+.sign-stars svg { width: 12px; height: 12px; fill: var(--sign-star); stroke: var(--sign-star); stroke-width: 1.8; stroke-linejoin: round; transition: fill .3s, stroke .3s; }
+.sign-stars svg.lost { fill: none; stroke: var(--sign-muted); }
+/* On a narrow phone they sit over the count instead, so the clue keeps its width and the map its size. */
+@media (max-width: 374px) { .sign-count { flex-direction: column; align-items: flex-end; gap: 3px; } }
 
 .readout { min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 800; font-size: 20px; letter-spacing: .08em; text-transform: uppercase; text-align: center; }
 /* Tight lines, so a note that wraps on a small phone still fits the readout's height and the map doesn't jump. */
