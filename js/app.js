@@ -282,13 +282,21 @@ function openPuzzle(i) {
 
 function keep() { saved.games[cur.p.id] = cur.game; save(); }
 
+// Back on the list, the puzzle just left is in sight, however it was reached (Continue, Next puzzle a few times,
+// Forward from another line's list).
 function leave() {
   stopClock();
   if (cur && (cur.game.found.length || cur.game.detours.length || cur.game.ms > 5000)) keep();
+  const left = cur && cur.line === line ? cur.i : -1;
   cur = null;
   drag = null;   // Back can come in the middle of a drag, and letting go after it has no puzzle to spell the word on
   $('s-play').hidden = true; $('s-list').hidden = false;
   drawList();
+  const row = $('route').children[left];
+  if (row) {
+    const r = row.getBoundingClientRect(), view = $('s-list').querySelector('.list-scroll').getBoundingClientRect();
+    if (r.top < view.top || r.bottom > view.bottom) row.scrollIntoView({ block: 'center' });
+  }
 }
 
 // The clock only runs while the puzzle is on screen and unfinished.

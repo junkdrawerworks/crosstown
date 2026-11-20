@@ -645,6 +645,35 @@ if (LINES.length > 1) {
   await other.close();
 }
 
+// Back on the list shows the puzzle just left, by the back arrow or the browser's Back, even when it was opened by
+// Continue from the top of the list or reached by Next puzzle.
+{
+  const games = Object.fromEntries(PUZZLES.slice(0, 39).map(q => [q.id, finished(q)]));
+  const q = PUZZLES[39];
+  games[q.id] = { found: q.lines.map((_, k) => k).slice(1), detours: [] };
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games });
+  const inView = n => tab.evaluate(n => { const r = document.querySelector(`#route li:nth-child(${n})`).getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }, n);
+  await tab.click('#b-continue');
+  assert.equal(await tab.textContent('#where'), 'Main, No. 40');
+  await tab.click('#b-back');
+  assert.equal(await inView(40), true, 'Back to the list should show the puzzle just left');
+  await tab.evaluate(() => { document.querySelector('#s-list .list-scroll').scrollTop = 0; });
+  await tab.click('#b-continue');
+  await drag(tab, q.lines[0]);
+  await tab.waitForSelector('#sheet-done:not([hidden])');
+  await tab.click('#b-done-next');
+  assert.equal(await tab.textContent('#where'), 'Main, No. 41');
+  await tab.goBack();
+  await tab.waitForSelector('#s-list:not([hidden])');
+  assert.equal(await inView(41), true, 'Back after Next puzzle should show the puzzle just left');
+  const top = await tab.evaluate(() => document.querySelector('#s-list .list-scroll').scrollTop);
+  await tab.click('#route li:nth-child(41) .row');
+  await tab.click('#b-back');
+  assert.equal(await tab.evaluate(() => document.querySelector('#s-list .list-scroll').scrollTop), top, 'a row already in sight should stay put');
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // A Back that comes in the middle of a drag (the browser's button, or a mouse's back button with the other one
 // still down) goes to the list, and letting go afterwards does nothing: no error, and no half-traced word kept.
 {
