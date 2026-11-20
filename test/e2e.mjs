@@ -1130,6 +1130,14 @@ if (LINES.length > 1) {
   assert.equal(await tab.textContent('#line-name'), main.name);
   assert.equal(await tab.textContent('#tally'), `${main.puzzles.length} of ${main.puzzles.length} finished, ${main.puzzles.length * 3} of ${main.puzzles.length * 3} stars`);
   assert.equal(await tab.textContent('#b-continue'), `On to ${second.name.replace(/ Line$/, '')}`, 'a finished line should offer the next one');
+  // Results on a map of a line finished on an earlier visit reads as any finished map does: the line's finish was
+  // marked when it happened. It still offers the next line.
+  await tab.click('#route li:nth-child(1) .row');
+  await tab.click('#b-results');
+  assert.equal(await tab.textContent('#sheet-done .eyebrow'), 'Last stop', 'Results on an old map should not say its line was just finished');
+  assert.deepEqual([await tab.isHidden('#done-line'), await tab.textContent('#done-line')], [true, '']);
+  assert.equal(await tab.textContent('#b-done-next'), `On to the ${second.name}`);
+  await tab.keyboard.press('Escape'); await tab.click('#b-back');
   // A finished line's route ends at a terminus, "End of the line"; one under way runs off the end as before.
   const terminus = () => tab.evaluate(() => getComputedStyle(document.getElementById('route'), '::after').content);
   assert.equal(await terminus(), '"End of the line"', 'a finished line should end at a terminus');

@@ -689,6 +689,10 @@ function found(k) {
     if (!saved.best[p.id] || game.ms < saved.best[p.id]) saved.best[p.id] = Math.round(game.ms);
     cur.finishing = true;
     keep(); paint();
+    // Whether this finish was the one that ended its line, or every line: the done sheet marks that moment, and only
+    // that one (Results on any map of a finished line opened later reads as any finished map does).
+    const ended = l => tally(l).finished === l.puzzles.length;
+    cur.justEnded = !ended(cur.line) ? null : LINES.every(ended) ? 'all' : 'line';
     const word = $('readout').textContent;
     setTimeout(() => { if (cur?.p === p && $('readout').textContent === word) sayName(); }, 550);
     setTimeout(() => { if (cur?.p === p) { cur.finishing = false; showDone(); paint(); } }, 900);
@@ -814,13 +818,14 @@ function showDone() {
     const sw = document.createElement('i'); sw.className = `c${k}`;
     li.append(sw, k === 0 ? `${xt} (the Crosstown)` : w); key.append(li);
   });
-  // The last puzzle on a line says the line is finished, how it went, and offers the next line with any left.
-  const { n, to } = after();
-  $('done-eyebrow').textContent = n >= 0 ? 'Last stop' : to ? `${cur.line.name} finished` : 'Every line finished';
+  // The finish that ends a line says the line is finished, and how it went. Any finished map offers the next line
+  // with any left once its own line is finished.
+  const { n, to } = after(), ended = cur.justEnded;
+  $('done-eyebrow').textContent = ended === 'all' ? 'Every line finished' : ended ? `${cur.line.name} finished` : 'Last stop';
   const t = tally(cur.line);
   // Emptied when it's not shown, as the sheet's description still reads it.
-  $('done-line').textContent = n >= 0 ? '' : `${cur.line.name}: ${t.finished} of ${t.total}, ${t.stars} of ${t.total * 3} stars`;
-  $('done-line').hidden = n >= 0;
+  $('done-line').textContent = ended ? `${cur.line.name}: ${t.finished} of ${t.total}, ${t.stars} of ${t.total * 3} stars` : '';
+  $('done-line').hidden = !ended;
   $('b-done-next').hidden = n < 0 && !to;
   $('b-done-next').textContent = to ? `On to the ${to.name}` : 'Next puzzle';
   openSheet('sheet-done');
