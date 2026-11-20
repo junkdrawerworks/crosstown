@@ -203,9 +203,10 @@ test('slurs and sneers stay out, with their plurals and other forms, and plain w
     'sodomises', 'sodomize', 'whore', 'whores', 'whored', 'whoring', 'gyp', 'gypper', 'gyppers', 'shiksa', 'shiksas',
     'cretin', 'cretins', 'fatso', 'fatsos', 'fatsoes', 'wench', 'wenches', 'mongol', 'mongols', 'harelip', 'harelips',
     'slapper', 'slappers', 'gringo', 'gringos', 'midget', 'midgets', 'trollop', 'trollops', 'strumpet', 'strumpets',
-    'bugger', 'buggers', 'buggery']) assert.ok(isRude(w), `${w} should stay out`);
+    'bugger', 'buggers', 'buggery', 'limey', 'limeys', 'pommy', 'pommies', 'mick', 'micks', 'octoroon', 'octoroons', 'quadroon',
+    'quadroons', 'cretinous', 'hussy', 'hussies', 'trull', 'trulls', 'slattern', 'slatterns', 'doxy', 'doxies']) assert.ok(isRude(w), `${w} should stay out`);
   for (const w of ['woggle', 'coolly', 'mongoose', 'monger', 'mongrel', 'wrench', 'buggy', 'midge', 'midges', 'sheen', 'sheens',
-    'whorl', 'whorls', 'gypsum']) assert.ok(!isRude(w), `${w} should count`);
+    'whorl', 'whorls', 'gypsum', 'lime', 'limes', 'pommel', 'mickle', 'doxology']) assert.ok(!isRude(w), `${w} should count`);
 });
 
 test('fare and stars', () => {

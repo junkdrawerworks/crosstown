@@ -16,10 +16,11 @@ const RUDE = new RegExp([
   '^sperm$', '^testes$', '^prick$', '^shag$', '^bonk$', '^harlot$', '^nonce$',
   '^bimbos?$', '^pimp(s|ed|ing)?$', '^ghettos?$', '^spank(s|ed|ing)?$', '^queers?$',
   '^wogs?$', '^boongs?$', '^lubras?$', '^yids?$', '^sheen(y|ies)$', '^negr(oid|oids|ess)$', '^squaws?$', '^coolies?$',
-  '^poof(s|ter|ters)?$', '^sodomi', '^whor(e|es|ed|ing)', '^shiksas?$',
+  '^poof(s|ter|ters)?$', '^sodomi', '^whor(e|es|ed|ing)', '^shiksas?$', '^limeys?$', '^pomm(y|ies)$', '^micks?$',
+  '^octoroons?$', '^quadroons?$',
   // and sneers, in the same spirit as harlot and bimbo
-  '^cretins?$', '^fatso(s|es)?$', '^wench(es)?$', '^mongols?$', '^harelips?$', '^slappers?$', '^gringos?$', '^midgets?$',
-  '^trollops?$', '^strumpets?$', '^bugger(s|y)?$',
+  '^cretin(s|ous)?$', '^fatso(s|es)?$', '^wench(es)?$', '^mongols?$', '^harelips?$', '^slappers?$', '^gringos?$', '^midgets?$',
+  '^trollops?$', '^strumpets?$', '^bugger(s|y)?$', '^huss(y|ies)$', '^trulls?$', '^slatterns?$', '^dox(y|ies)$',
 ].join('|'));
 const refused = w => listed.has(w) || RUDE.test(w);
 
