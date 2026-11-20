@@ -379,7 +379,7 @@ function paint() {
   const n = p.lines.length, stop = t => (/[.?!…]$/.test(t) ? t : `${t}.`);
   $('map-where').textContent = `${cur.line.name}, No. ${cur.i + 1}. ${hidden ? 'Night service.' : stop(`Clue: ${p.clue}`)} ${game.done ? `All ${n} lines found` : `${game.found.length} of ${n} lines`}.`;
 
-  const pips = $('pips'); pips.textContent = '';
+  const pips = $('pips'); pips.textContent = ''; pips.classList.remove('rollover');
   for (let n = 0; n < FARE_PER_TOKEN; n++) { const pip = document.createElement('i'); if (n < game.fare) pip.className = 'full'; pips.append(pip); }
   $('meter').setAttribute('aria-label', `Fare: ${game.fare} of ${FARE_PER_TOKEN}`);
   // A token rings a line's stops, then draws its route. With no tokens the button is off, and while a route shows on a
@@ -705,10 +705,11 @@ function judgeWord(word) {
   if (cur.extra.failed) cur.extra = detoursOf(cur.line.id);   // ask again: the signal may be back
   if (cur.waiting || (!cur.extra.ready && !game.detours.includes(word.toLowerCase()))) { wait(word); return; }
   if (cur.extra.stale && !game.detours.includes(word.toLowerCase())) { say(STALE, 'note'); paint(); return; }
-  const { news, counted } = fares(game, cur.p, cur.extra, [word]);
+  const { news, counted, won } = fares(game, cur.p, cur.extra, [word]);
   say(...news);
   if (counted) keep();
   paint();
+  if (won) earned();
 }
 
 // Words traced while the line's detours are on their way wait for them together, and count or don't all at once
@@ -754,8 +755,8 @@ function land(mine, q, arrived) {
     if (shown) { say(q.extra.stale ? STALE : "Can’t check detours right now. Try that word again in a moment", 'note'); paint(); }
     return;
   }
-  const { news, counted } = fares(game, mine.p, q.extra, q.words);
-  if (shown) { say(...news); if (counted) keep(); paint(); }
+  const { news, counted, won } = fares(game, mine.p, q.extra, q.words);
+  if (shown) { say(...news); if (counted) keep(); paint(); if (won) earned(); }
   else if (counted) { setGame(mine.p.id, { ...game, grid: mine.p.grid }); if (!cur) drawList(); }
 }
 
@@ -778,8 +779,21 @@ function fares(game, p, extra, list) {
     : got.length ? [`${got.length} detours, +${got.reduce((n, [, f]) => n + f, 0)} fare${tokens}`, 'note']
     : again ? [`${again} already counted`, 'note nope']
     : ['Not a word on this map', 'note nope'];
-  return { news, counted: got.length > 0 };
+  return { news, counted: got.length > 0, won };
 }
+// A token earned: the meter shows full for a moment, so the fare is seen to fill it, before it shows what's left over
+// (the next paint() does that), and the token button gives a pulse.
+let rollover = 0;
+function earned() {
+  const pips = $('pips');
+  pips.classList.add('rollover');
+  for (const pip of pips.children) pip.className = 'full';
+  clearTimeout(rollover);
+  rollover = setTimeout(() => { if (cur && pips.classList.contains('rollover')) paint(); }, 350);
+  const tok = $('b-token');
+  tok.classList.remove('earned'); void tok.offsetWidth; tok.classList.add('earned');
+}
+$('b-token').addEventListener('animationend', e => { if (e.animationName === 'earned') e.currentTarget.classList.remove('earned'); });
 
 // Is this word one of the puzzle's detours? The open puzzle's list is read into a set the first time it's asked.
 let detourCache = { id: null, set: null };

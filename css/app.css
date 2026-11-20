@@ -352,6 +352,8 @@ a { color: inherit; }
 .pips i { flex: 1 0 12px; max-width: 22px; height: 12px; border-radius: 6px; border: 2px solid color-mix(in srgb, var(--muted) 70%, var(--stop-edge)); background: transparent; transition: background .2s, border-color .2s; }
 .pips i.full { background: var(--ink); border-color: var(--ink); }
 .btn.token { flex: none; }
+.btn.token.earned { animation: earned .3s ease-out; }   /* a token earned (see earned()) */
+@keyframes earned { 50% { transform: scale(1.06); } }
 .btn.token.ready { background: var(--ink); color: var(--bg); }
 
 /* ---- sheets ---- */

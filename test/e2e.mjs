@@ -858,8 +858,18 @@ if (LINES.length > 1) {
   await tab.click('#b-continue');
   const top = async () => (await tab.locator('#board').boundingBox()).y;
   const before = await top();
+  // Earning a token, the meter shows full for a moment before it empties, and the token button gives a pulse.
+  await tab.evaluate(() => {
+    window.seen = { full: 0, pulse: false };
+    new MutationObserver(() => { const p = document.getElementById('pips'); if (p.classList.contains('rollover')) window.seen.full = Math.max(window.seen.full, p.querySelectorAll('.full').length); }).observe(document.getElementById('pips'), { attributes: true, childList: true, subtree: true });
+    new MutationObserver(() => { if (document.getElementById('b-token').classList.contains('earned')) window.seen.pulse = true; }).observe(document.getElementById('b-token'), { attributes: true });
+  });
   await drag(tab, traces(p.grid, longest.toUpperCase(), 1)[0]);
   assert.match(await tab.textContent('#readout'), /Token earned$/);
+  await tab.waitForFunction(() => !document.getElementById('pips').classList.contains('rollover'), null, { timeout: 2000 });
+  const fare = (3 + fareFor(longest)) % FARE_PER_TOKEN;
+  assert.deepEqual([await tab.evaluate(() => window.seen), await tab.locator('#pips .full').count()], [{ full: FARE_PER_TOKEN, pulse: true }, fare], 'earning a token should fill the meter for a moment, then show the fare left over');
+  await tab.waitForFunction(() => !document.getElementById('b-token').classList.contains('earned'), null, { timeout: 2000 }).catch(() => assert.fail('the token button should lose its pulse once it has run'));
   const lines = await tab.evaluate(() => { const r = document.createRange(); r.selectNodeContents(document.getElementById('readout')); return new Set([...r.getClientRects()].map(x => Math.round(x.top))).size; });
   assert.equal(lines, 2, `this check needs a note long enough to wrap at 320 px: ${await tab.textContent('#readout')}`);
   assert.equal(await top(), before, 'the map moved down when a note wrapped onto two lines');
