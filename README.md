@@ -14,9 +14,9 @@
 
 ## How it plays
 
-- **Find the lines.** Trace a word from stop to stop in any direction, diagonals included. Drag across the letters, or tap them one at a time and tap the last one again. Arrow keys and Enter work too. A line can be a phrase with its spaces taken out, like ONDECK.
+- **Find the lines.** Trace a word from stop to stop in any direction, diagonals included. Drag across the letters, or tap them one at a time and tap the last one again. Arrow keys and Enter work too. A line can be a phrase with its spaces taken out, like NIGHTOWL.
 - **Every letter is used once.** Each stop belongs to exactly one line, and lines never cross, so the last few words are whatever is left.
-- **The Crosstown.** It names the theme, like JUNKDRAWER, and runs clear across the map, from one edge to the opposite one.
+- **The Crosstown.** It names the theme, like ODDSANDENDS, and runs clear across the map, from one edge to the opposite one.
 - **Detours earn fare.** Any other word of four letters or more, apart from a theme word with an ending added or taken off (SPEAR on a map with SPEARS), is a detour. Detours can run through the lines you’ve already found: drag through their stops, or tap on into one beside your last letter. A tap on a found stop on its own names its line. Four letters earn 1 fare, five earn 2, six earn 3, seven or more earn 4, and every 4 fare becomes a token.
 - **A token is a hint.** It rings the stops of a line you haven't found. A second token on the same line draws its route and marks where it starts. Fare and tokens stay with their puzzle.
 - **Seven lines.** The puzzles come in lines you switch between with Change line, at the top of the list: the Main Line (a bit of everything), then the Market Line (food and drink), Park (nature and the outdoors), Workshop (making, fixing, wearing and the home), Theater (arts, play and pastimes), University (science, history, language and the body) and Airport (places, travel and jobs around town). Each line keeps its own numbers and progress, 587 puzzles in all.

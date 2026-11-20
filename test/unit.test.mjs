@@ -92,12 +92,17 @@ test('the page and the README give the right counts, and the list first paints t
 });
 
 // A clue or name changed in a theme only reaches the game when the tool runs, so check that it did.
-test('the words How to play and the README give as examples are lines on the Main Line', async () => {
-  const main = new Set(LINES[0].puzzles.flatMap(p => p.lines.map(l => spell(p.grid, l))));
+// How to play is read before the first puzzle, so its examples mustn't give away an answer on any board.
+test('the words How to play and the README give as examples are on no board and in no theme', async () => {
+  const answers = new Set(PUZZLES.flatMap(p => p.lines.map(l => spell(p.grid, l))));
+  const themed = new Set(THEMES.flatMap(t => [t.cross, ...t.words.split(' ')]));
   for (const file of ['../index.html', '../README.md']) {
     const examples = [...(await readFile(new URL(file, import.meta.url), 'utf8')).matchAll(/\blike ([A-Z]{4,})\b/g)].map(m => m[1]);
     assert.ok(examples.length >= 2, `${file} gives fewer examples than expected`);
-    for (const w of examples) assert.ok(main.has(w), `${file} gives ${w} as an example, but it isn't a line on the Main Line`);
+    for (const w of examples) {
+      assert.ok(!answers.has(w), `${file} gives ${w} as an example, but it's an answer on a board`);
+      assert.ok(!themed.has(w), `${file} gives ${w} as an example, but it's in a theme, so a board could take it`);
+    }
   }
 });
 
