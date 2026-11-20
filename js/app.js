@@ -202,8 +202,9 @@ const pickLine = l => { setLine(l); setOption('line', l.id); };
 // once the sheet that picked it has closed (the page behind it can't be heard until then).
 let listSaid = 0, switching = 0;
 function showLine(l) {
-  $('s-list').classList.add('switching'); clearTimeout(switching);   // the colour fades to the new line's (see app.css)
-  switching = setTimeout(() => $('s-list').classList.remove('switching'), 400);
+  // The route rises into place (see app.css), from the start again if a line was picked a moment ago.
+  const sl = $('s-list'); sl.classList.remove('switching'); void sl.offsetWidth; sl.classList.add('switching');
+  clearTimeout(switching); switching = setTimeout(() => sl.classList.remove('switching'), 300);
   pickLine(l); drawList(); $('s-list').querySelector('.list-scroll').scrollTop = 0;
   const { finished, total } = tally(l), said = $('list-said');
   said.textContent = ''; clearTimeout(listSaid);

@@ -1846,17 +1846,38 @@ if (LINES.length > 1) {
     await tab.keyboard.press('Escape'); await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
   }
   await tab.setViewportSize({ width: 390, height: 844 });
-  // Changing line fades the list's colour to the new line's, and only then: at rest nothing on the list transitions,
-  // so the page doesn't fade in from ink as it opens.
-  const atRest = () => tab.evaluate(() => { const l = document.getElementById('s-list'); return [l.classList.contains('switching'), getComputedStyle(l).transitionDuration]; });
-  assert.deepEqual(await atRest(), [false, '0s'], 'the list should have no colour transition at rest');
-  await tab.evaluate(() => { window.faded = []; document.getElementById('s-list').addEventListener('transitionrun', e => { if (e.target.id === 's-list') window.faded.push(e.propertyName); }); });
+  // Changing line, the new line's route rises into place, and the colours change at once rather than fade, since a fade
+  // from one line's colour to another's passes through brown. At rest nothing on the list moves.
+  const atRest = () => tab.evaluate(() => { const l = document.getElementById('s-list'); return [l.classList.contains('switching'), getComputedStyle(l).transitionDuration, document.getElementById('route').getAnimations().length]; });
+  assert.deepEqual(await atRest(), [false, '0s', 0], 'the list should be still at rest');
+  await tab.evaluate(() => {
+    window.faded = []; window.rose = [];
+    document.getElementById('s-list').addEventListener('transitionrun', e => { if (e.target.id === 's-list') window.faded.push(e.propertyName); });
+    document.getElementById('route').addEventListener('animationstart', e => { if (e.target.id === 'route') window.rose.push(e.animationName); });
+  });
   await tab.click('#b-line'); await tab.waitForSelector('#sheet-lines:not([hidden])');
   await tab.click('#lines li:nth-child(1) .line-row');
   await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
-  await tab.waitForFunction(() => window.faded.includes('--line'), null, { timeout: 2000 }).catch(() => assert.fail('changing line should fade to its colour'));
+  const colours = () => tab.evaluate(() => {
+    const probe = document.createElement('i'); probe.style.color = 'var(--cross)'; document.body.append(probe);
+    const want = getComputedStyle(probe).color; probe.remove();
+    return [getComputedStyle(document.querySelector('#b-line .line-bar')).backgroundColor, want];
+  });
+  const [bar, ink] = await colours();
+  assert.equal(bar, ink, 'the new line\'s colour should show at once, not fade in');
+  await tab.waitForFunction(() => window.rose.includes('rise'), null, { timeout: 2000 }).catch(() => assert.fail('changing line should make the route rise into place'));
   await tab.waitForFunction(() => !document.getElementById('s-list').classList.contains('switching'), null, { timeout: 2000 });
-  assert.deepEqual(await atRest(), [false, '0s']);
+  assert.deepEqual(await atRest(), [false, '0s', 0]);
+  assert.deepEqual(await tab.evaluate(() => window.faded), [], 'changing line should not fade from one colour to the other');
+  // With reduced motion asked for, the route doesn't move.
+  await tab.emulateMedia({ reducedMotion: 'reduce' });
+  await tab.evaluate(() => { window.rose = []; });
+  for (const k of [2, 1]) {
+    await tab.click('#b-line'); await tab.click(`#lines li:nth-child(${k}) .line-row`); await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
+    assert.equal(await tab.evaluate(() => document.getElementById('route').getAnimations().length), 0, 'with reduced motion the route should not rise');
+  }
+  assert.deepEqual(await tab.evaluate(() => window.rose), [], 'with reduced motion the route should not rise');
+  await tab.emulateMedia({ reducedMotion: 'no-preference' });
   await tab.waitForFunction(said => document.getElementById('list-said').textContent === said, `${main.name}, ${n} of ${n} finished`, { timeout: 2000 })
     .catch(async () => assert.fail(`picking a line said "${await tab.textContent('#list-said')}"`));
   assert.deepEqual(await tab.evaluate(() => [document.activeElement.id, document.activeElement.getAttribute('aria-label')]), ['b-line', `${main.name}: ${main.about}. Change line`], 'focus should come back to the line button, naming the new line');
@@ -2034,7 +2055,7 @@ if (LINES.length > 1) {
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games });
   for (const [n, l] of LINES.entries()) {
     await tab.click('#b-line'); await tab.click(`#lines li:nth-child(${n + 1}) .line-row`);
-    await tab.waitForFunction(() => !document.getElementById('s-list').classList.contains('switching'));   // its colour faded in
+    await tab.waitForFunction(() => !document.getElementById('s-list').classList.contains('switching'));   // its route risen
     for (const colorScheme of ['light', 'dark']) {
       await tab.emulateMedia({ colorScheme });
       const roundel = await tab.evaluate(() => { const s = getComputedStyle(document.querySelector('#route li.done .roundel')); return { color: s.color, bg: s.backgroundColor }; });
