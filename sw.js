@@ -9,7 +9,7 @@
 // only when this file changes by a byte, so FILES is a fingerprint of every file in SHELL: change any of them and
 // test/e2e.mjs fails until FILES is changed to match (it says what to), which changes this file.
 const CACHE = 'crosstown-v2'; // bump the number when the file list changes
-const FILES = '675bbe3c'; // test/e2e.mjs checks this
+const FILES = '7fbf38af'; // test/e2e.mjs checks this
 const SHELL = [
   './', 'index.html', 'icon.svg', 'manifest.webmanifest',
   'css/app.css', 'js/app.js', 'js/board.js', 'js/rules.js', 'js/puzzles.js', 'fonts/overpass.woff2',
@@ -35,9 +35,12 @@ self.addEventListener('activate', e => {
 // How long a page waits for the network before it opens from the copy instead.
 const PATIENCE = 4000; // ms
 // The pages (by their client ids) that opened from the copy: the rest of their files come from it too, so a page
-// never mixes the copy's files with newer ones. (The browser stops the worker once it has been idle a while, and the
-// list goes with it.)
-const fromCopy = new Set();
+// never mixes the copy's files with newer ones. And the pages that came from the network: a file of theirs that
+// doesn't come fails, rather than come from the copy beside newer ones (the page then offers to load again, see the
+// note at the end of index.html). (The browser stops the worker once it has been idle a while, and the lists go with
+// it: a page it doesn't know falls back on the copy for a file the network can't give, as it always has.)
+const fromCopy = new Set(), fromNet = new Set();
+const remember = (set, id) => { set.add(id); if (set.size > 50) set.delete(set.values().next().value); }; // the oldest, long gone
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
@@ -45,12 +48,14 @@ self.addEventListener('fetch', e => {
   if (e.request.mode === 'navigate') e.respondWith(page(e));
   else if (fromCopy.has(e.clientId)) e.respondWith(kept(e.request).then(r => r || fresh(e.request)));
   else if (url.pathname.includes('/js/detours/')) e.respondWith(detours(e));
+  else if (fromNet.has(e.clientId)) e.respondWith(fresh(e.request));
   else e.respondWith(fresh(e.request).catch(() => offline(e.request)));
 });
 
 // A page, from the network. On a connection that's up but not answering (a train, a captive wifi, one bar of signal),
 // it opens from the copy after PATIENCE instead, if the copy has it. With no copy of the page, it waits on for the
-// network. With no network at all, it opens from the copy straight away, as it always has.
+// network. With no network at all, it opens from the copy straight away, as it always has, and so do the rest of its
+// files.
 function page(e) {
   let answered = false;
   const net = fresh(e.request);
@@ -61,12 +66,14 @@ function page(e) {
     const answer = res => { if (!answered) { answered = true; resolve(res); } };
     const slow = setTimeout(() => kept(e.request).then(copy => {
       if (!copy || answered) return;
-      fromCopy.add(e.resultingClientId);
-      if (fromCopy.size > 50) fromCopy.delete(fromCopy.values().next().value); // the oldest, long gone
+      remember(fromCopy, e.resultingClientId);
       answer(copy);
     }), PATIENCE);
-    net.then(res => { clearTimeout(slow); answer(res); },
-      () => { clearTimeout(slow); offline(e.request).then(answer, reject); });
+    net.then(res => { clearTimeout(slow); if (!answered) remember(fromNet, e.resultingClientId); answer(res); },
+      () => {
+        clearTimeout(slow);
+        offline(e.request).then(copy => { if (copy && !answered) remember(fromCopy, e.resultingClientId); answer(copy); }, reject);
+      });
   });
 }
 

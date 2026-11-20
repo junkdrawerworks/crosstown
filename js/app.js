@@ -1079,3 +1079,6 @@ if (!single && 'serviceWorker' in navigator && (location.protocol === 'https:' |
   window.addEventListener('online', again);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) again(); });
 }
+
+// Running: the note at the end of index.html, which offers to load the page again if the game doesn't start, stays away.
+window.crosstownStarted = true;

@@ -1789,6 +1789,9 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
     try { body = await readFile(join(root, path)); } catch { res.writeHead(404); res.end(); return; }
     if (release && path === '/sw.js') body = Buffer.from(String(body).replace(/const FILES = '[0-9a-f]*'/, `const FILES = '${release}'`));
     if (release && path === '/index.html') body = Buffer.concat([body, Buffer.from(`<!-- release ${release} -->\n`)]);
+    // The third release's app.js needs something only its own puzzles.js has.
+    if (release === 'third' && path === '/js/app.js') body = Buffer.from(String(body).replace("import { LINES, DETOURS, PUZZLES } from './puzzles.js';", "import { LINES, DETOURS, PUZZLES, RELEASE } from './puzzles.js';"));
+    if (release === 'third' && path === '/js/puzzles.js') body = Buffer.concat([body, Buffer.from("export const RELEASE = 'third';\n")]);
     const etag = `"${createHash('sha1').update(body).digest('hex').slice(0, 16)}"`;
     const head = { etag, 'cache-control': 'max-age=600', 'content-type': TYPES[extname(path)] || 'text/html' };
     if (req.headers['if-none-match'] === etag) { res.writeHead(304, head); res.end(); return; }
@@ -1866,6 +1869,27 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
   }
   const inCopy = await page.evaluate(async lines => (await Promise.all(lines.map(l => caches.match(`js/detours/${l}.js`)))).filter(Boolean).length, LINES.map(l => l.id));
   assert.equal(inCopy, LINES.length, 'every line\'s detours should be in the offline copy');
+
+  // A page of a new release that comes from the network, but one of whose files doesn't (here puzzles.js, on the first
+  // load and the one after), doesn't take the copy's older file to go with the new ones: the mix wouldn't run, and
+  // would leave a list with a greyed Play button and nothing working. The page loads again by itself once, then says it
+  // didn't load all the way, with a Reload button that brings the game once the network is back.
+  release = 'third'; drop = '/js/puzzles.js';
+  let loads = 0;
+  const counting = f => { if (f === page.mainFrame()) loads++; };
+  page.on('framenavigated', counting);
+  await page.reload();
+  await page.waitForSelector('#reload-line:not([hidden])', { timeout: 15000 })
+    .catch(async () => assert.fail(`a page missing a file said nothing: the Play button reads "${await page.textContent('#b-continue')}"`));
+  page.off('framenavigated', counting);
+  assert.deepEqual(problems.filter(m => m.includes('does not provide')), [], "the page ran a new file beside the copy's older one");
+  assert.equal(loads, 2, 'the page should load again by itself once, and only once');
+  assert.deepEqual(await page.evaluate(() => ['b-line', 'mast-row', 'route'].filter(id => document.getElementById(id).checkVisibility())), [], 'the dead buttons should go');
+  drop = '';
+  await page.click('#b-reload');
+  await page.waitForFunction(() => document.querySelectorAll('#route li').length > 0 && !document.getElementById('b-continue').disabled, null, { timeout: 15000 });
+  assert.equal(await page.isHidden('#reload-line'), true);
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('crosstown.reloaded')), null, 'a page that started should let the next one that doesn\'t load again by itself');
   assert.deepEqual(problems, [], 'problems while offline or on a stalled connection');
   await ctx.close();
   server.close();

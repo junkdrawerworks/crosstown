@@ -177,6 +177,9 @@ a { color: inherit; }
 .tally.end { color: var(--ink); font-size: 15px; font-weight: 700; }   /* every line finished: the network's tally */
 .tally .nb { white-space: nowrap; }
 .tally + .tally { margin-top: -6px; }   /* storage that isn't keeping anything, said under the tally */
+/* The game didn't start (see the end of index.html): a plain line and a way to load it again, in place of the buttons. */
+.reload-line { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+.reload-line p { font-weight: 700; }
 
 /* The line on show, and the button that changes it. Its colour is the line's (set from app.js as --line). */
 .line-pick, .line-row {

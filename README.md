@@ -58,6 +58,6 @@ To put it online with GitHub Pages: **Settings → Pages → Build and deploymen
 - `tools/play.mjs`: a small static server and the hands that drag and tap for the tests and screenshots.
 - `test/unit.test.mjs`, `test/e2e.mjs`: the puzzle checks and the play-through.
 - `fonts/`: Overpass (SIL Open Font License), served from here so nothing loads from elsewhere.
-- `sw.js`: keeps a copy for using offline, made all at once from one release. If making it is cut short, the copy from before stays as it was, and the page asks again when the signal comes back. On a connection that isn't answering, a page opens from that copy after four seconds. `FILES` in it is a fingerprint of the files it keeps: change one and `npm test` says what to set it to, so a release never leaves the copy half old.
+- `sw.js`: keeps a copy for using offline, made all at once from one release. If making it is cut short, the copy from before stays as it was, and the page asks again when the signal comes back. On a connection that isn't answering, a page opens from that copy after four seconds. A page that came from the network never takes a file from the copy to go with it: if one doesn't come, the page says it didn't load all the way and offers to reload. `FILES` in it is a fingerprint of the files it keeps: change one and `npm test` says what to set it to, so a release never leaves the copy half old.
 
 The words that count as detours come from [SCOWL](http://wordlist.aspell.net/) by way of the `wordlist-english` package, used only when the puzzles are made.

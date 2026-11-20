@@ -43,12 +43,16 @@
             <span class="line-main"><strong id="line-name">Main Line</strong><small id="line-about">The first 108, a bit of everything</small></span>
             <span class="line-change">Change line</span>
           </button>
-          <div class="mast-row">
+          <div class="mast-row" id="mast-row">
             <button type="button" class="btn primary" id="b-continue" disabled>Play No. 1</button>
             <button type="button" class="btn" id="b-how">How to play</button>
             <button type="button" class="btn icon" id="b-list-menu" aria-label="Options"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
           </div>
           <p class="tally" id="tally"></p>
+          <div class="reload-line" id="reload-line" hidden>
+            <p role="alert">Crosstown didn’t load all the way.</p>
+            <button type="button" class="btn primary" id="b-reload">Reload</button>
+          </div>
           <p class="tally" id="aside-note" hidden>Your saved progress couldn't be read, so this list starts fresh. A copy is kept in this browser.</p>
           <p class="tally" id="unkept" hidden>This browser isn't keeping your progress, so it goes when the page closes.</p>
           <p class="sr-only" id="list-said" aria-live="polite"></p>
@@ -180,6 +184,29 @@
     </section>
   </div>
 
+  <script>
+    // If the game doesn't start (a file didn't come, or one came from another release), it says so and offers to load
+    // again, rather than leave a list with buttons that do nothing. The first time it loads again by itself. js/app.js
+    // sets crosstownStarted once it's running.
+    (function () {
+      var said = false;
+      function stuck() {
+        if (window.crosstownStarted || said) return;
+        said = true;
+        var again = false;
+        try { if (!sessionStorage.getItem('crosstown.reloaded')) { sessionStorage.setItem('crosstown.reloaded', '1'); again = true; } } catch (e) {}
+        if (again) { location.reload(); return; }
+        ['b-line', 'mast-row', 'tally', 'route'].forEach(function (id) { var el = document.getElementById(id); if (el) el.hidden = true; });
+        document.getElementById('reload-line').hidden = false;
+      }
+      document.getElementById('b-reload').addEventListener('click', function () { location.reload(); });
+      addEventListener('error', function (e) { if (e instanceof ErrorEvent || (e.target && e.target.tagName === 'SCRIPT')) stuck(); }, true);
+      addEventListener('load', function () {
+        if (!window.crosstownStarted) setTimeout(stuck, 5000);
+        else try { sessionStorage.removeItem('crosstown.reloaded'); } catch (e) {}
+      });
+    })();
+  </script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>
