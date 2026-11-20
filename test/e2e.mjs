@@ -523,6 +523,69 @@ if (LINES.length > 1) {
   await other.close();
 }
 
+// Two windows at once (the installed app and a browser tab, or two tabs): neither writes over what the other saved,
+// whether by being switched away from, by switching lines or by playing the same puzzle, and each shows what the
+// other saved as it happens. Starting a puzzle over, and erasing every line, still take games out in both.
+{
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  const [a, b] = [await context.newPage(), await context.newPage()];
+  const errors = [];
+  for (const tab of [a, b]) tab.on('pageerror', e => errors.push(e.message));
+  const stored = () => a.evaluate(() => JSON.parse(localStorage.getItem('crosstown.v1')));
+  // The page is switched away from (another app, another tab), and so saves the puzzle on screen.
+  const away = tab => tab.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); delete document.hidden; });
+  const pick = async (tab, n) => { await tab.click('#b-line'); await tab.click(`#lines li:nth-child(${n}) .line-row`); };
+  const m = LINES[1].puzzles[0];
+  await b.goto(base); await b.click('#b-continue'); await drag(b, p.lines[1]);   // B: Main No. 1, a line found
+  await a.goto(base); await pick(a, 2); await a.click('#b-continue');
+  for (const line of m.lines) await drag(a, line);                                 // A: Market No. 1, finished
+  await a.waitForSelector('#sheet-done:not([hidden])');
+  await away(b);
+  let s = await stored();
+  assert.equal(s.games[m.id]?.done, true, 'switching away from one window lost a puzzle finished in the other');
+  assert.equal(s.games[p.id]?.found.length, 1);
+  // A finishes Main No. 1, which B still has open with one line. B is switched away from: the finished game stays.
+  await a.keyboard.press('Escape'); await a.click('#b-back'); await pick(a, 1);
+  assert.equal(await a.textContent('#route li:nth-child(1) .row-sub'), `1 of ${p.lines.length} lines found`, 'the list should show a game saved in the other window');
+  await a.click('#route li:nth-child(1) .row');
+  for (const k of p.lines.keys()) if (k !== 1) await drag(a, p.lines[k]);
+  await a.waitForSelector('#sheet-done:not([hidden])');
+  await away(b);
+  assert.equal((await stored()).games[p.id]?.done, true, 'a game further along in the other window was written over');
+  await b.click('#b-back');
+  assert.equal(await b.getAttribute('#route li:nth-child(1)', 'class'), 'done');
+  // B switches line: A's games stay, and B's lines sheet and lists show them.
+  await b.click('#b-line');
+  assert.match(await b.textContent('#lines li:nth-child(2) .line-prog'), /^1 of /, 'the lines sheet should show a puzzle finished in the other window');
+  await b.click('#lines li:nth-child(3) .line-row');
+  s = await stored();
+  assert.deepEqual([s.games[m.id]?.done, s.games[p.id]?.done, s.options.line], [true, true, LINES[2].id], 'switching line in one window lost games saved in the other');
+  await pick(b, 2);
+  assert.equal(await b.getAttribute('#route li:nth-child(1)', 'class'), 'done');
+  // A, back on its list, stays on the line it had on show.
+  await a.keyboard.press('Escape'); await a.click('#b-back');
+  assert.equal(await a.textContent('#line-name'), LINES[0].name);
+  // A starts Market No. 1 over. B shows it, and B's next writes (an option, a line) don't bring the game back.
+  await pick(a, 2); await a.click('#route li:nth-child(1) .row');
+  await a.click('#b-menu'); await a.click('#m-restart'); await a.click('#m-restart'); await a.click('#b-back');
+  await b.waitForFunction(() => document.querySelector('#route li:nth-child(1)').className === 'todo', null, { timeout: 5000 })
+    .catch(() => assert.fail('a puzzle started over in one window should show as not started in the other'));
+  await b.click('#b-list-menu'); await b.click('#o-clock'); await b.keyboard.press('Escape');
+  await pick(b, 1);
+  s = await stored();
+  assert.deepEqual([s.games[m.id], s.games[p.id]?.done, s.options.clock], [undefined, true, true], 'one window brought back a puzzle started over in the other');
+  // B erases every line: A's list empties, and A's next write doesn't bring anything back.
+  await b.click('#b-list-menu'); await b.click('#m-erase'); await b.click('#m-erase');
+  await a.waitForFunction(() => document.getElementById('tally').textContent.endsWith(' puzzles'), null, { timeout: 5000 })
+    .catch(() => assert.fail('erasing in one window should empty the other\'s list'));
+  await pick(a, 4);
+  s = await stored();
+  assert.deepEqual([s.games, s.best, s.options.clock, s.options.line], [{}, {}, true, LINES[3].id], 'one window brought back progress erased in the other');
+  assert.equal(await b.textContent('#tally'), `${PUZZLES.length} puzzles`);
+  assert.deepEqual(errors, []);
+  await context.close();
+}
+
 // Each saved game keeps its board's letters. Progress on a board laid out again since starts fresh, since its line
 // numbers would draw lines on the wrong letters, but its best time stays. A game saved before games kept their
 // letters counts as one on the board as it is now.

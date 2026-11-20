@@ -11,15 +11,62 @@ const single = 'single' in document.documentElement.dataset;   // the one-file c
 const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l2.7 5.6 6.1.8-4.5 4.3 1.1 6.1L12 17.1 6.6 20l1.1-6.1-4.5-4.3 6.1-.8z"/></svg>';
 
 // ---- what's saved -----------------------------------------------------------------------------------------------
+// Two windows can be open at once (the installed app and a browser tab, say), so nothing simply writes its own copy
+// over the other's. Each write reads what's stored first and changes only what this window changed since its last
+// write (see save()), and a write from another window is read in here as it happens (see the storage listener).
 const KEY = 'crosstown.v1';
 const fresh = () => ({ found: [], detours: [], fare: 0, tokens: 0, spent: 0, hint: null, ms: 0, done: false, crossAt: -1, night: false });
 const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
-let saved = { options: { clock: false, night: false, line: LINES[0].id }, games: {}, best: {} };
-try {
+const blank = () => ({ options: { clock: false, night: false, line: LINES[0].id }, games: {}, best: {} });
+// What's stored, read into shape.
+function load() {
   const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
-  if (raw && typeof raw === 'object') saved = { options: { ...saved.options, ...raw.options }, games: isObject(raw.games) ? raw.games : {}, best: isObject(raw.best) ? raw.best : {} };
-} catch { /* no storage here: play still works, it just isn't kept */ }
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch { /* same */ } };
+  const s = blank();
+  if (!isObject(raw)) return s;
+  return { options: { ...s.options, ...(isObject(raw.options) ? raw.options : {}) }, games: isObject(raw.games) ? raw.games : {}, best: isObject(raw.best) ? raw.best : {} };
+}
+// What this window has changed since its last write: games by id (a game taken out counts too), options by name, and
+// whether every game was erased.
+const changed = { games: new Set(), options: new Set(), erased: false };
+let saved = blank();
+try { saved = load(); } catch { /* no storage here: play still works, it just isn't kept */ }
+
+// This window's changes, laid over what's stored (`now`). Where both windows have played the same puzzle, the game
+// further along stays: finished, then more lines found, then more detours. A game this window took out (Start this
+// puzzle over) goes whatever the other has. The faster best time stays.
+function mergeInto(now) {
+  if (changed.erased) { now.games = {}; now.best = {}; }
+  for (const id of changed.games) {
+    const mine = saved.games[id];
+    if (!mine) delete now.games[id];
+    else if (standing(mine, id) >= standing(now.games[id], id)) now.games[id] = mine;
+    const t = saved.best[id];
+    if (t && !(now.best[id] <= t)) now.best[id] = t;
+  }
+  for (const name of changed.options) now.options[name] = saved.options[name];
+  return now;
+}
+// How far along a saved game is, as one number to compare: finished first, then lines found, then detours.
+function standing(g, id) {
+  const game = readGame(g, id);
+  return game ? (game.done ? 1e6 : 0) + game.found.length * 1e3 + Math.min(game.detours.length, 999) : -1;
+}
+function save() {
+  try {
+    const now = mergeInto(load());
+    localStorage.setItem(KEY, JSON.stringify(now));
+    adopt(now);
+    changed.games.clear(); changed.options.clear(); changed.erased = false;
+  } catch { /* the same */ }
+}
+// Takes on what's stored as this window's own. The puzzle on screen keeps the game being played, unless another
+// window has got further with it.
+function adopt(now) {
+  saved = now;
+  if (cur && started(cur.game) && standing(cur.game, cur.p.id) >= standing(now.games[cur.p.id], cur.p.id)) saved.games[cur.p.id] = cur.game;
+}
+const setOption = (name, value) => { saved.options[name] = value; changed.options.add(name); save(); };
+const setGame = (id, game) => { if (game) saved.games[id] = game; else delete saved.games[id]; changed.games.add(id); save(); };
 
 // A saved game, read against its puzzle, so a damaged save or one from an older layout of the board can't stop
 // the page: line numbers the board doesn't have are dropped, and anything else that can't be read starts fresh.
@@ -27,8 +74,9 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } c
 // its line numbers would draw lines on the wrong letters, so the puzzle starts fresh; its best time stays. A game
 // saved before games kept their letters counts as one on the board as it is now.
 const byId = new Map(PUZZLES.map(p => [p.id, p]));
-function gameFor(id) {
-  const g = saved.games[id], p = byId.get(id);
+const gameFor = id => readGame(saved.games[id], id);
+function readGame(g, id) {
+  const p = byId.get(id);
   if (!isObject(g) || !p) return null;
   if (typeof g.grid === 'string' && g.grid !== p.grid) return null;
   const n = p.lines.length;
@@ -47,7 +95,7 @@ function gameFor(id) {
 const started = g => !!g && (g.done || g.found.length > 0 || g.detours.length > 0);
 
 // ---- the lines --------------------------------------------------------------------------------------------------
-// The list shows one line at a time; the one last shown is kept with the options. Puzzle numbers count along a line.
+// The list shows one line at a time; the one last picked is kept with the options. Puzzle numbers count along a line.
 const lineOf = id => LINES.find(l => l.id === id);
 let line = lineOf(saved.options.line) || LINES[0];
 let list = line.puzzles;
@@ -60,15 +108,17 @@ function tally(l) {
   for (const p of l.puzzles) { const g = gameFor(p.id); if (g?.done) { finished++; stars += starsFor(g); } else if (started(g)) going++; }
   return { finished, stars, going, total: l.puzzles.length };
 }
+// Shows a line. Only picking one saves it (see pickLine()), so opening the page writes nothing, and a line picked
+// in another window isn't kept over by this one.
 function setLine(l) {
   line = l; list = l.puzzles;
-  saved.options.line = l.id; save();
   const [c, on, deep] = tint(l);
   $('s-list').style.setProperty('--line', c); $('s-list').style.setProperty('--on-line-c', on); $('s-list').style.setProperty('--line-deep', deep);
   detoursOf(l.id);   // fetched ahead, so they're in by the time a puzzle opens
 }
-// Another line's list, from the top.
-function showLine(l) { setLine(l); drawList(); $('s-list').querySelector('.list-scroll').scrollTop = 0; }
+const pickLine = l => { setLine(l); setOption('line', l.id); };
+// Another line's list, from the top, picked.
+function showLine(l) { pickLine(l); drawList(); $('s-list').querySelector('.list-scroll').scrollTop = 0; }
 
 // Each line's detours come in their own file, loaded the first time one of its puzzles (or the line) is shown.
 // Until it's in, a word that isn't an answer waits for it (see wait()). If it can't be loaded (offline with no copy,
@@ -138,7 +188,14 @@ function drawList() {
 // The lines sheet: every line with how far along it you are, starting on the one on show. Picking one shows its list
 // from the top. The list is drawn before the sheet closes, so focus goes back to a button that names the new line.
 function openLines() {
-  const ul = $('lines'); ul.textContent = '';
+  drawLines();
+  openSheet('sheet-lines');
+  const now = $('lines').querySelector('[aria-current]');
+  now.focus({ preventScroll: true }); now.scrollIntoView({ block: 'center' });
+}
+function drawLines() {
+  const ul = $('lines'), at = [...ul.children].findIndex(li => li.contains(document.activeElement));
+  ul.textContent = '';
   let done = 0, all = 0;
   for (const l of LINES) {
     const { finished, stars, going, total } = tally(l);
@@ -164,9 +221,7 @@ function openLines() {
     li.append(btn); ul.append(li);
   }
   $('lines-note').textContent = `Each line is its own set of puzzles. Your progress on every line is kept${done ? `: ${done} of ${all} finished` : ''}.`;
-  openSheet('sheet-lines');
-  const now = ul.querySelector('[aria-current]');
-  now.focus({ preventScroll: true }); now.scrollIntoView({ block: 'center' });
+  ul.children[at]?.querySelector('button').focus({ preventScroll: true });   // drawn again while open: focus stays put
 }
 
 // ---- one puzzle -------------------------------------------------------------------------------------------------
@@ -281,7 +336,7 @@ function openPuzzle(i) {
   startClock();
 }
 
-function keep() { saved.games[cur.p.id] = cur.game; save(); }
+const keep = () => setGame(cur.p.id, cur.game);
 
 // Back on the list, the puzzle just left is in sight, however it was reached (Continue, Next puzzle a few times,
 // Forward from another line's list).
@@ -470,7 +525,7 @@ function land(mine, q, arrived) {
   }
   const { news, counted } = fares(game, mine.p, q.extra, q.words);
   if (shown) { say(...news); if (counted) keep(); paint(); }
-  else if (counted) { saved.games[mine.p.id] = { ...game, grid: mine.p.grid }; save(); if (!cur) drawList(); }
+  else if (counted) { setGame(mine.p.id, { ...game, grid: mine.p.grid }); if (!cur) drawList(); }
 }
 
 // Counts the words that are new detours, and says the best news among them: a token earned, then a detour, then a
@@ -583,8 +638,8 @@ $('b-menu').addEventListener('click', openMenu);
 $('b-list-menu').addEventListener('click', openMenu);
 $('b-how').addEventListener('click', () => openSheet('sheet-how'));
 $('m-how').addEventListener('click', () => { closeSheets('keep'); openSheet('sheet-how'); });
-$('o-clock').addEventListener('change', e => { saved.options.clock = e.target.checked; save(); if (cur) $('clock').hidden = !e.target.checked; else drawList(); });
-$('o-night').addEventListener('change', e => { saved.options.night = e.target.checked; save(); if (cur) paint(); else drawList(); });
+$('o-clock').addEventListener('change', e => { setOption('clock', e.target.checked); if (cur) $('clock').hidden = !e.target.checked; else drawList(); });
+$('o-night').addEventListener('change', e => { setOption('night', e.target.checked); if (cur) paint(); else drawList(); });
 
 // The page can't show a confirm box everywhere it runs, so the button asks for a second tap instead.
 let armed = null;
@@ -596,11 +651,13 @@ function twice(btn, ask, act) {
 }
 twice($('m-restart'), 'Tap again to clear this puzzle', () => {
   dropWaiting(cur.p.id);
-  cur.game = fresh(); delete saved.games[cur.p.id]; save();
+  cur.game = fresh(); setGame(cur.p.id, null);
   const i = cur.i; closeSheets(); openPuzzle(i);
 });
 twice($('m-erase'), 'Tap again to erase every line', () => {
-  dropWaiting(); saved.games = {}; saved.best = {}; save(); closeSheets(); drawList(); toast('Progress erased on every line');
+  // Every game goes, here and in any other window, rather than being merged with what's stored.
+  dropWaiting(); saved.games = {}; saved.best = {}; changed.games.clear(); changed.erased = true; save();
+  closeSheets(); drawList(); toast('Progress erased on every line');
 });
 
 function shareText() {
@@ -705,7 +762,7 @@ window.addEventListener('popstate', e => {
     if (anySheet()) { closeSheets(); addStep(); } else leave();
   } else if (!cur && id) {
     const p = PUZZLES.find(q => q.id === id);
-    if (p) { if (anySheet()) closeSheets('gone'); if (p.line !== line.id) { setLine(lineOf(p.line)); drawList(); } openPuzzle(list.indexOf(p)); }
+    if (p) { if (anySheet()) closeSheets('gone'); if (p.line !== line.id) { pickLine(lineOf(p.line)); drawList(); } openPuzzle(list.indexOf(p)); }
   } else if (!cur && e.state?.sheet) { backing = true; history.back(); }   // Forward to a sheet that's been closed
 });
 
@@ -719,6 +776,15 @@ $('b-continue').addEventListener('click', () => {
 });
 $('b-line').addEventListener('click', openLines);
 window.addEventListener('pagehide', () => { if (cur) { stopClock(); keep(); } });
+// Another window saved: take in what it saved. The list (and the lines sheet, if it's open) shows it straight away; a
+// puzzle on screen carries on as it is, and so does the line on show.
+window.addEventListener('storage', e => {
+  if (e.key !== KEY && e.key !== null) return;
+  try { adopt(mergeInto(load())); } catch { return; }
+  if (cur) return;
+  drawList();
+  if (!$('sheet-lines').hidden) drawLines();
+});
 setLine(line);
 drawList();
 // A reload on a puzzle's step (or a sheet's) opens on the list, so that step goes too, and Back from the list leaves
