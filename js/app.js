@@ -333,6 +333,7 @@ function drawList() {
   const later = going.filter(i => i > up), short = up < 0 ? shortOf(line) : [];
   if (up >= 0 && later.length) tallyLink(later.length > 1 ? `${later.length} under way, next No. ${later[0] + 1}` : `No. ${later[0] + 1} under way`, later[0]);
   if (short.length) tallyLink(short.length > 1 ? `${short.length} short of three stars, next No. ${short[0] + 1}` : `No. ${short[0] + 1} short of three stars`, short[0]);
+  drawToday();
   route.setAttribute('aria-label', `${line.name} puzzles`);
   route.classList.toggle('finished', finished === list.length);
   $('line-name').textContent = line.name;
@@ -353,6 +354,53 @@ $('b-pill-up').addEventListener('click', () => {
   $('s-list').querySelector('.list-scroll').scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' });
   $('b-continue').focus({ preventScroll: true });
 });
+
+// Today's stop: one puzzle a day, from any line, of those not yet played (nothing found on it and never finished). It's
+// picked by the date, so it needs nothing from anywhere and is the same all day: each puzzle gets a number from the day
+// and its id, and the lowest of those not yet played is today's. Playing another puzzle doesn't change it, and once
+// today's is opened it's kept with the options, so it stays today's once it's played. With every puzzle played, there's
+// none.
+const dayOf = (d = new Date()) => [d.getFullYear(), d.getMonth() + 1, d.getDate()].map(n => String(n).padStart(2, '0')).join('-');
+const unplayed = id => !isFinished(id) && !started(gameFor(id));
+const scramble = text => { let h = 0x811c9dc5; for (let k = 0; k < text.length; k++) h = Math.imul(h ^ text.charCodeAt(k), 0x01000193); return h >>> 0; };
+function todays(day = dayOf()) {
+  const t = saved.options.today;
+  if (isObject(t) && t.day === day && byId.has(t.id)) return byId.get(t.id);
+  let pick = null, low = Infinity;
+  for (const p of PUZZLES) if (unplayed(p.id)) { const n = scramble(`${day} ${p.id}`); if (n < low) { low = n; pick = p; } }
+  return pick;
+}
+const keepToday = p => { const day = dayOf(); if (saved.options.today?.day !== day && todays(day) === p) setOption('today', { day, id: p.id }); };
+let todayDrawn = '';
+function drawToday() {
+  todayDrawn = dayOf();
+  const p = todays(todayDrawn), el = $('today');
+  el.hidden = !p;
+  if (!p) return;
+  const l = lineOf(p.line), i = l.puzzles.indexOf(p), g = gameFor(p.id), best = bestStars(p.id);
+  const state = g?.done ? 'done' : started(g) ? 'going' : best ? 'done' : 'todo';
+  el.style.setProperty('--row-line', tint(l)[0]);
+  // Night service keeps its clue off too, as on the list.
+  const dark = saved.options.night && state !== 'done' && !g?.found.length;
+  $('today-clue').textContent = dark ? 'Night service' : p.clue;
+  $('today-clue').classList.toggle('dark-hours', dark);
+  const sub = $('today-sub'), st = document.createElement('span');
+  st.className = 'st'; st.textContent = '★'.repeat(best) + '☆'.repeat(3 - best);
+  sub.textContent = `${shortName(l)} No. ${i + 1}, `;
+  if (state === 'done') sub.append(st); else sub.append(state === 'going' ? `${g.found.length} of ${p.lines.length} lines found` : `${p.lines.length} lines`);
+  $('today-go').textContent = state === 'going' ? 'Resume' : state === 'done' ? (g?.done ? 'Map' : 'Replay') : 'Play';
+  const said = state === 'done' ? `${best} of 3 stars` : state === 'going' ? `${g.found.length} of ${p.lines.length} lines found` : `${p.lines.length} lines`;
+  el.setAttribute('aria-label', `Today’s stop: ${l.name}, No. ${i + 1}. ${dark ? 'Night service' : p.clue}. ${said}`);
+}
+$('today').addEventListener('click', () => {
+  const p = todays(todayDrawn) || todays();
+  if (!p) return;
+  const l = lineOf(p.line);
+  if (l !== line) showLine(l);
+  fromList(l.puzzles.indexOf(p));
+});
+// Back on screen on a new day, the list shows the new day's.
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !cur && todayDrawn && todayDrawn !== dayOf()) drawList(); });
 
 // The lines sheet: every line with how far along it you are, starting on the one on show. Picking one shows its list
 // from the top. The list is drawn before the sheet closes, so focus goes back to a button that names the new line.
@@ -558,6 +606,7 @@ function openPuzzle(i) {
   // The control that opened it (a row, Continue, Next puzzle) is on a screen that's gone, so the focus goes to the map:
   // a keyboard can play straight away, and a screen reader hears where it is. After a tap no ring shows.
   board.focus({ preventScroll: true });
+  keepToday(p);
 }
 
 // Another window has saved something of the puzzle on screen that this one hasn't got (a line, a detour, a token spent,

@@ -224,6 +224,14 @@ a { color: inherit; }
   #sheet-lines .panel { gap: 10px; padding-top: 18px; }
   .line-row .line-main small:not(.here) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
+/* Today's stop, under the buttons at the top of the list: one puzzle a day from any line, in that line's colour. */
+.today { margin-top: 4px; }
+.today .line-bar { background: var(--row-line); }
+.today .today-label { font-size: 11.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; line-height: 1.5; }
+.today .line-main strong { font-size: 16px; }
+.today strong.dark-hours { font-weight: 600; color: var(--muted); }
+.today .st { color: var(--star); letter-spacing: 1px; }
+.today-go { color: var(--muted); font-size: 13.5px; font-weight: 700; white-space: nowrap; }
 .panel-note { color: var(--muted); font-size: 14px; margin-top: -6px; }
 @media (hover: hover) { .line-pick:hover, .line-row:hover { border-color: var(--muted); } .line-row[aria-current]:hover { border-color: var(--ink); } }
 

@@ -16,8 +16,11 @@ const all = p => p.lines.map((_, k) => k);
 async function open({ viewport, scale, scheme = 'light', games = {}, options = {} }) {
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: scale, hasTouch: true, colorScheme: scheme, serviceWorkers: 'block' });
   const page = await ctx.newPage();
-  await page.addInitScript(state => localStorage.setItem('crosstown.v1', JSON.stringify(state)),
-    { options: { clock: true, night: false, ...options }, games, best: Object.fromEntries(Object.entries(games).filter(([, g]) => g.done).map(([id, g]) => [id, g.ms])) });
+  // Today's stop is set, as the page would keep it, so it's the same one whatever day the pictures are made.
+  await page.addInitScript(({ today, ...state }) => {
+    const d = new Date(), day = [d.getFullYear(), d.getMonth() + 1, d.getDate()].map(n => String(n).padStart(2, '0')).join('-');
+    localStorage.setItem('crosstown.v1', JSON.stringify({ ...state, options: { ...state.options, today: { day, id: today } } }));
+  }, { today: PUZZLES.find(p => p.line === 'park').id, options: { clock: true, night: false, ...options }, games, best: Object.fromEntries(Object.entries(games).filter(([, g]) => g.done).map(([id, g]) => [id, g.ms])) });
   await page.goto(base);
   await page.evaluate(() => document.fonts.ready);
   return page;

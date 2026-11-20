@@ -2391,6 +2391,45 @@ for (const [width, height] of [[320, 568], [320, 700], [360, 740], [390, 844], [
   await other.close();
 }
 
+// Today's stop: one puzzle a day from any line's unplayed puzzles, the same all day. Playing another puzzle doesn't
+// change it, nor does playing it. A day later it's another; with every puzzle played there's none.
+{
+  const ALL = LINES.flatMap(l => l.puzzles);
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} });
+  await tab.waitForSelector('#today:not([hidden])');
+  const today = () => tab.evaluate(() => [document.getElementById('today-sub').textContent, document.getElementById('today-clue').textContent]);
+  const [sub, clue] = await today();
+  const q = ALL.find(x => x.clue === clue && sub.startsWith(`${LINES.find(l => l.id === x.line).name.replace(/ Line$/, '')} No. ${LINES.find(l => l.id === x.line).puzzles.indexOf(x) + 1}, `));
+  assert.ok(q, `today's stop should name a puzzle: ${sub} ${clue}`);
+  assert.equal(sub.endsWith(`${q.lines.length} lines`), true);
+  assert.equal(await tab.getAttribute('#today', 'aria-label'), `Today’s stop: ${LINES.find(l => l.id === q.line).name}, No. ${LINES.find(l => l.id === q.line).puzzles.indexOf(q) + 1}. ${q.clue}. ${q.lines.length} lines`);
+  await tab.reload();
+  assert.deepEqual(await today(), [sub, clue], "today's stop should stay the same all day");
+  // Playing another puzzle leaves it be.
+  const another = q.id === PUZZLES[0].id ? PUZZLES[1] : PUZZLES[0];
+  await tab.evaluate(([id, g]) => { const s = JSON.parse(localStorage.getItem('crosstown.v1')); s.games[id] = g; localStorage.setItem('crosstown.v1', JSON.stringify(s)); }, [another.id, finished(another)]);
+  await tab.reload();
+  assert.deepEqual(await today(), [sub, clue], "playing another puzzle shouldn't change today's stop");
+  // Opening it opens that puzzle, with its line's list behind it, and once it's played it's still today's.
+  await tab.click('#today');
+  await tab.waitForSelector('#s-play:not([hidden])');
+  assert.equal(await tab.textContent('#clue'), q.clue);
+  await drag(tab, q.lines[1]);
+  await tab.click('#b-back');
+  assert.equal(await tab.textContent('#line-name'), LINES.find(l => l.id === q.line).name);
+  assert.deepEqual(await today(), [`${sub.split(', ')[0]}, 1 of ${q.lines.length} lines found`, clue], "today's stop, once played, should stay and say how far along it is");
+  assert.equal(await tab.textContent('#today-go'), 'Resume');
+  // The next day, another (as the date says, so it needs nothing from anywhere).
+  await tab.evaluate(() => { const D = Date; const later = D.now() + 864e5; window.Date = class extends D { constructor(...a) { if (a.length) super(...a); else super(later); } static now() { return later; } }; document.dispatchEvent(new Event('visibilitychange')); });
+  await tab.waitForFunction(c => document.getElementById('today-clue').textContent !== c, clue, { timeout: 5000 }).catch(() => assert.fail("a new day should bring a new stop"));
+  assert.deepEqual(errors, []);
+  await other.close();
+  // Every puzzle played: none.
+  const all = await visitor({ options: {}, best: {}, games: Object.fromEntries(ALL.map(x => [x.id, finished(x)])) });
+  assert.equal(await all.tab.isHidden('#today'), true, "with every puzzle played there should be no stop for today");
+  await all.other.close();
+}
+
 // It can be installed.
 const cdp = await ctx.newCDPSession(page);
 const manifest = await cdp.send('Page.getAppManifest');

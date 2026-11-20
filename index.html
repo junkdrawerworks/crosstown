@@ -56,6 +56,11 @@
           <p class="tally" id="aside-note" hidden>Your saved progress couldn’t be read, so this list starts fresh. A copy is kept in this browser.</p>
           <p class="tally" id="unkept" hidden>This browser isn’t keeping your progress, so it goes when the page closes.</p>
           <p class="sr-only" id="list-said" aria-live="polite"></p>
+          <button type="button" class="line-pick today" id="today" hidden>
+            <span class="line-bar" aria-hidden="true"></span>
+            <span class="line-main"><small class="today-label">Today’s stop</small><strong id="today-clue"></strong><small id="today-sub"></small></span>
+            <span class="today-go" id="today-go" aria-hidden="true"></span>
+          </button>
         </header>
 
         <ol class="route" id="route"></ol>
