@@ -5,7 +5,7 @@
 **A word hunt drawn as a transit map.** Every letter is a stop, and each theme word you find becomes its own coloured line. One word, the Crosstown, names the theme and runs from one edge of the map to the opposite edge. When you're done, every stop is on a line and the board looks like a subway map.
 
 <p align="center">
-  <img src="docs/phone-list.png" alt="The list of puzzles as a route line running down through numbered roundels: three finished with stars and times, the fourth under way" width="250">
+  <img src="docs/phone-list.png" alt="The list of puzzles: a card for the line on show, reading Main Line, Change line, then a route line running down through numbered roundels, three finished with stars and times, the fourth under way" width="250">
   &nbsp;
   <img src="docs/phone-play.png" alt="A puzzle midway: the clue on a dark sign, a blue line, an orange line and the striped Crosstown already drawn, a word half traced in grey, and nine stops ringed by a hint" width="250">
   &nbsp;
