@@ -121,8 +121,10 @@ assert.equal(await page.locator('#board .stop.first').count(), 1);
 await page.reload();
 assert.equal(await text('#b-continue'), 'Resume No. 1');
 assert.match(await text('#route li:first-child .row-sub'), /^2 of \d lines found$/);
-await page.click('#route li:first-child .row');
+await page.tap('#route li:first-child .row');
 assert.equal(await text('#count'), `2 of ${p.lines.length} lines`);
+// The map has the focus once the puzzle opens, with no ring after a tap.
+assert.deepEqual(await page.evaluate(() => [document.activeElement.id, document.activeElement.matches(':focus-visible')]), ['board', false], 'the map should have the focus, without a ring, after a tap opens a puzzle');
 assert.equal(await text('#readout'), '', 'only a first visit is told how to trace');
 assert.equal(await page.locator('#board .line').count(), 2);
 assert.equal(await page.locator('#board .guide').count(), 1);
@@ -766,30 +768,43 @@ if (LINES.length > 1) {
 }
 
 // Back on the list shows the puzzle just left, by the back arrow or the browser's Back, even when it was opened by
-// Continue from the top of the list or reached by Next puzzle.
+// Continue from the top of the list or reached by Next puzzle, and the focus is on its row. Opening a puzzle puts the
+// focus on the map. A reload on a puzzle opens the list there too.
 {
   const games = Object.fromEntries(PUZZLES.slice(0, 39).map(q => [q.id, finished(q)]));
   const q = PUZZLES[39];
   games[q.id] = { found: q.lines.map((_, k) => k).slice(1), detours: [] };
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games });
   const inView = n => tab.evaluate(n => { const r = document.querySelector(`#route li:nth-child(${n})`).getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }, n);
+  const focus = () => tab.evaluate(() => { const a = document.activeElement; return a.classList.contains('row') ? `row ${[...document.getElementById('route').children].indexOf(a.parentNode) + 1}` : a.id || a.tagName; });
   await tab.click('#b-continue');
   assert.equal(await tab.textContent('#where'), 'Main, No. 40');
+  assert.equal(await focus(), 'board', 'the map should have the focus once a puzzle opens');
   await tab.click('#b-back');
   assert.equal(await inView(40), true, 'Back to the list should show the puzzle just left');
+  assert.equal(await focus(), 'row 40', 'Back to the list should put the focus on the puzzle just left');
   await tab.evaluate(() => { document.querySelector('#s-list .list-scroll').scrollTop = 0; });
   await tab.click('#b-continue');
   await drag(tab, q.lines[0]);
   await tab.waitForSelector('#sheet-done:not([hidden])');
   await tab.click('#b-done-next');
   assert.equal(await tab.textContent('#where'), 'Main, No. 41');
+  assert.equal(await focus(), 'board', 'Next puzzle should put the focus on the map');
   await tab.goBack();
   await tab.waitForSelector('#s-list:not([hidden])');
   assert.equal(await inView(41), true, 'Back after Next puzzle should show the puzzle just left');
+  assert.equal(await focus(), 'row 41', "the browser's Back should put the focus on the puzzle just left");
   const top = await tab.evaluate(() => document.querySelector('#s-list .list-scroll').scrollTop);
-  await tab.click('#route li:nth-child(41) .row');
+  await tab.focus('#route li:nth-child(41) .row');
+  await tab.keyboard.press('Enter');
+  assert.equal(await focus(), 'board', 'opening a row by keyboard should put the focus on the map');
   await tab.click('#b-back');
   assert.equal(await tab.evaluate(() => document.querySelector('#s-list .list-scroll').scrollTop), top, 'a row already in sight should stay put');
+  await tab.evaluate(() => { document.querySelector('#s-list .list-scroll').scrollTop = 0; });
+  await tab.click('#route li:nth-child(40) .row');
+  await tab.reload(); await tab.evaluate(() => document.fonts.ready);
+  await tab.waitForSelector('#s-list:not([hidden])');
+  assert.deepEqual([await inView(40), await focus()], [true, 'row 40'], 'a reload on a puzzle should open the list at that puzzle');
   assert.deepEqual(errors, []);
   await other.close();
 }

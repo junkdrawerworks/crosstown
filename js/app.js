@@ -347,12 +347,15 @@ function openPuzzle(i) {
   else say('');
   paint();
   startClock();
+  // The control that opened it (a row, Continue, Next puzzle) is on a screen that's gone, so the focus goes to the map:
+  // a keyboard can play straight away, and a screen reader hears where it is. After a tap no ring shows.
+  board.focus({ preventScroll: true });
 }
 
 const keep = () => setGame(cur.p.id, cur.game);
 
-// Back on the list, the puzzle just left is in sight, however it was reached (Continue, Next puzzle a few times,
-// Forward from another line's list).
+// Back on the list, the puzzle just left is in sight with the focus on it, however it was reached (Continue, Next
+// puzzle a few times, Forward from another line's list), so a keyboard carries on from there.
 function leave() {
   stopClock();
   if (cur && (cur.game.found.length || cur.game.detours.length || cur.game.ms > 5000)) keep();
@@ -361,11 +364,15 @@ function leave() {
   drag = null;   // Back can come in the middle of a drag, and letting go after it has no puzzle to spell the word on
   $('s-play').hidden = true; $('s-list').hidden = false;
   drawList();
-  const row = $('route').children[left];
-  if (row) {
-    const r = row.getBoundingClientRect(), view = $('s-list').querySelector('.list-scroll').getBoundingClientRect();
-    if (r.top < view.top || r.bottom > view.bottom) row.scrollIntoView({ block: 'center' });
-  }
+  toRow(left);
+}
+// Puts a puzzle's row in sight (in the middle, if it's out of sight), and the focus on it (unless `focus` is false).
+function toRow(i, focus = true) {
+  const row = $('route').children[i];
+  if (!row) return;
+  const r = row.getBoundingClientRect(), view = $('s-list').querySelector('.list-scroll').getBoundingClientRect();
+  if (r.top < view.top || r.bottom > view.bottom) row.scrollIntoView({ block: 'center' });
+  if (focus) row.querySelector('.row').focus({ preventScroll: true });
 }
 
 // The clock only runs while the puzzle is on screen and unfinished.
@@ -801,8 +808,12 @@ window.addEventListener('storage', e => {
 setLine(line);
 drawList();
 // A reload on a puzzle's step (or a sheet's) opens on the list, so that step goes too, and Back from the list leaves
-// the game.
-if (!single && (history.state?.[STEP] || history.state?.sheet)) { backing = true; history.back(); }
+// the game. The puzzle that was open is in sight, as after the back arrow, with the focus on it where there's a mouse.
+// (On a touch screen nothing has been pressed yet, so the browser would ring the row as if a key had been.)
+if (!single && (history.state?.[STEP] || history.state?.sheet)) {
+  toRow(list.findIndex(q => q.id === history.state[STEP]), matchMedia('(hover: hover)').matches);
+  backing = true; history.back();
+}
 
 // The offline copy. If making it was cut short (the signal went), it's tried again when the signal comes back or the
 // game comes back on screen, rather than at the next page load. update() fetches sw.js afresh, and sets up a new
