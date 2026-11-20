@@ -1673,6 +1673,13 @@ if (LINES.length > 1) {
   assert.equal(await tab.locator('#route li').count(), main.puzzles.length);
   assert.equal(await tab.locator('#route li.done').count(), main.puzzles.length, 'nothing finished on the Main Line should be lost');
   await tab.click('#b-line'); await tab.click('#lines li:nth-child(2) .line-row');
+  // From the keyboard alone: Enter on Change line opens the sheet on the line on show, Tab goes to the next, Enter picks it.
+  await tab.focus('#b-line'); await tab.keyboard.press('Enter');
+  await tab.waitForSelector('#sheet-lines:not([hidden])');
+  await tab.keyboard.press('Tab'); await tab.keyboard.press('Enter');
+  await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
+  assert.equal(await tab.textContent('#line-name'), LINES[2].name, 'a line picked from the keyboard should show');
+  await tab.click('#b-line'); await tab.click('#lines li:nth-child(2) .line-row');
 
   // A puzzle on the second line: its number counts along the line, and its detours (loaded with the line) earn fare.
   const q = second.puzzles[0];
@@ -1810,6 +1817,23 @@ if (LINES.length > 2) {
   await tab.goBack();
   await tab.waitForSelector('#s-list:not([hidden])');
   assert.equal(await tab.textContent('#line-name'), third.name, "Back should go to the new line's list");
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+// From the last line it goes round: past a finished Main Line, the next line with a puzzle left is the second, at its
+// No. 1.
+if (LINES.length > 2) {
+  const [main, second] = LINES, end = LINES.at(-1), last = end.puzzles.at(-1);
+  const games = Object.fromEntries([...main.puzzles, ...end.puzzles.slice(0, -1)].map(q => [q.id, finished(q)]));
+  games[last.id] = { found: last.lines.map((_, k) => k).slice(1), detours: [] };
+  const { other, tab, errors } = await visitor({ options: { line: end.id }, best: {}, games });
+  await tab.click('#b-continue');
+  await drag(tab, last.lines[0]);
+  await tab.waitForSelector('#sheet-done:not([hidden])');
+  assert.equal(await tab.textContent('#sheet-done .eyebrow'), `${end.name} finished`);
+  assert.equal(await tab.textContent('#b-done-next'), `On to ${second.name.replace(/ Line$/, '')}`, 'the last line should go round to the first line with a puzzle left');
+  await tab.click('#b-done-next');
+  assert.deepEqual([await tab.textContent('#where'), await tab.textContent('#clue')], [`${second.name.replace(/ Line$/, '')}, No. 1`, second.puzzles[0].clue]);
   assert.deepEqual(errors, []);
   await other.close();
 }
@@ -2183,10 +2207,10 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
 }
 
 // The one-file copy (npm run build) plays from a file on its own: another line's detours are in it too, and nothing
-// is asked of any server.
+// is asked of any server. Its fragment for hosts, artifact.html, takes the host's look.
 {
   const { execFileSync } = await import('node:child_process');
-  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { mkdtemp, rm, readFile, writeFile } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const { fileURLToPath, pathToFileURL } = await import('node:url');
@@ -2210,6 +2234,19 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
     assert.deepEqual(asked, [], 'the one-file copy asked for something besides itself');
     assert.deepEqual(errors, []);
     await ctx.close();
+    // artifact.html goes inside a page of the host's, which may set the look itself with data-theme on <html>: that
+    // wins over the system's setting, either way round.
+    const fragment = await readFile(join(dir, 'artifact.html'), 'utf8');
+    for (const [theme, colorScheme, bg] of [['dark', 'light', 'rgb(15, 20, 27)'], ['light', 'dark', 'rgb(238, 242, 241)']]) {
+      const host = join(dir, `host-${theme}.html`);
+      await writeFile(host, `<!doctype html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>${fragment}</body></html>`);
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme });
+      const tab = await ctx.newPage(), errors = [];
+      tab.on('pageerror', e => errors.push(e.message));
+      await tab.goto(pathToFileURL(host).href);
+      assert.deepEqual([await tab.evaluate(() => getComputedStyle(document.body).backgroundColor), errors], [bg, []], `artifact.html under data-theme="${theme}" on a ${colorScheme} system should have the ${theme} background`);
+      await ctx.close();
+    }
   } finally { await rm(dir, { recursive: true, force: true }); }
 }
 
