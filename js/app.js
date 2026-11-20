@@ -583,12 +583,13 @@ board.addEventListener('pointercancel', e => {
 // found. The row and column come every time, so two stops that are otherwise alike still sound different. A stop in
 // the word being traced says where in the word it is, since Enter there cuts the word back to it, or on the last
 // letter sends it.
-function speak(i) {
+function speak(i, edge = false) {
   const k = cur.lineOf[i], at = `row ${row(i) + 1}, column ${col(i) + 1}`, hint = cur.game.hint, n = sel.indexOf(i);
   let words = `${cur.p.grid[i]}, ${at}`;
   if (taken(i)) words = `${cur.p.grid[i]}, on the ${k ? `${cur.words[k]} line` : 'Crosstown'}, ${at}`;
   else if (hint?.line === k) words += hint.level > 1 && cur.p.lines[k][0] === i ? ', ringed, the route starts here' : ', ringed';
   if (n >= 0) words += `, letter ${n + 1} of your word${n > 0 && n === sel.length - 1 ? ', Enter sends it' : ''}`;
+  if (edge) words = `${cur.p.grid[i]}, ${at}, edge of the map`;
   $('spoken').textContent = words;
 }
 
@@ -602,18 +603,26 @@ board.addEventListener('focus', () => {
   keysTip = traced();
 });
 
+const STEPS = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0], Home: [-1, -1], PageUp: [-1, 1], End: [1, -1], PageDown: [1, 1] };
+const PAD = { Numpad7: 'Home', Numpad8: 'ArrowUp', Numpad9: 'PageUp', Numpad4: 'ArrowLeft', Numpad6: 'ArrowRight', Numpad1: 'End', Numpad2: 'ArrowDown', Numpad3: 'PageDown' };
+
 // On a finished map every stop is on a found line, so the arrows and Enter only name lines there, as a tap does.
 board.addEventListener('keydown', e => {
   if (!cur) return;
-  const step = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] }[e.key];
+  // The arrows, and the diagonals as a grid usually has them: Home and Page Up up left and right, End and Page Down
+  // down left and right, as on the number pad (where 7, 9, 1 and 3 do the same with Num Lock on, and 8, 4, 6 and 2
+  // are the arrows).
+  const step = STEPS[e.key] || STEPS[PAD[e.code]];
   if (keysTip && (step || ['Enter', ' ', 'Escape', 'Backspace'].includes(e.key))) {
     keysTip = false;
     if ($('readout').textContent === KEYS_TIP) say('');
   }
   if (step) {
+    // A move off the map stays put, and says so, so it's heard (the same words again would be silent).
+    let edge = false;
     if (cursor < 0) cursor = sel.length ? sel[sel.length - 1] : 0;
-    else { const r = row(cursor) + step[0], c = col(cursor) + step[1]; if (r >= 0 && r < H && c >= 0 && c < W) cursor = r * W + c; }
-    speak(cursor);
+    else { const r = row(cursor) + step[0], c = col(cursor) + step[1]; if (r >= 0 && r < H && c >= 0 && c < W) cursor = r * W + c; else edge = true; }
+    speak(cursor, edge);
   } else if (e.key === 'Enter' || e.key === ' ') {
     // Before any arrow, Enter puts the cursor down (on the word's last letter, or the first stop) and says where.
     if (cursor < 0) { cursor = sel.length ? sel[sel.length - 1] : 0; speak(cursor); e.preventDefault(); paint(); return; }

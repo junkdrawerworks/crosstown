@@ -730,7 +730,18 @@ if (LINES.length > 1) {
   await tab.keyboard.press('Escape');
   assert.deepEqual([await tab.textContent('#spoken'), await tab.locator('#board .stop.sel').count()], ['Word cleared', 0], 'Escape should say the word was cleared');
   assert.equal(await tab.getAttribute('#board', 'aria-describedby'), 'where clue count map-keys');
-  assert.match(await tab.textContent('#map-keys'), /^Arrow keys move\. Enter adds a letter; Enter again on the last letter sends the word\./);
+  assert.match(await tab.textContent('#map-keys'), /^Arrow keys move\. Home, Page Up, End and Page Down move diagonally: up left, up right, down left and down right\. Enter adds a letter; Enter again on the last letter sends the word\./);
+  // The diagonals: Home, Page Up, End and Page Down, and the number pad's 7, 9, 1 and 3. A move off the map says so.
+  const cursorAt = () => tab.evaluate(() => [...document.querySelectorAll('#board .stop')].findIndex(s => s.classList.contains('cursor')));
+  await walk(14, tab);   // row 3, column 3
+  for (const [key, to] of [['PageDown', 21], ['End', 26], ['Home', 19], ['PageUp', 14], ['Numpad3', 21], ['Numpad7', 14], ['Numpad9', 9], ['Numpad1', 14]]) {
+    await tab.keyboard.press(key);
+    assert.equal(await cursorAt(), to, `${key} should move the cursor diagonally`);
+  }
+  await walk(0, tab);
+  await tab.keyboard.press('Home');
+  assert.deepEqual([await cursorAt(), await tab.textContent('#spoken')], [0, `${p.grid[0]}, row 1, column 1, edge of the map`], 'a move off the map should say so');
+  assert.equal(await tab.evaluate(() => scrollY), 0, 'Home on the map should not scroll the page');
   assert.deepEqual(errors, []);
   await other.close();
 }
