@@ -240,3 +240,36 @@ test('the offline copy lists every file the page loads', async () => {
     assert.ok(sw.includes(`'${f}'`), `sw.js doesn't keep ${f}`);
   }
 });
+
+// Blue and purple meet on about half the boards, and on the map colour is all that tells one line from another. For
+// someone with no red or no green cones (simulated as Machado, Oliveira and Fernandes, IEEE TVCG 15(6), 2009, full
+// severity) they still stand apart: a CIE76 colour difference of 10 or more, in both palettes. Text on each, in the
+// palette's colour for it, keeps WCAG's 4.5:1.
+test('blue and purple stay apart for colour-blind eyes, in both palettes', async () => {
+  const css = await readFile(new URL('../css/app.css', import.meta.url), 'utf8');
+  const lin = v => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const rgb = h => [1, 3, 5].map(i => lin(parseInt(h.slice(i, i + 2), 16) / 255));
+  const sim = (m, c) => m.map(r => Math.min(1, Math.max(0, r[0] * c[0] + r[1] * c[1] + r[2] * c[2])));
+  const lab = c => {
+    const f = t => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+    const X = f((0.4124 * c[0] + 0.3576 * c[1] + 0.1805 * c[2]) / 0.95047), Y = f(0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]), Z = f((0.0193 * c[0] + 0.1192 * c[1] + 0.9505 * c[2]) / 1.08883);
+    return [116 * Y - 16, 500 * (X - Y), 200 * (Y - Z)];
+  };
+  const eyes = {
+    protan: [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]],
+    deutan: [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.011820, 0.042940, 0.968881]],
+  };
+  const lum = h => { const [r, g, b] = rgb(h); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  // The light palette, the dark one as the system asks for it, and the dark one as picked.
+  const blocks = [css.match(/^:root \{([^}]*)\}/m)[1], css.match(/:root:not\(\[data-theme="light"\]\) \{([^}]*)\}/)[1], css.match(/:root\[data-theme="dark"\] \{([^}]*)\}/)[1]];
+  for (const [n, block] of blocks.entries()) {
+    const v = name => block.match(new RegExp(`--${name}: (#[0-9a-f]{6});`))[1];
+    const [blue, purple, on] = [v('l2'), v('l5'), v('on-line')];
+    for (const [eye, m] of Object.entries(eyes)) {
+      const d = Math.hypot(...lab(sim(m, rgb(blue))).map((x, i) => x - lab(sim(m, rgb(purple)))[i]));
+      assert.ok(d >= 10, `blue ${blue} and purple ${purple} are ${d.toFixed(1)} apart to ${eye} eyes in palette ${n + 1}`);
+    }
+    for (const c of [blue, purple]) assert.ok(ratio(c, on) >= 4.5, `text on ${c} is ${ratio(c, on).toFixed(2)}:1 in palette ${n + 1}`);
+  }
+});
