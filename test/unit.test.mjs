@@ -106,6 +106,26 @@ test('the words How to play and the README give as examples are on no board and 
   }
 });
 
+// A word can be written as people write it (PRIMA DONNA, VELOUTÉ) where the map has only its letters. That form is
+// only shown, so it must come down to exactly the letters of a line on its board, and be every one its theme gives.
+test('each written form has the letters of a line on its board, and is its theme’s', () => {
+  const letters = w => w.normalize('NFD').replace(/[^A-Z]/g, '');
+  let n = 0;
+  for (const p of PUZZLES) {
+    const words = p.lines.map(l => spell(p.grid, l)), theme = THEMES.find(t => t.id === p.id);
+    for (const [key, written] of Object.entries(p.written ?? {})) {
+      n++;
+      assert.ok(words.includes(key), `${p.id}: ${key} is written as ${written}, but it isn't a line on its board`);
+      assert.equal(letters(written), key, `${p.id}: ${written} doesn't come down to the letters ${key}`);
+      assert.notEqual(written, key, `${p.id}: ${written} is written as just its letters`);
+      assert.match(written, /^[A-Z\u00C0-\u017F’.\- ]+$/u, `${p.id}: ${written} has something in it besides capitals, spaces, hyphens, apostrophes and full stops`);
+    }
+    const want = Object.fromEntries((theme.written ?? []).filter(w => words.includes(letters(w))).map(w => [letters(w), w]));
+    assert.deepEqual(p.written ?? {}, want, `${p.id}'s written forms aren't its theme's: run tools/make-puzzles.mjs`);
+  }
+  assert.ok(n > 200, 'hardly any written forms: were they dropped?');
+});
+
 test('each puzzle has its theme’s name and clue', () => {
   for (const p of PUZZLES) {
     const theme = THEMES.find(t => t.id === p.id);

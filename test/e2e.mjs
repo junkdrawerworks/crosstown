@@ -433,7 +433,7 @@ function contrast(a, b) {
   // On the finished map the arrows and Enter name the lines, the same as tapping a stop.
   await tab.keyboard.press('Escape');
   await tab.focus('#board');
-  const named = i => { const k = last.lines.findIndex(l => l.includes(i)); return k ? spell(last.grid, last.lines[k]) : `Crosstown: ${last.name}`; };
+  const named = i => { const k = last.lines.findIndex(l => l.includes(i)), w = spell(last.grid, last.lines[k]); return k ? last.written?.[w] ?? w : `Crosstown: ${last.name}`; };
   for (const stop of [last.lines[1][0], last.lines[0][0]]) {
     await walk(stop, tab);
     await tab.keyboard.press('Enter');
@@ -600,6 +600,33 @@ function contrast(a, b) {
   // The Lines sheet says a line with a puzzle under way and none finished is under way, after a full stop.
   await tab.click('#b-back'); await tab.click('#b-line');
   assert.equal(await tab.getAttribute('#lines li:nth-child(1) .line-row', 'aria-label'), `${LINES[0].name}: ${LINES[0].about}. Under way`);
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
+// A line written otherwise than its letters (ON DECK, where the map has ONDECK) is traced by its letters and shown as
+// written: when it's found, when it's found again, when a stop on it is pressed or walked to, and in the done
+// sheet's key.
+{
+  const n = PUZZLES.findIndex(q => q.written), q = PUZZLES[n], qw = q.lines.map(l => spell(q.grid, l));
+  const k = qw.findIndex((w, j) => j > 0 && q.written[w]), as = q.written[qw[k]];
+  const last = [...q.lines.keys()].reverse().find(j => j > 0 && j !== k);
+  const games = { [q.id]: { found: [...q.lines.keys()].filter(j => j !== k && j !== last), detours: [] } };
+  const { other, tab, errors } = await visitor({ options: { traced: true }, best: {}, games });
+  await tab.click(`#route li:nth-child(${n + 1}) .row`);
+  await drag(tab, q.lines[k]);
+  assert.equal(await tab.textContent('#readout'), `${as}, found. ${q.lines.length - 1} of ${q.lines.length} lines`, 'a found line should be shown as it\'s written');
+  await drag(tab, q.lines[k]);
+  assert.equal(await tab.textContent('#readout'), `${as} already found`);
+  await drag(tab, [q.lines[k][1]]);
+  assert.equal(await tab.textContent('#readout'), as, 'a found line\'s stop should name it as it\'s written');
+  await tab.focus('#board');
+  await walk(q.lines[k][0], tab);
+  assert.match(await tab.textContent('#spoken'), new RegExp(`, on the ${as} line, `), 'a found line\'s stop walked to should name it as it\'s written');
+  await tab.keyboard.press('Escape');
+  await drag(tab, q.lines[last]);
+  await tab.waitForSelector('#sheet-done:not([hidden])');
+  assert.equal(await tab.textContent(`#done-key li:nth-child(${k + 1})`), as, 'the key should give a line as it\'s written');
   assert.deepEqual(errors, []);
   await other.close();
 }

@@ -43,6 +43,8 @@ function rng(seed) {
   let a = seed >>> 0;
   return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 }
+// A word as people write it ("PRIMA DONNA", "VELOUTÉ") comes down to its letters on the map ("PRIMADONNA", "VELOUTE").
+const lettersOf = written => written.normalize('NFD').replace(/[^A-Z]/g, '');
 const hash = s => { let h = 2166136261; for (const ch of s) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; };
 const shuffle = (a, rnd) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
@@ -261,6 +263,18 @@ async function main() {
   const ids = new Set(all.map(t => t.id));
   for (const a of args) if (!lineIds.has(a) && !ids.has(a)) throw new Error(`${a} is neither a line nor a puzzle`);
   if (ids.size !== all.length) throw new Error('two puzzles share an id: ids must be unique across every line');
+  // Each theme's written forms, by the letters they stand for. They only change how a word reads, never the board.
+  const writtenOf = new Map(all.map(t => {
+    const words = [t.cross, ...t.words.split(' ')], forms = {};
+    for (const w of t.written ?? []) {
+      const key = lettersOf(w);
+      if (!words.includes(key)) throw new Error(`${t.id}: written form ${w} isn't the letters of one of its words`);
+      if (key === w) throw new Error(`${t.id}: written form ${w} is just its letters: leave it out`);
+      if (forms[key]) throw new Error(`${t.id}: ${key} is written two ways`);
+      forms[key] = w;
+    }
+    return [t.id, forms];
+  }));
   const show = new Set(args.filter(a => ids.has(a)));
   const wanted = t => !args.length || show.has(t.id) || args.some(a => LINES.find(l => l.id === a)?.themes.includes(t));
 
@@ -310,13 +324,17 @@ async function main() {
   const lines = LINES.map(line => {
     const puzzles = line.themes.map(t => {
       const p = puzzleOf(t);
-      return `    { id: ${JSON.stringify(p.id)}, name: ${JSON.stringify(p.name)}, clue: ${JSON.stringify(p.clue)},\n      grid: '${p.grid}', lines: ${JSON.stringify(p.lines)} },`;
+      // The written forms of the words on this board, if any differ from their letters.
+      const forms = Object.fromEntries(p.lines.map(l => spell(p.grid, l)).filter(w => writtenOf.get(t.id)[w]).map(w => [w, writtenOf.get(t.id)[w]]));
+      const written = Object.keys(forms).length ? `,\n      written: ${JSON.stringify(forms)}` : '';
+      return `    { id: ${JSON.stringify(p.id)}, name: ${JSON.stringify(p.name)}, clue: ${JSON.stringify(p.clue)},\n      grid: '${p.grid}', lines: ${JSON.stringify(p.lines)}${written} },`;
     });
     return `  { id: ${JSON.stringify(line.id)}, name: ${JSON.stringify(line.name)}, about: ${JSON.stringify(line.about)}, color: ${JSON.stringify(line.color)}, fp: '${fp.get(line.id)}', puzzles: [\n${puzzles.join('\n')}\n  ] },`;
   });
   await writeFile(new URL('../js/puzzles.js', import.meta.url),
-`${header}// The lines, in the order the list shows them. Each puzzle has its grid (the 48 letters, across then down) and its
-// lines (the stops of each theme word in order, the Crosstown first). A line's fp is a fingerprint of its detours.
+`${header}// The lines, in the order the list shows them. Each puzzle has its grid (the 48 letters, across then down), its
+// lines (the stops of each theme word in order, the Crosstown first) and, where a word on it isn't written as just its
+// letters, \`written\` (its letters, then the word as people write it). A line's fp is a fingerprint of its detours.
 export const LINES = [
 ${lines.join('\n')}
 ];

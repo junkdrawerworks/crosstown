@@ -391,7 +391,7 @@ function drawLines() {
 }
 
 // ---- one puzzle -------------------------------------------------------------------------------------------------
-let cur = null;      // the puzzle on screen: { i, p, words, extra, lineOf, game, waiting }
+let cur = null;      // the puzzle on screen: { i, p, words, shown, extra, lineOf, game, waiting }
 let sel = [];        // stops in the word being traced
 let cursor = -1;     // keyboard position
 let drag = null;     // { pointerId, changed, tapLast, joined, named: a found line's stop pressed on its own, or -1 }
@@ -520,7 +520,10 @@ function openPuzzle(i) {
   const lineOf = new Int8Array(N);
   p.lines.forEach((line, k) => line.forEach(stop => { lineOf[stop] = k; }));
   const game = { ...(gameFor(p.id) || fresh()), grid: p.grid };
-  cur = { i, p, line, words: p.lines.map(l => spell(p.grid, l)), extra: detoursOf(line.id), lineOf, game };
+  // Each line's letters, as traced, and as people write it (PRIMA DONNA for PRIMADONNA, VELOUTÉ for VELOUTE), which is
+  // what the found message, a tapped stop and the done sheet's key show.
+  const words = p.lines.map(l => spell(p.grid, l)), shown = words.map(w => p.written?.[w] ?? w);
+  cur = { i, p, line, words, shown, extra: detoursOf(line.id), lineOf, game };
   sel = []; cursor = -1; $('spoken').textContent = '';
   showWhere(i);
   $('b-back').setAttribute('aria-label', `${line.name} puzzles`);
@@ -648,7 +651,7 @@ const taken = i => cur.game.found.includes(cur.lineOf[i]);
 // can't: the boards are made so that no answer can be traced through another line's stops. A drag goes on through a
 // found line's stop, and so does a tapped word (or one keyed in) when the stop is beside its last letter. Tapped on its
 // own, or pressed on and let go, a found line's stop tells you which line it is, and on a finished map that's all.
-const nameLine = i => { const k = cur.lineOf[i]; say(k ? cur.words[k] : `Crosstown: ${cur.p.name}`, k ? '' : 'note', k); };
+const nameLine = i => { const k = cur.lineOf[i]; say(k ? cur.shown[k] : `Crosstown: ${cur.p.name}`, k ? '' : 'note', k); };
 const takenNext = i => taken(i) && sel.length > 0 && !sel.includes(i) && adjacent(sel[sel.length - 1], i);
 
 // One finger traces at a time: while it's down, another finger (or a palm) resting on the map is ignored, rather
@@ -726,7 +729,7 @@ board.addEventListener('pointercancel', e => {
 function speak(i, edge = false) {
   const k = cur.lineOf[i], at = `row ${row(i) + 1}, column ${col(i) + 1}`, hint = cur.game.hint, n = sel.indexOf(i);
   let words = `${cur.p.grid[i]}, ${at}`;
-  if (taken(i)) words = `${cur.p.grid[i]}, on the ${k ? `${cur.words[k]} line` : 'Crosstown'}, ${at}`;
+  if (taken(i)) words = `${cur.p.grid[i]}, on the ${k ? `${cur.shown[k]} line` : 'Crosstown'}, ${at}`;
   else if (hint?.line === k) words += hint.level > 1 && cur.p.lines[k][0] === i ? ', ringed, the route starts here' : ', ringed';
   if (n >= 0) words += `, letter ${n + 1} of your word${n > 0 && n === sel.length - 1 ? ', Enter sends it' : ''}`;
   if (edge) words = `${cur.p.grid[i]}, ${at}, edge of the map`;
@@ -796,7 +799,7 @@ function judgeWord(word, through = false) {
   const k = words.findIndex((w, n) => w === word && !game.found.includes(n));
   if (k >= 0 && !through) return found(k);
   const again = words.findIndex((w, n) => w === word && game.found.includes(n));
-  if (again >= 0) { say(again ? `${word} already found` : 'Crosstown already found', 'note nope', again); paint(); return; }
+  if (again >= 0) { say(again ? `${cur.shown[again]} already found` : 'Crosstown already found', 'note nope', again); paint(); return; }
   if (cur.extra.failed) cur.extra = detoursOf(cur.line.id);   // ask again: the signal may be back
   if (cur.waiting || (!cur.extra.ready && !game.detours.includes(word.toLowerCase()))) { wait(word); return; }
   if (cur.extra.stale && !game.detours.includes(word.toLowerCase())) { say(STALE, 'note'); paint(); return; }
@@ -933,7 +936,7 @@ function found(k) {
   drawLine(k, true);
   // A found word would otherwise sound just like the word as it was traced, so it's heard as found, with the count.
   const n = p.lines.length, all = game.found.length === n;
-  say(k === 0 ? p.name : cur.words[k], k === 0 ? 'crossed' : '', k,
+  say(k === 0 ? p.name : cur.shown[k], k === 0 ? 'crossed' : '', k,
     all ? `, found. All ${n} lines found` : k === 0 ? ', found' : `, found. ${game.found.length} of ${n} lines`);
   // The Crosstown is the map's big find: its name in the readout's full size, then "Crosstown" small after it. A
   // screen reader hears "Crosstown: Junk drawer, found", the label first.
@@ -1100,7 +1103,7 @@ function shareText() {
 }
 
 function showDone() {
-  const { p, game, words } = cur;
+  const { p, game, words, shown } = cur;
   $('done-title').textContent = p.name;
   // Each star says whether it was earned, as the gold or grey star does on screen, and the sheet says how many in all
   // (read with the stats when the focus lands on its button).
@@ -1121,10 +1124,11 @@ function showDone() {
   stats.forEach((part, n) => out.append(n ? ', ' : '', n || typeof part !== 'string' ? part : part[0].toUpperCase() + part.slice(1)));   // "No detours" on its own
   const list = $('done-detours'); list.hidden = true;
   list.textContent = game.detours.slice().sort().map(w => w.toUpperCase()).join(', ');
-  // The Crosstown is keyed by the map's name, spaces and all ("JUNK DRAWER"), where its letters are the line's.
+  // Each line is keyed as people write it ("ON DECK"). The Crosstown, unless its theme writes it otherwise, is keyed by
+  // the map's name, spaces and all ("JUNK DRAWER"), where its letters are the line's.
   const key = $('done-key'); key.textContent = '';
-  const named = p.name.toUpperCase(), xt = named.normalize('NFD').replace(/[^A-Z]/g, '') === words[0] ? named : words[0];
-  words.forEach((w, k) => {
+  const named = p.name.toUpperCase(), xt = p.written?.[words[0]] ?? (named.normalize('NFD').replace(/[^A-Z]/g, '') === words[0] ? named : words[0]);
+  shown.forEach((w, k) => {
     const li = document.createElement('li'); if (k === 0) li.className = 'xt';
     const sw = document.createElement('i'); sw.className = `c${k}`;
     li.append(sw, k === 0 ? `${xt} (the Crosstown)` : w); key.append(li);
