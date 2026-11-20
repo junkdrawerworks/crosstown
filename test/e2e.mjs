@@ -742,6 +742,16 @@ if (LINES.length > 1) {
   });
   assert.deepEqual(bar, { text: `${l.name.replace(/ Line$/, '')}, No. ${l.puzzles.length}`, whole: true, clear: true, sep: bar.sep }, `the puzzle's number is cut off at 320 px: ${JSON.stringify(bar)}`);
   assert.notEqual(bar.sep, '0px');
+  // Every line's name stays whole at 320 px with the clock past ten minutes, and at 340 px past an hour.
+  for (const [width, time] of [[320, '12:34'], [340, '1:02:03']]) {
+    await tab.setViewportSize({ width, height: 568 });
+    const cut = await tab.evaluate(([names, time]) => {
+      document.getElementById('clock').textContent = time;
+      const name = document.querySelector('#where .where-line');
+      return names.filter(n => { name.textContent = n; return name.scrollWidth > name.clientWidth; });
+    }, [LINES.map(l => l.name.replace(/ Line$/, '')), time]);
+    assert.deepEqual(cut, [], `line names cut off in the bar at ${width} px with the clock at ${time}`);
+  }
   assert.deepEqual(errors, []);
   await other.close();
 }
