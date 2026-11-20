@@ -181,7 +181,7 @@ else assert.match(await page.inputValue('#share-text'), /^Crosstown Main Line No
 
 // On to the next one, with night service on: the clue stays hidden until the first line.
 await page.click('#b-done-next');
-assert.equal(await text('#where'), 'Main · No. 2');
+assert.equal(await text('#where'), 'Main, No. 2');
 await page.click('#b-menu');
 await page.check('#o-night');
 await page.check('#o-clock');
@@ -366,6 +366,24 @@ for (const [width, height] of [[360, 780], [320, 568]]) {
   await other.close();
 }
 
+// The bar names the line and the number. On a small phone with the clock past an hour, only the line's name gives
+// way: the number always shows whole.
+if (LINES.length > 1) {
+  const l = LINES.reduce((a, b) => (b.name.length > a.name.length ? b : a)), q = l.puzzles.at(-1);
+  const { other, tab, errors } = await visitor({ options: { clock: true, line: l.id }, best: {}, games: { [q.id]: { found: [1], detours: [], ms: 5025000 } } }, { viewport: { width: 320, height: 568 } });
+  await tab.click(`#route li:nth-child(${l.puzzles.length}) .row`);
+  assert.equal(await tab.textContent('#clock'), '1:23:45');
+  const bar = await tab.evaluate(() => {
+    const box = id => document.querySelector(id).getBoundingClientRect();
+    const no = document.querySelector('#where .where-no');
+    return { text: document.getElementById('where').textContent, whole: no.scrollWidth <= no.clientWidth, clear: box('#where .where-no').right <= box('#clock').left, sep: getComputedStyle(document.querySelector('#where .sep')).width };
+  });
+  assert.deepEqual(bar, { text: `${l.name.replace(/ Line$/, '')}, No. ${l.puzzles.length}`, whole: true, clear: true, sep: bar.sep }, `the puzzle's number is cut off at 320 px: ${JSON.stringify(bar)}`);
+  assert.notEqual(bar.sep, '0px');
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // Each arrow move on the map is read out to screen readers in a line of its own that isn't on screen: the letter
 // and where it is, whether a token has ringed it, or the line it's on once that line is found.
 {
@@ -505,39 +523,39 @@ for (const [width, height] of [[360, 780], [320, 568]]) {
   const see = (want, why) => tab.waitForFunction(want => (document.getElementById('s-list').hidden ? document.getElementById('where').textContent : 'list') === want, want, { timeout: 5000 }).catch(() => assert.fail(why));
   const left = await tab.evaluate(() => history.length);
   await tab.click('#route li:nth-child(2) .row');
-  await see('Main · No. 2', 'the puzzle should open');
+  await see('Main, No. 2', 'the puzzle should open');
   await tab.goBack();
   await see('list', 'Back should go from a puzzle to the list');
   assert.equal(await tab.textContent('#route li:nth-child(2) .row-sub'), `1 of ${b.lines.length} lines found`);
   await tab.goForward();
-  await see('Main · No. 2', 'Forward should open the puzzle again');
+  await see('Main, No. 2', 'Forward should open the puzzle again');
   await tab.click('#b-menu');
   await tab.goBack();
-  await see('Main · No. 2', 'Back with a sheet open should stay on the puzzle');
+  await see('Main, No. 2', 'Back with a sheet open should stay on the puzzle');
   assert.equal(await tab.isHidden('#sheet-menu'), true, 'Back should close the open sheet');
   await tab.goBack();
   await see('list', 'Back after closing a sheet should go to the list');
 
   await tab.click('#b-continue');
-  await see('Main · No. 1');
+  await see('Main, No. 1');
   await drag(tab, a.lines[0]);
   await tab.waitForSelector('#sheet-done:not([hidden])');
   await tab.click('#b-done-next');
-  await see('Main · No. 2');
+  await see('Main, No. 2');
   await tab.goBack();
   await see('list', 'Back after Next puzzle should go to the list, not the puzzle before');
 
   // The back arrow, even with another puzzle opened before its Back has come through.
   await tab.click('#route li:nth-child(2) .row');
-  await see('Main · No. 2');
+  await see('Main, No. 2');
   await tab.evaluate(() => { document.getElementById('b-back').click(); document.querySelector('#route li:nth-child(3) .row').click(); });
-  await see('Main · No. 3');
+  await see('Main, No. 3');
   await tab.waitForFunction(id => history.state?.crosstown === id, PUZZLES[2].id, { timeout: 5000 });
   await tab.goBack();
   await see('list', 'Back after the back arrow should go to the list');
 
   await tab.click('#route li:nth-child(2) .row');
-  await see('Main · No. 2');
+  await see('Main, No. 2');
   await tab.reload();
   await see('list', 'a reload should open on the list');
   await tab.waitForFunction(() => history.state === null, null, { timeout: 5000 });
@@ -681,7 +699,7 @@ if (LINES.length > 1) {
   const q = second.puzzles[0];
   const { DETOURS } = await import(`../js/detours/${second.id}.js`);
   await tab.click('#b-continue');
-  assert.equal(await tab.textContent('#where'), `${second.name.replace(/ Line$/, '')} · No. 1`);
+  assert.equal(await tab.textContent('#where'), `${second.name.replace(/ Line$/, '')}, No. 1`);
   const own = new Set(q.lines.flat());
   const d = DETOURS[q.id].split(' ').map(w => [w, traces(q.grid, w.toUpperCase(), 1)[0]]).find(([, t]) => t);
   assert.ok(own.size === 48 && d, 'the puzzle should have a traceable detour');

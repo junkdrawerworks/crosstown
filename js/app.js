@@ -229,6 +229,19 @@ function say(text, kind = '', chip = null) {
 }
 const showTrace = () => say(sel.length ? spell(cur.p.grid, sel) : '');
 
+// The bar names the line and the number, "Main · No. 1". On a narrow phone with the clock on, only the line's name
+// gives way, so the number always shows. The dot is drawn, since the font's own has no width and hugs the number;
+// a screen reader hears "Main, No. 1".
+function showWhere(i) {
+  const where = $('where'), part = (cls, text = '') => { const s = document.createElement('span'); s.className = cls; s.textContent = text; return s; };
+  where.textContent = '';
+  if (LINES.length > 1) {
+    const sep = part('sep'); sep.setAttribute('aria-hidden', 'true');
+    where.append(part('where-line', shortName(line)), part('sr-only', ', '), sep);
+  }
+  where.append(part('where-no', `No. ${i + 1}`));
+}
+
 function openPuzzle(i) {
   const p = list[i];
   const lineOf = new Int8Array(N);
@@ -236,7 +249,7 @@ function openPuzzle(i) {
   const game = { ...(gameFor(p.id) || fresh()), grid: p.grid };
   cur = { i, p, line, words: p.lines.map(l => spell(p.grid, l)), extra: detoursOf(line.id), lineOf, game };
   sel = []; cursor = -1; $('spoken').textContent = '';
-  $('where').textContent = LINES.length > 1 ? `${shortName(line)} · No. ${i + 1}` : `No. ${i + 1}`;
+  showWhere(i);
   buildBoard();
   for (const k of game.found) drawLine(k, false);
   $('s-list').hidden = true; $('s-play').hidden = false;
