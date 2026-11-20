@@ -1,7 +1,7 @@
 // Lays out the puzzles in tools/themes/ and writes js/puzzles.js and js/detours/:
 //
 //   node tools/make-puzzles.mjs                every puzzle on every line
-//   node tools/make-puzzles.mjs market         just the puzzles on that line (others are kept as they are)
+//   node tools/make-puzzles.mjs market         just the puzzles on that line (the rest keep their boards)
 //   node tools/make-puzzles.mjs tide-pool ...  just those puzzles, and print their boards
 //
 // For each theme it picks a set of words that fills the 48 stops exactly, packs them into the grid as lines that
@@ -17,6 +17,7 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import { W, H, N, row, col, NEIGHBORS, diagonalSquare, spell, traces } from '../js/board.js';
 import { LINES } from './themes.mjs';
 import { isRude } from './rude-words.mjs';
+import { nearAnswer } from './near-answers.mjs';
 
 const require = createRequire(import.meta.url);
 const MIN = 4;                    // shortest word that counts, theme or detour
@@ -184,6 +185,8 @@ function judge(grid, words, lines, unused) {
 }
 
 // ---- detours --------------------------------------------------------------------------------------------------
+// Every dictionary word that can be traced anywhere on the board, through any stops, apart from the answers and the
+// answers with an ending added or taken off (tools/near-answers.mjs).
 function detours(grid, answers) {
   const found = new Set();
   const used = new Uint8Array(N);
@@ -196,8 +199,7 @@ function detours(grid, answers) {
     used[i] = 0;
   };
   for (let i = 0; i < N; i++) walk(i, trie, '');
-  for (const a of answers) found.delete(a);
-  return [...found].sort();
+  return [...found].filter(w => !answers.includes(w) && !nearAnswer(w, answers)).sort();
 }
 
 // ---- make them ------------------------------------------------------------------------------------------------
@@ -262,15 +264,15 @@ async function main() {
   const show = new Set(args.filter(a => ids.has(a)));
   const wanted = t => !args.length || show.has(t.id) || args.some(a => LINES.find(l => l.id === a)?.themes.includes(t));
 
-  // The puzzles that aren't being laid out again are kept as they are.
+  // The puzzles that aren't being laid out again keep their boards. Their detours are listed again, which is quick, so
+  // a change to the dictionary or to which words count reaches every board.
   const kept = new Map();
   if (args.length && existsSync(new URL('../js/puzzles.js', import.meta.url))) {
     const { PUZZLES } = await import('../js/puzzles.js');
-    const detoursOf = {};
-    for (const line of LINES) {
-      if (existsSync(new URL(`../js/detours/${line.id}.js`, import.meta.url))) Object.assign(detoursOf, (await import(`../js/detours/${line.id}.js`)).DETOURS);
+    for (const p of PUZZLES) {
+      const extra = detours(p.grid, p.lines.map(l => spell(p.grid, l)));
+      kept.set(p.id, { id: p.id, name: p.name, clue: p.clue, grid: p.grid, lines: p.lines, detours: extra.join(' ').toLowerCase() });
     }
-    for (const p of PUZZLES) kept.set(p.id, { id: p.id, name: p.name, clue: p.clue, grid: p.grid, lines: p.lines, detours: detoursOf[p.id] ?? '' });
   }
   const todo = all.filter(t => wanted(t) || !kept.has(t.id));
 
@@ -302,8 +304,8 @@ async function main() {
   const puzzleOf = t => made.get(t.id)?.puzzle ?? kept.get(t.id);
   // Each line's detours, and a fingerprint of them that both files carry (`fp` in puzzles.js, FOR in the line's
   // detours file), so a page left open across a release can tell that the detours it was just sent are for other boards.
-  const detours = new Map(LINES.map(line => [line.id, Object.fromEntries(line.themes.map(t => [t.id, puzzleOf(t).detours]))]));
-  const fp = new Map([...detours].map(([id, d]) => [id, createHash('sha1').update(JSON.stringify(d)).digest('hex').slice(0, 8)]));
+  const byLine = new Map(LINES.map(line => [line.id, Object.fromEntries(line.themes.map(t => [t.id, puzzleOf(t).detours]))]));
+  const fp = new Map([...byLine].map(([id, d]) => [id, createHash('sha1').update(JSON.stringify(d)).digest('hex').slice(0, 8)]));
   const header = '// Written by tools/make-puzzles.mjs from tools/themes/. Don\'t edit by hand: change the theme and run the tool.\n';
   const lines = LINES.map(line => {
     const puzzles = line.themes.map(t => {
@@ -330,7 +332,7 @@ export const PUZZLES = LINES.flatMap(line => line.puzzles.map(p => Object.assign
 `);
   await mkdir(new URL('../js/detours/', import.meta.url), { recursive: true });
   for (const line of LINES) {
-    const body = Object.entries(detours.get(line.id)).map(([id, d]) => `  ${JSON.stringify(id)}: '${d}',`).join('\n');
+    const body = Object.entries(byLine.get(line.id)).map(([id, d]) => `  ${JSON.stringify(id)}: '${d}',`).join('\n');
     await writeFile(new URL(`../js/detours/${line.id}.js`, import.meta.url),
 `${header}// Every word of four letters or more, other than the answers, that can be traced on each board of the ${line.name}.
 // FOR is the line's fp in the puzzles.js these were made with (a fingerprint of them): another means another release.

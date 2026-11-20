@@ -8,6 +8,7 @@ import { W, H, N, row, col, adjacent, diagonalSquare, spell, spans, traces } fro
 import { LINES, DETOURS as LOAD } from '../js/puzzles.js';
 import { LINES as THEME_LINES, THEMES } from '../tools/themes.mjs';
 import { isRude } from '../tools/rude-words.mjs';
+import { nearAnswer } from '../tools/near-answers.mjs';
 import { fareFor, FARE_PER_TOKEN, starsFor } from '../js/rules.js';
 
 // Does the line start on one edge of the map and end on the opposite one?
@@ -172,7 +173,7 @@ for (const p of PUZZLES) {
     }
   });
 
-  test(`${p.id}: detours are real finds, none is an answer, and none is rude`, () => {
+  test(`${p.id}: detours are real finds, none is an answer or one with an ending added or taken off, and none is rude`, () => {
     const list = p.detours.split(' ');
     assert.ok(list.length >= 100, 'too few detours to earn a token');
     assert.equal(new Set(list).size, list.length);
@@ -180,6 +181,7 @@ for (const p of PUZZLES) {
     for (const d of list) {
       assert.match(d, /^[a-z]{4,}$/);
       assert.ok(!answers.has(d));
+      assert.ok(!nearAnswer(d, words), `${d} is an answer with an ending added or taken off, so it shouldn't earn fare`);
       assert.ok(!isRude(d), `${d} shouldn't earn fare`);
       assert.ok(traces(p.grid, d.toUpperCase(), 1).length, `${d} isn't on the board`);
     }
@@ -207,6 +209,16 @@ test('slurs and sneers stay out, with their plurals and other forms, and plain w
     'quadroons', 'cretinous', 'hussy', 'hussies', 'trull', 'trulls', 'slattern', 'slatterns', 'doxy', 'doxies']) assert.ok(isRude(w), `${w} should stay out`);
   for (const w of ['woggle', 'coolly', 'mongoose', 'monger', 'mongrel', 'wrench', 'buggy', 'midge', 'midges', 'sheen', 'sheens',
     'whorl', 'whorls', 'gypsum', 'lime', 'limes', 'pommel', 'mickle', 'doxology']) assert.ok(!isRude(w), `${w} should count`);
+});
+
+test('an answer with an ending added or taken off is near it, and a longer word that only starts with it isn\'t', () => {
+  const near = [['spears', 'spear'], ['spear', 'spears'], ['bake', 'baked'], ['bake', 'baker'], ['bake', 'baking'], ['bake', 'bakes'],
+    ['baked', 'bake'], ['baking', 'bake'], ['box', 'boxes'], ['boxes', 'box'], ['berry', 'berries'], ['carry', 'carried'],
+    ['stop', 'stopped'], ['plan', 'planner'], ['plan', 'planning'], ['jump', 'jumping'], ['jump', 'jumper'], ['corner', 'corn']];
+  for (const [answer, word] of near) assert.ok(nearAnswer(word, ['TACK', answer.toUpperCase()]), `${word} should be near ${answer}`);
+  for (const [answer, word] of [['spear', 'spearmint'], ['bake', 'bakery'], ['stop', 'stoop'], ['plan', 'plane'], ['carry', 'carrot'], ['corn', 'acorn']]) {
+    assert.ok(!nearAnswer(word, [answer]), `${word} shouldn't be near ${answer}`);
+  }
 });
 
 test('fare and stars', () => {

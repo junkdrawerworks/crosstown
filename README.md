@@ -17,7 +17,7 @@
 - **Find the lines.** Trace a word from stop to stop in any direction, diagonals included. Drag across the letters, or tap them one at a time and tap the last one again. Arrow keys and Enter work too. A line can be a phrase with its spaces taken out, like ONDECK.
 - **Every letter is used once.** Each stop belongs to exactly one line, and lines never cross, so the last few words are whatever is left.
 - **The Crosstown.** It names the theme, like JUNKDRAWER, and runs clear across the map, from one edge to the opposite one.
-- **Detours earn fare.** Any other word of four letters or more is a detour. Four letters earn 1 fare, five earn 2, six earn 3, seven or more earn 4, and every 4 fare becomes a token.
+- **Detours earn fare.** Any other word of four letters or more, apart from a theme word with an ending added or taken off (SPEAR on a map with SPEARS), is a detour. Four letters earn 1 fare, five earn 2, six earn 3, seven or more earn 4, and every 4 fare becomes a token.
 - **A token is a hint.** It rings the stops of a line you haven't found. A second token on the same line draws its route and marks where it starts. Fare and tokens stay with their puzzle.
 - **Seven lines.** The puzzles come in lines you switch between with Change line, at the top of the list: the Main Line (the first 108, a bit of everything), then the Market Line (food and drink), Park (nature and the outdoors), Workshop (making, fixing and the home), Theater (arts, play and pastimes), University (science, history, language and the body) and Airport (places and getting around). Each line keeps its own numbers and progress, 587 puzzles in all.
 - **Three stars.** One for finishing, one for spending no tokens, one for finding the Crosstown before any other line.
@@ -55,6 +55,7 @@ To put it online with GitHub Pages: **Settings → Pages → Build and deploymen
 - `js/detours/`: each line's detours, the words that earn fare, also written by the tool. A line's file loads when the line is shown.
 - `tools/themes.mjs`: the lines, their names and colours. `tools/themes/`: where every puzzle starts, one file per line.
 - `tools/rude-words.mjs`: words that never count as detours, plurals and past tenses included, shared by the puzzle tool and the tests.
+- `tools/near-answers.mjs`: which words are a puzzle's answers with an ending added or taken off, and so not detours, shared the same way.
 - `tools/play.mjs`: a small static server and the hands that drag and tap for the tests and screenshots.
 - `scripts/build.mjs`: bundles the game into `dist/crosstown.html`, one file, and `dist/artifact.html`, the same without the page around it, for hosts that supply their own.
 - `test/unit.test.mjs`, `test/e2e.mjs`: the puzzle checks and the play-through.
