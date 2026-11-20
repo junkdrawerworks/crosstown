@@ -318,9 +318,12 @@ a { color: inherit; }
 .readout.nope { animation: nope .32s; }
 @keyframes nope { 20% { transform: translateX(-7px); } 50% { transform: translateX(6px); } 80% { transform: translateX(-3px); } }
 
+/* On a phone's touch screen the outer stops keep 24 px from the screen's sides (from the map's edge, where a finger
+   reaches them), clear of where Android's back gesture starts. The page's margin gives 16 of it. */
+@media (pointer: coarse) and (max-width: 560px) { .board-wrap { --edge: calc(24px - var(--gutter)); } }
 /* A basis in px, not a plain min-height: with container-type: size the box has no height of its own to keep. */
 .board-wrap { flex: 1 0 var(--map-floor); min-height: var(--map-floor); container-type: size; display: grid; place-items: center; --map-floor: 300px; }
-.board { width: min(100cqw, 75cqh); aspect-ratio: 6 / 8; display: block; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 8px; }
+.board { width: min(100cqw - 2 * var(--edge, 0px), 75cqh); aspect-ratio: 6 / 8; display: block; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 8px; }
 .board:focus:not(:focus-visible) { outline: none; }
 .board .dot { fill: var(--stop); stroke: var(--stop-edge); stroke-width: .34; transition: fill .18s, stroke .18s; }
 .board text { font: 750 4.7px var(--font); fill: var(--ink); text-anchor: middle; pointer-events: none; transition: fill .18s; }

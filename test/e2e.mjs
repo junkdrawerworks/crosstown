@@ -677,10 +677,11 @@ function contrast(a, b) {
 }
 
 // Zoomed in, the map keeps a floor of 300 px tall and the page scrolls down to the fare, rather than the map
-// shrinking (at 400% it used to vanish). A phone and a laptop at 100% are as they were. A finger dragged on the map
-// traces and never scrolls the page; one dragged on the sign scrolls it.
+// shrinking (at 400% it used to vanish). A phone and a laptop at 100% are as they were (the phone's map 24 px from the
+// screen's sides, see below). A finger dragged on the map traces and never scrolls the page; one dragged on the sign
+// scrolls it.
 {
-  for (const [width, height, scale, size] of [[390, 844, 2, [358, 477]], [1280, 800, 1, [431, 575]], [640, 400, 2], [427, 267, 3], [320, 200, 4]]) {
+  for (const [width, height, scale, size] of [[390, 844, 2, [342, 456]], [1280, 800, 1, [431, 575]], [640, 400, 2], [427, 267, 3], [320, 200, 4]]) {
     const { other, tab, errors } = await visitor({ options: { traced: true }, best: {}, games: {} }, { viewport: { width, height }, deviceScaleFactor: scale, isMobile: width === 390, hasTouch: true });
     await tab.click('#b-continue');
     const b = await tab.locator('#board').boundingBox(), fare = await tab.locator('#fare').boundingBox();
@@ -2239,6 +2240,25 @@ if (LINES.length > 2) {
   assert.deepEqual(look.slice(0, 3).map(([s, o]) => [s, o]), [['html', 'none'], ['body', 'none'], ['#s-play', 'none']], 'nothing on the play screen should overscroll sideways');
   assert.deepEqual([look[2][2], look[3][2]], ['pan-y pinch-zoom', 'none'], 'the play screen should only scroll up and down, and the map take every touch');
   assert.deepEqual(errors, []);
+  await other.close();
+}
+
+// On a touch screen the map's outer stops keep clear of the screen's sides, where Android's back gesture starts: 24 px
+// from where a finger reaches the outer stops (their cells, the map's own edge) to the edge of the screen, at any
+// phone width. The map stays big: a stop is still more than a fingertip wide at 320 px.
+for (const [width, height] of [[320, 568], [320, 700], [360, 740], [390, 844], [412, 915]]) {
+  const { other, tab } = await visitor({ options: {}, best: {}, games: {} }, { viewport: { width, height }, hasTouch: true, isMobile: true });
+  await tab.click('#b-continue');
+  const b = await tab.evaluate(() => { const r = document.getElementById('board').getBoundingClientRect(); return { left: r.left, right: innerWidth - r.right, width: r.width }; });
+  assert.ok(b.left >= 23.5 && b.right >= 23.5, `the map's outer stops are ${Math.min(b.left, b.right).toFixed(1)} px from the screen's side at ${width} px`);
+  assert.ok(b.width / 6 >= 43.5, `the stops are ${(b.width / 6).toFixed(1)} px across at ${width}x${height}`);
+  await other.close();
+}
+// With a mouse, nothing starts at the screen's side, and the map keeps the page's own margin.
+{
+  const { other, tab } = await visitor({ options: {}, best: {}, games: {} });
+  await tab.click('#b-continue');
+  assert.equal(await tab.evaluate(() => Math.round(document.getElementById('board').getBoundingClientRect().left)), 16);
   await other.close();
 }
 
