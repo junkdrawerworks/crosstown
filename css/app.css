@@ -173,8 +173,8 @@ a { color: inherit; }
 .tally { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
 /* A puzzle under way further down the line, after the tally: a link in looks, with room enough to tap. */
 .tally .sep { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; vertical-align: middle; margin: 0 6px 3px; }
-.tally-run { white-space: nowrap; }
-.tally-run .sep { margin-left: 2px; }   /* after a space */   /* the dot and the link wrap together, so the dot never hangs at a line's end */
+.tally-run { white-space: nowrap; }   /* the dot and the link wrap together, so the dot never hangs at a line's end */
+.tally-run .sep { margin-left: 2px; }   /* after a space */
 .tally-link { padding: 10px 0 14px; margin: -10px 0 -14px; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 700; white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; touch-action: manipulation; }
 .tally.end { color: var(--ink); font-size: 15px; font-weight: 700; }   /* every line finished: the network's tally */
 .tally .nb { white-space: nowrap; }
