@@ -523,6 +523,37 @@ if (LINES.length > 1) {
   await other.close();
 }
 
+// A save cut short (not JSON at all) stays as it was when the page opens, and a copy is put aside to be got back by
+// hand, before anything can write over it. Best times that aren't times show no time, and fare worth a token or more
+// counts as tokens.
+{
+  const [a, b, c, d] = PUZZLES;
+  const whole = JSON.stringify({ options: { clock: true }, best: { [a.id]: 'fast', [b.id]: -1, [c.id]: 61000 }, games: {
+    [a.id]: finished(a), [b.id]: finished(b), [c.id]: finished(c), [d.id]: { found: [], detours: [], fare: 7, tokens: 0 },
+  } });
+  const cut = whole.slice(0, -20);
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  await context.addInitScript(s => { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('crosstown.v1', s); sessionStorage.setItem('seeded', '1'); } }, cut);
+  const tab = await context.newPage();
+  const errors = [];
+  tab.on('pageerror', e => errors.push(e.message));
+  await tab.goto(base);
+  assert.equal(await tab.textContent('#tally'), `${PUZZLES.length} puzzles`);
+  const kept = () => tab.evaluate(() => [localStorage.getItem('crosstown.v1'), localStorage.getItem('crosstown.v1.unreadable')]);
+  assert.deepEqual(await kept(), [cut, cut], 'a save that could not be read should be left as it was, and put aside');
+  await tab.click('#b-continue'); await drag(tab, a.lines[1]); await tab.click('#b-back');
+  assert.equal((await kept())[1], cut, 'the save put aside should stay put');
+
+  await tab.evaluate(s => localStorage.setItem('crosstown.v1', s), whole);
+  await tab.reload();
+  for (const [n, time] of [[1, ''], [2, ''], [3, ' 1:01']]) assert.equal(await tab.textContent(`#route li:nth-child(${n}) .row-sub`), `${PUZZLES[n - 1].name} ★★★${time}`, 'a best time that is not a time should not show');
+  await tab.click('#route li:nth-child(4) .row');
+  assert.equal(await tab.getAttribute('#meter', 'aria-label'), `Fare: 3 of ${FARE_PER_TOKEN}`);
+  assert.equal(await tab.textContent('#token-label'), 'Use a token (1)', 'a whole token of fare should count as a token');
+  assert.deepEqual(errors, []);
+  await context.close();
+}
+
 // Two windows at once (the installed app and a browser tab, or two tabs): neither writes over what the other saved,
 // whether by being switched away from, by switching lines or by playing the same puzzle, and each shows what the
 // other saved as it happens. Starting a puzzle over, and erasing every line, still take games out in both.

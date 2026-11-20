@@ -15,15 +15,20 @@ const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l2.7 5
 // over the other's. Each write reads what's stored first and changes only what this window changed since its last
 // write (see save()), and a write from another window is read in here as it happens (see the storage listener).
 const KEY = 'crosstown.v1';
+const UNREADABLE = 'crosstown.v1.unreadable';   // a save that couldn't be read, put aside to be got back by hand
 const fresh = () => ({ found: [], detours: [], fare: 0, tokens: 0, spent: 0, hint: null, ms: 0, done: false, crossAt: -1, night: false });
 const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
 const blank = () => ({ options: { clock: false, night: false, line: LINES[0].id }, games: {}, best: {} });
-// What's stored, read into shape.
+// What's stored, read into shape. Best times are kept only if they're times. A save that can't be read at all is
+// put aside first (unless one already is), before anything can write over it.
 function load() {
-  const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
+  const text = localStorage.getItem(KEY);
+  let raw;
+  try { raw = JSON.parse(text || 'null'); } catch { if (localStorage.getItem(UNREADABLE) === null) localStorage.setItem(UNREADABLE, text); }
   const s = blank();
   if (!isObject(raw)) return s;
-  return { options: { ...s.options, ...(isObject(raw.options) ? raw.options : {}) }, games: isObject(raw.games) ? raw.games : {}, best: isObject(raw.best) ? raw.best : {} };
+  const best = isObject(raw.best) ? Object.entries(raw.best).filter(([, t]) => Number.isFinite(t) && t > 0) : [];
+  return { options: { ...s.options, ...(isObject(raw.options) ? raw.options : {}) }, games: isObject(raw.games) ? raw.games : {}, best: Object.fromEntries(best) };
 }
 // What this window has changed since its last write: games by id (a game taken out counts too), options by name, and
 // whether every game was erased.
@@ -83,11 +88,13 @@ function readGame(g, id) {
   const count = v => (Number.isInteger(v) && v >= 0 ? v : 0);
   const found = Array.isArray(g.found) ? [...new Set(g.found.filter(k => Number.isInteger(k) && k >= 0 && k < n))] : [];
   const h = g.hint;
+  // Whole tokens' worth of fare is counted as tokens, as it is when it's earned.
+  const fare = count(g.fare) % FARE_PER_TOKEN, tokens = count(g.tokens) + Math.floor(count(g.fare) / FARE_PER_TOKEN);
   const hint = isObject(h) && Number.isInteger(h.line) && h.line >= 0 && h.line < n && !found.includes(h.line) ? { line: h.line, level: h.level > 1 ? 2 : 1 } : null;
   return {
     ...fresh(), ...g, found, hint,
     detours: Array.isArray(g.detours) ? g.detours.filter(d => typeof d === 'string') : [],
-    fare: count(g.fare), tokens: count(g.tokens), spent: count(g.spent),
+    fare, tokens, spent: count(g.spent),
     ms: Number.isFinite(g.ms) && g.ms > 0 ? g.ms : 0,
     done: found.length === n, crossAt: Number.isInteger(g.crossAt) ? g.crossAt : -1, night: g.night === true,
   };
