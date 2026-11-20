@@ -171,6 +171,7 @@ a { color: inherit; }
 .mast-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .mast-row .primary { flex: 1 1 auto; }
 .tally { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.tally + .tally { margin-top: -6px; }   /* storage that isn't keeping anything, said under the tally */
 
 /* The line on show, and the button that changes it. Its colour is the line's (set from app.js as --line). */
 .line-pick, .line-row {

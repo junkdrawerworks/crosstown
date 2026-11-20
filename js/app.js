@@ -33,8 +33,12 @@ function load() {
 // What this window has changed since its last write: games by id (a game taken out counts too), options by name, and
 // whether every game was erased.
 const changed = { games: new Set(), options: new Set(), erased: false };
+// Whether the browser is keeping anything: not if reading it failed at the start, or the last write failed (storage
+// blocked, or full). The list says so (see drawList()).
+let readFailed = false, writeFailed = false;
 let saved = blank();
-try { saved = load(); } catch { /* no storage here: play still works, it just isn't kept */ }
+try { saved = load(); localStorage.setItem(`${KEY}.check`, '1'); localStorage.removeItem(`${KEY}.check`); } catch { readFailed = true; }
+const keeping = () => !readFailed && !writeFailed;
 
 // This window's changes, laid over what's stored (`now`). Where both windows have played the same puzzle, the game
 // further along stays: finished, then more lines found, then more detours. A game this window took out (Start this
@@ -62,7 +66,8 @@ function save() {
     localStorage.setItem(KEY, JSON.stringify(now));
     adopt(now);
     changed.games.clear(); changed.options.clear(); changed.erased = false;
-  } catch { /* the same */ }
+    writeFailed = false;
+  } catch { writeFailed = true; /* no storage here: play still works, it just isn't kept */ }
 }
 // Takes on what's stored as this window's own. The puzzle on screen keeps the game being played, unless another
 // window has got further with it.
@@ -186,6 +191,7 @@ function drawList() {
   const up = nextUp(), onward = up < 0 ? nextLine() : null;
   $('b-continue').textContent = up >= 0 ? `${started(gameFor(list[up].id)) ? 'Resume' : 'Play'} No. ${up + 1}` : onward ? `On to ${shortName(onward)}` : 'All finished';
   $('b-continue').disabled = up < 0 && !onward;
+  $('unkept').hidden = keeping();
   $('tally').textContent = finished ? `${finished} of ${list.length} finished, ${stars} of ${list.length * 3} stars` : `${list.length} puzzles`;
   $('line-name').textContent = line.name;
   $('line-about').textContent = line.about;
@@ -664,7 +670,7 @@ twice($('m-restart'), 'Tap again to clear this puzzle', () => {
 twice($('m-erase'), 'Tap again to erase every line', () => {
   // Every game goes, here and in any other window, rather than being merged with what's stored.
   dropWaiting(); saved.games = {}; saved.best = {}; changed.games.clear(); changed.erased = true; save();
-  closeSheets(); drawList(); toast('Progress erased on every line');
+  closeSheets(); drawList(); toast(keeping() ? 'Progress erased on every line' : 'Erased for this visit only');
 });
 
 function shareText() {

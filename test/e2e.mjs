@@ -613,10 +613,36 @@ if (LINES.length > 1) {
   s = await stored();
   assert.deepEqual([s.games, s.best, s.options.clock, s.options.line], [{}, {}, true, LINES[3].id], 'one window brought back progress erased in the other');
   assert.equal(await b.textContent('#tally'), `${PUZZLES.length} puzzles`);
+  assert.equal(await b.isHidden('#unkept'), true, 'where storage works, the list should say nothing about it');
   assert.deepEqual(errors, []);
   await context.close();
 }
 
+// A browser that isn't keeping anything (storage blocked, or full) still plays, and the list says progress isn't
+// being kept. Erasing doesn't claim to have erased anything for good.
+for (const how of ['blocked', 'full']) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  await context.addInitScript(how => {
+    if (how === 'full') Storage.prototype.setItem = () => { throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); };
+    else Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('Access is denied.', 'SecurityError'); } });
+  }, how);
+  const tab = await context.newPage();
+  const errors = [];
+  tab.on('pageerror', e => errors.push(e.message));
+  await tab.goto(base);
+  const note = "This browser isn't keeping your progress, so it goes when the page closes.";
+  assert.equal(await tab.isVisible('#unkept') && await tab.textContent('#unkept'), note, `the list should say progress isn't kept (${how})`);
+  await tab.click('#b-continue');
+  for (const line of p.lines) await drag(tab, line);
+  await tab.waitForSelector('#sheet-done:not([hidden])');
+  await tab.keyboard.press('Escape'); await tab.click('#b-back');
+  assert.equal(await tab.getAttribute('#route li:nth-child(1)', 'class'), 'done', `a puzzle should still finish (${how})`);
+  assert.equal(await tab.isVisible('#unkept'), true);
+  await tab.click('#b-list-menu'); await tab.click('#m-erase'); await tab.click('#m-erase');
+  assert.equal(await tab.textContent('#toast'), 'Erased for this visit only');
+  assert.deepEqual(errors, [], `errors with storage ${how}`);
+  await context.close();
+}
 // Each saved game keeps its board's letters. Progress on a board laid out again since starts fresh, since its line
 // numbers would draw lines on the wrong letters, but its best time stays. A game saved before games kept their
 // letters counts as one on the board as it is now.
