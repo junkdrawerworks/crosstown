@@ -150,6 +150,9 @@ test('rude words stay out with -s, -es, -d or -ed on the end, and plain words th
   // Words a family game shouldn't congratulate, and longer words that only start with one of them.
   for (const w of ['sperm', 'testes', 'prick', 'pricks', 'pricked', 'shag', 'bonk', 'harlot', 'harlots', 'nonce']) assert.ok(isRude(w), `${w} should stay out`);
   for (const w of ['prickle', 'prickly', 'shaggy', 'shagreen', 'spermaceti', 'gymnosperm', 'bonkers', 'harlotry', 'testis']) assert.ok(!isRude(w), `${w} should count`);
+  // Words that hurt someone, or that a family game shouldn't cheer, and the plain words that start the same way.
+  for (const w of ['bimbo', 'bimbos', 'pimp', 'pimps', 'pimped', 'pimping', 'ghetto', 'ghettos', 'ghettoes', 'spank', 'spanks', 'spanked', 'spanking', 'queer', 'queers']) assert.ok(isRude(w), `${w} should stay out`);
+  for (const w of ['pimple', 'pimples', 'pimpled', 'pimpernel', 'spanker', 'spangle', 'queerly', 'ghee']) assert.ok(!isRude(w), `${w} should count`);
 });
 
 test('fare and stars', () => {

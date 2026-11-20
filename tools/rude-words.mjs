@@ -14,6 +14,7 @@ const RUDE = new RegExp([
   '^wops?$', '^dago(s|es)?$', '^coons?$', '^japs?$', '^pakis?$', '^retard(s|ed)?$', '^spaz.*', '^dykes?$', '^homos?$',
   '^gyp(s|ped|ping)?$', '^krauts?$', '^arse(s|hole.*)?$', '^turds?$', '^craps?$', '^crapp.*',
   '^sperm$', '^testes$', '^prick$', '^shag$', '^bonk$', '^harlot$', '^nonce$',
+  '^bimbos?$', '^pimp(s|ed|ing)?$', '^ghettos?$', '^spank(s|ed|ing)?$', '^queers?$',
 ].join('|'));
 const refused = w => listed.has(w) || RUDE.test(w);
 
