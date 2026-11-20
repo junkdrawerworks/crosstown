@@ -26,9 +26,9 @@
 
 ## The puzzles
 
-The 586 puzzles are written for this game: the themes, the clues and the word lists are in `tools/themes/`, one file per line, and nothing is taken from any other game's puzzles. `node tools/make-puzzles.mjs` picks a set of words from each theme that fills the 48 stops exactly, packs them into the grid, and keeps the tidiest layout it finds: no word can be spelled through another line's stops, no theme word left out of the set can be traced at all, no line but the Crosstown runs edge to edge, and no two lines cut across each other. `npm test` then checks every board again without trusting the tool.
+The 586 puzzles are written for this game: the themes, the clues and the word lists are in `tools/themes/`, one file per line, and nothing is taken from any other game's puzzles. `node tools/make-puzzles.mjs` picks a set of words from each theme that fills the 48 stops exactly, packs them into the grid, and keeps the tidiest layout it finds: no word can be spelled through another line's stops, no theme word left out of the set can be traced at all, no line but the Crosstown starts on one edge and ends on the opposite one, and no two lines cut across each other. `npm test` then checks every board again without trusting the tool.
 
-To add a puzzle, add a theme (a clue, the Crosstown, and a dozen or so words of four letters or more) to a line's file and run the tool: `node tools/make-puzzles.mjs market` lays out just that line, and `node tools/make-puzzles.mjs tide-pool` just that puzzle, printing its board. To add a line, give it a file in `tools/themes/` and an entry in `tools/themes.mjs`. A puzzle's id is what progress is saved under, so it never changes once published.
+To add a puzzle, add a theme (a clue, the Crosstown, and a dozen or so words of four letters or more) to a line's file and run the tool: `node tools/make-puzzles.mjs market` lays out just that line, and `node tools/make-puzzles.mjs tide-pool` just that puzzle, printing its board. To add a line, give it a file in `tools/themes/` and an entry in `tools/themes.mjs`, run the tool, then add `js/detours/<id>.js` to `SHELL` in `sw.js` and set `FILES` there to what `npm test` asks for, and bring the counts and the lines' names in `index.html` (its description and How to play) and here up to date. `npm test` checks the counts, the list in `sw.js` and `FILES`. A puzzle's id is what progress is saved under, so it never changes once published.
 
 ## Running it
 
@@ -37,11 +37,11 @@ It's a static site: plain HTML, CSS and JavaScript, with no build step.
 ```sh
 npx serve .                   # or any static file server, then open the printed address
 npm install                   # only for the tools and tests below
-npm test                      # checks every puzzle, then plays one in Chromium through the real page (needs Playwright)
+npm test                      # checks every puzzle, then plays the game in Chromium through the real page: every line, offline, a new release and the one-file copy (needs Playwright)
 node tools/make-puzzles.mjs   # lays every puzzle out again from tools/themes/ (a few minutes)
 node tools/screenshots.mjs    # redraws docs/*.png and og.png
 node tools/make-icons.mjs     # redraws the PNG icons from icon.svg
-npm run build                 # dist/crosstown.html, the whole game in one file
+npm run build                 # dist/crosstown.html, the whole game in one file, and dist/artifact.html
 ```
 
 To put it online with GitHub Pages: **Settings → Pages → Build and deployment → Deploy from a branch**, then pick `main` and `/ (root)`. The `CNAME` file gives it its own address, which needs a DNS record pointing `crosstown` at `markjf99702.github.io`.
@@ -56,7 +56,9 @@ To put it online with GitHub Pages: **Settings → Pages → Build and deploymen
 - `tools/themes.mjs`: the lines, their names and colours. `tools/themes/`: where every puzzle starts, one file per line.
 - `tools/rude-words.mjs`: words that never count as detours, plurals and past tenses included, shared by the puzzle tool and the tests.
 - `tools/play.mjs`: a small static server and the hands that drag and tap for the tests and screenshots.
+- `scripts/build.mjs`: bundles the game into `dist/crosstown.html`, one file, and `dist/artifact.html`, the same without the page around it, for hosts that supply their own.
 - `test/unit.test.mjs`, `test/e2e.mjs`: the puzzle checks and the play-through.
+- `test/main-line.json`: every Main Line board as published. `npm test` fails if one is laid out again, since that would start saved progress on it over.
 - `fonts/`: Overpass (SIL Open Font License), served from here so nothing loads from elsewhere.
 - `sw.js`: keeps a copy for using offline, made all at once from one release and kept under that release's own name, so making the next one never touches the copy in use. If making it is cut short, the copy from before stays as it was, and the page asks again when the signal comes back. On a connection that isn't answering, a page opens from that copy after four seconds. A page that came from the network never takes a file from the copy to go with it: if one doesn't come, the page says it didn't load all the way and offers to reload. `FILES` in it is a fingerprint of the files it keeps: change one and `npm test` says what to set it to, so a release never leaves the copy half old.
 
