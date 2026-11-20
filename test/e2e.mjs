@@ -723,15 +723,21 @@ if (LINES.length > 1) {
   await tab.reload(); await tab.evaluate(() => document.fonts.ready);
   assert.equal(await tab.textContent('#line-name'), second.name, 'the line on show should be kept over a reload');
 
-  // The Lines sheet: every line, the one on show marked, how far along each is.
+  // The Lines sheet: every line, the one on show marked, how far along each is and the stars, and the total.
+  const n = main.puzzles.length, all = LINES.reduce((t, l) => t + l.puzzles.length, 0);
+  assert.equal(await tab.getAttribute('#b-line', 'aria-label'), `${second.name}: ${second.about}. Change line`);
   await tab.click('#b-line');
   await tab.waitForSelector('#sheet-lines:not([hidden])');
   assert.equal(await tab.locator('#lines .line-row').count(), LINES.length);
   assert.equal(await tab.getAttribute('#lines li:nth-child(2) .line-row', 'aria-current'), 'true');
-  assert.equal(await tab.textContent('#lines li:nth-child(1) .line-prog'), 'All finished');
+  assert.equal(await tab.evaluate(() => document.activeElement.getAttribute('aria-current')), 'true', 'the Lines sheet should start on the line on show');
+  assert.equal(await tab.textContent('#lines li:nth-child(1) .line-prog'), `${n} of ${n}${n * 3}★`);   // with a dot drawn between
+  assert.equal(await tab.getAttribute('#lines li:nth-child(1) .line-row', 'aria-label'), `${main.name}: ${main.about}. ${n} of ${n} finished, ${n * 3} stars`);
   assert.equal(await tab.textContent('#lines li:nth-child(2) .line-prog'), `${second.puzzles.length} puzzles`);
+  assert.equal(await tab.textContent('#lines-note'), `Each line is its own set of puzzles. Your progress on every line is kept: ${n} of ${all} finished.`);
   await tab.click('#lines li:nth-child(1) .line-row');
   await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
+  assert.deepEqual(await tab.evaluate(() => [document.activeElement.id, document.activeElement.getAttribute('aria-label')]), ['b-line', `${main.name}: ${main.about}. Change line`], 'focus should come back to the line button, naming the new line');
   assert.equal(await tab.locator('#route li').count(), main.puzzles.length);
   assert.equal(await tab.locator('#route li.done').count(), main.puzzles.length, 'nothing finished on the Main Line should be lost');
   await tab.click('#b-line'); await tab.click('#lines li:nth-child(2) .line-row');
@@ -752,7 +758,9 @@ if (LINES.length > 1) {
   // Back to the list, over to the Main Line, then Forward: the puzzle opens again, on its own line's list.
   await tab.goBack();
   await tab.waitForSelector('#s-list:not([hidden])');
-  await tab.click('#b-line'); await tab.click('#lines li:nth-child(1) .line-row');
+  await tab.click('#b-line');
+  assert.equal(await tab.textContent('#lines li:nth-child(2) .line-prog'), 'Under way', 'a line with a puzzle started should say so');
+  await tab.click('#lines li:nth-child(1) .line-row');
   assert.equal(await tab.textContent('#line-name'), main.name);
   await tab.goForward();
   await tab.waitForSelector('#s-play:not([hidden])');
@@ -762,6 +770,19 @@ if (LINES.length > 1) {
   assert.equal(await tab.textContent('#route li:nth-child(1) .row-sub'), `1 of ${q.lines.length} lines found`);
   assert.deepEqual(errors, []);
   await other.close();
+
+  // On a small phone the line on show can be below the sheet's fold: it's scrolled into view with the focus on it.
+  const small = await visitor({ options: { line: LINES.at(-1).id }, best: {}, games: {} }, { viewport: { width: 320, height: 568 } });
+  await small.tab.click('#b-line');
+  await small.tab.waitForSelector('#sheet-lines:not([hidden])');
+  const seen = await small.tab.evaluate(async () => {
+    await Promise.all(document.getAnimations().map(x => x.finished));   // the sheet rises into place
+    const a = document.activeElement, r = a.getBoundingClientRect(), panel = document.querySelector('#sheet-lines .panel').getBoundingClientRect();
+    return { current: a.getAttribute('aria-current'), inView: r.top >= panel.top && r.bottom <= Math.min(panel.bottom, innerHeight) };
+  });
+  assert.deepEqual(seen, { current: 'true', inView: true }, 'the line on show should be focused and in view in the Lines sheet');
+  assert.deepEqual(small.errors, []);
+  await small.other.close();
 
   // A line that's gone (or a damaged option) falls back to the first one.
   const gone = await visitor({ options: { line: 'no-such-line' }, best: {}, games: {} });

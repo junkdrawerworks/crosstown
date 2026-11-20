@@ -54,9 +54,9 @@ let list = line.puzzles;
 const shortName = l => l.name.replace(/ Line$/, '');
 const tint = l => (l.color === 'cross' ? ['var(--cross)', 'var(--on-cross)'] : [`var(--${l.color})`, 'var(--on-line)']);
 function tally(l) {
-  let finished = 0, stars = 0;
-  for (const p of l.puzzles) { const g = gameFor(p.id); if (g?.done) { finished++; stars += starsFor(g); } }
-  return { finished, stars, total: l.puzzles.length };
+  let finished = 0, stars = 0, going = 0;
+  for (const p of l.puzzles) { const g = gameFor(p.id); if (g?.done) { finished++; stars += starsFor(g); } else if (started(g)) going++; }
+  return { finished, stars, going, total: l.puzzles.length };
 }
 function setLine(l) {
   line = l; list = l.puzzles;
@@ -130,14 +130,18 @@ function drawList() {
   $('tally').textContent = finished ? `${finished} of ${list.length} finished, ${stars} of ${list.length * 3} stars` : `${list.length} puzzles`;
   $('line-name').textContent = line.name;
   $('line-about').textContent = line.about;
+  $('b-line').setAttribute('aria-label', `${line.name}: ${line.about}. Change line`);
   $('b-line').hidden = LINES.length < 2;
 }
 
-// The lines sheet: every line with how far along it you are. Picking one shows its list from the top.
+// The lines sheet: every line with how far along it you are, starting on the one on show. Picking one shows its list
+// from the top. The list is drawn before the sheet closes, so focus goes back to a button that names the new line.
 function openLines() {
   const ul = $('lines'); ul.textContent = '';
+  let done = 0, all = 0;
   for (const l of LINES) {
-    const { finished, total } = tally(l);
+    const { finished, stars, going, total } = tally(l);
+    done += finished; all += total;
     const li = document.createElement('li');
     const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'line-row';
     if (l === line) btn.setAttribute('aria-current', 'true');
@@ -146,13 +150,22 @@ function openLines() {
     const name = document.createElement('strong'); name.textContent = l.name;
     const about = document.createElement('small'); about.textContent = l.about;
     const prog = document.createElement('span'); prog.className = 'line-prog';
-    prog.textContent = finished === total ? 'All finished' : finished ? `${finished} of ${total} finished` : `${total} puzzles`;
+    if (finished) {   // "12 of 81 · 30★", the dot drawn, as the font's own has no width
+      const sep = document.createElement('span'); sep.className = 'sep';
+      const st = document.createElement('span'); st.className = 'st'; st.textContent = `${stars}★`;
+      prog.append(`${finished} of ${total}`, sep, st);
+    } else prog.textContent = going ? 'Under way' : `${total} puzzles`;
+    const said = finished ? `${finished} of ${total} finished, ${stars} star${stars === 1 ? '' : 's'}` : going ? 'under way' : `${total} puzzles`;
+    btn.setAttribute('aria-label', `${l.name}: ${l.about}. ${said}`);
     const main = document.createElement('span'); main.className = 'line-main'; main.append(name, about);
     btn.append(bar, main, prog);
-    btn.addEventListener('click', () => { const changed = l !== line; closeSheets(); if (changed) showLine(l); });
+    btn.addEventListener('click', () => { if (l !== line) showLine(l); closeSheets(); });
     li.append(btn); ul.append(li);
   }
+  $('lines-note').textContent = `Each line is its own set of puzzles. Your progress on every line is kept${done ? `: ${done} of ${all} finished` : ''}.`;
   openSheet('sheet-lines');
+  const now = ul.querySelector('[aria-current]');
+  now.focus({ preventScroll: true }); now.scrollIntoView({ block: 'center' });
 }
 
 // ---- one puzzle -------------------------------------------------------------------------------------------------
