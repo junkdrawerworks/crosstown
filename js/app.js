@@ -458,12 +458,15 @@ board.addEventListener('pointercancel', e => {
 
 // Each arrow move is read out to screen readers in a line of its own, kept off the screen and apart from the
 // readout: the letter and where it is, and whether a token has ringed it, or the line it's on once that line is
-// found. The row and column come every time, so two stops that are otherwise alike still sound different.
+// found. The row and column come every time, so two stops that are otherwise alike still sound different. A stop in
+// the word being traced says where in the word it is, since Enter there cuts the word back to it, or on the last
+// letter sends it.
 function speak(i) {
-  const k = cur.lineOf[i], at = `row ${row(i) + 1}, column ${col(i) + 1}`, hint = cur.game.hint;
+  const k = cur.lineOf[i], at = `row ${row(i) + 1}, column ${col(i) + 1}`, hint = cur.game.hint, n = sel.indexOf(i);
   let words = `${cur.p.grid[i]}, ${at}`;
   if (taken(i)) words = `${cur.p.grid[i]}, on the ${k ? `${cur.words[k]} line` : 'Crosstown'}, ${at}`;
   else if (hint?.line === k) words += hint.level > 1 && cur.p.lines[k][0] === i ? ', ringed, the route starts here' : ', ringed';
+  if (n >= 0) words += `, letter ${n + 1} of your word${n > 0 && n === sel.length - 1 ? ', Enter sends it' : ''}`;
   $('spoken').textContent = words;
 }
 
@@ -485,7 +488,7 @@ board.addEventListener('keydown', e => {
     else sel = [cursor];
     if (!taken(cursor)) showTrace();
   } else if ((e.key === 'Escape' || e.key === 'Backspace') && !cur.game.done) {
-    if (e.key === 'Backspace') sel.pop(); else sel = [];
+    if (e.key === 'Backspace') sel.pop(); else { if (sel.length) $('spoken').textContent = 'Word cleared'; sel = []; }
     showTrace();
   } else return;
   e.preventDefault(); paint();
@@ -738,6 +741,9 @@ function goNext() {
   if (to) showLine(to);
   openPuzzle(n >= 0 ? n : nextUp());
   changeStep();
+  // The map may have had the focus already, so moving it there says nothing new: the new puzzle is said instead.
+  const dark = saved.options.night && !cur.game.found.length && !cur.game.done;
+  $('spoken').textContent = `${shortName(line)}, No. ${cur.i + 1}. ${dark ? 'Night service' : cur.p.clue}`;
 }
 $('b-next').addEventListener('click', goNext);
 $('b-done-next').addEventListener('click', goNext);

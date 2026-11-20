@@ -198,6 +198,7 @@ else assert.match(await page.inputValue('#share-text'), /^Crosstown Main Line No
 // On to the next one, with night service on: the clue stays hidden until the first line.
 await page.click('#b-done-next');
 assert.equal(await text('#where'), 'Main, No. 2');
+assert.equal(await text('#spoken'), `Main, No. 2. ${PUZZLES[1].clue}`, 'Next puzzle should say which puzzle and clue it is');
 await page.click('#b-menu');
 await page.check('#o-night');
 await page.check('#o-clock');
@@ -450,6 +451,15 @@ if (LINES.length > 1) {
   const spoken = await tab.evaluate(() => { const s = document.getElementById('spoken'), r = s.getBoundingClientRect(); return { live: s.getAttribute('aria-live'), w: r.width, h: r.height, inPlay: document.getElementById('s-play').contains(s) }; });
   assert.ok(spoken.live === 'polite' && spoken.w <= 1 && spoken.h <= 1 && spoken.inPlay, `the moves should be read out, not shown: ${JSON.stringify(spoken)}`);
   assert.equal(await tab.textContent('#readout'), '', 'moving the cursor should leave the readout alone');
+  // A stop in the word being traced says where in the word it is, and the last one that Enter sends it. Escape says
+  // the word has gone. The map is described by where it is, the clue, the count and the keys.
+  await tab.keyboard.press('Enter'); await walk(route[1], tab); await tab.keyboard.press('Enter');
+  await hears(route[0], `${p.grid[route[0]]}, ${at(route[0])}, ringed, the route starts here, letter 1 of your word`);
+  await hears(route[1], `${p.grid[route[1]]}, ${at(route[1])}, ringed, letter 2 of your word, Enter sends it`);
+  await tab.keyboard.press('Escape');
+  assert.deepEqual([await tab.textContent('#spoken'), await tab.locator('#board .stop.sel').count()], ['Word cleared', 0], 'Escape should say the word was cleared');
+  assert.equal(await tab.getAttribute('#board', 'aria-describedby'), 'where clue count map-keys');
+  assert.match(await tab.textContent('#map-keys'), /^Arrow keys move\. Enter adds a letter; Enter again on the last letter sends the word\./);
   assert.deepEqual(errors, []);
   await other.close();
 }
