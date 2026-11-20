@@ -418,6 +418,19 @@ a { color: inherit; }
   .bar { min-height: 46px; }
   .fare { padding: 6px 0 8px; }
 }
+/* Forced colours (Windows High Contrast, say) take away whatever is drawn with a background colour: the full fare slots,
+   the route down the list and its finished roundels, the line bars, the key's swatches, the readout's chip, the drawn
+   dots between words, the ready token's fill and the switches' knobs. The coloured parts keep their own colours; the
+   rest are drawn in the system's. */
+@media (forced-colors: active) {
+  .pips i.full { background: CanvasText; }
+  .route li::before, .route li::after, .route.finished::after, .done .roundel, .line-bar, .key i, .readout .chip, .term .rt { forced-color-adjust: none; }
+  .where .sep, .tally .sep, .line-prog .sep, .readout .sep, .term-n .sep, .jd-foot span[aria-hidden] { background: CanvasText; }
+  .btn.token.ready { forced-color-adjust: none; background: ButtonText; color: ButtonFace; border-color: ButtonText; }
+  .switch::after { background: CanvasText; }
+  .switch:checked { background: Highlight; border-color: Highlight; }
+  .switch:checked::after { background: HighlightText; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }

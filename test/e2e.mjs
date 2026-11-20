@@ -638,6 +638,23 @@ for (const [width, height] of [[640, 400], [375, 667]]) {
   await other.close();
 }
 
+// In forced colours (Windows High Contrast) things drawn with a background colour are taken away, unless kept: the
+// full fare slots stand apart from the empty ones, the route down the list and the line bars keep their colours, and
+// the ready token keeps its fill.
+{
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: { [PUZZLES[0].id]: finished(PUZZLES[0]), [PUZZLES[1].id]: { found: [], detours: [], fare: 2, tokens: 1 } } });
+  await tab.emulateMedia({ forcedColors: 'active' });
+  const bg = () => tab.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  const page = await bg();
+  const list = await tab.evaluate(() => ({ route: getComputedStyle(document.querySelector('#route li:first-child'), '::after').backgroundColor, bar: getComputedStyle(document.querySelector('#b-line .line-bar')).backgroundColor }));
+  assert.ok(contrast(list.route, page) > 1.2 && contrast(list.bar, page) > 1.2, `the route and the line bar vanish in forced colours: ${JSON.stringify({ ...list, page })}`);
+  await tab.click('#route li:nth-child(2) .row');
+  const play = await tab.evaluate(() => ({ full: getComputedStyle(document.querySelector('#pips i.full')).backgroundColor, empty: getComputedStyle(document.querySelector('#pips i:not(.full)')).backgroundColor, token: getComputedStyle(document.getElementById('b-token')).backgroundColor, label: getComputedStyle(document.getElementById('token-label')).color }));
+  assert.ok(contrast(play.full, page) >= 3 && /, 0\)$|transparent/.test(play.empty) && contrast(play.token, play.label) >= 4.5, `the fare or the token can't be read in forced colours: ${JSON.stringify({ ...play, page })}`);
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // On a small phone a long tapped word stays whole on one line, and what to do next gives way, so the map doesn't move.
 {
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} }, { viewport: { width: 320, height: 568 }, hasTouch: true });
