@@ -1436,6 +1436,32 @@ if (LINES.length > 1) {
   await other.close();
 }
 
+// With the clock on, the bar's clock at the finish is the time the done sheet gives. It ticks every half second, so a
+// finish more than half a second past a tick left it a second behind. The page's clock is held here, and Back and Resume
+// put the ticks a quarter second off the whole seconds, so the finish falls past a whole second the bar hasn't shown.
+{
+  const q = LINES[0].puzzles[0];
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  await context.addInitScript(s => { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('crosstown.v1', s); sessionStorage.setItem('seeded', '1'); } },
+    JSON.stringify({ options: { clock: true }, best: {}, games: {} }));
+  const tab = await context.newPage();
+  await tab.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
+  await tab.goto(base);
+  await tab.clock.pauseAt(new Date('2026-01-01T00:00:10Z'));   // time moves only when the test says
+  await tab.click('#b-continue');
+  await drag(tab, q.lines[1]);
+  await tab.clock.runFor(1250);                  // ticks at 0.5 s and 1 s, then kept at 1.25 s by Back
+  await tab.click('#b-back'); await tab.click('#b-continue');   // so the ticks now fall at 1.75, 2.25, 2.75 s
+  await tab.clock.runFor(1600);                  // 2.85 s: the last tick, at 2.75 s, says 0:02
+  for (const l of q.lines.slice(2)) await drag(tab, l);
+  await tab.clock.runFor(200);                   // the last line at 3.05 s: 0:03
+  await drag(tab, q.lines[0]);
+  await tab.clock.runFor(1000);                  // the done sheet comes up 900 ms after the last line
+  await tab.waitForSelector('#sheet-done:not([hidden])');
+  assert.equal(await tab.textContent('#clock'), (await tab.textContent('#done-stats')).split(',')[0], "the bar's clock should agree with the done sheet");
+  await context.close();
+}
+
 // The lines: the list shows one at a time, the button above Continue changes it, and each line keeps its own
 // numbers and progress. Seeded as Mark has it: every Main Line puzzle finished.
 if (LINES.length > 1) {

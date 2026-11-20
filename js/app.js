@@ -513,7 +513,8 @@ function startClock() {
 function stopClock() {
   if (!ticking) return;
   clearInterval(ticking); ticking = 0;
-  if (cur) cur.game.ms += performance.now() - since;
+  // The bar shows the time kept, not the last half-second tick's: at the finish it's the time the done sheet gives.
+  if (cur) { cur.game.ms += performance.now() - since; $('clock').textContent = clock(cur.game.ms); }
 }
 // Back on screen, a puzzle another window has got further with since is taken in (see catchUp()), in case this window
 // was asleep when that was saved.
