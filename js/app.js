@@ -129,8 +129,15 @@ function setLine(l) {
   detoursOf(l.id);   // fetched ahead, so they're in by the time a puzzle opens
 }
 const pickLine = l => { setLine(l); setOption('line', l.id); };
-// Another line's list, from the top, picked.
-function showLine(l) { pickLine(l); drawList(); $('s-list').querySelector('.list-scroll').scrollTop = 0; }
+// Another line's list, from the top, picked. A screen reader hears which line it is now and how far along, in a moment,
+// once the sheet that picked it has closed (the page behind it can't be heard until then).
+let listSaid = 0;
+function showLine(l) {
+  pickLine(l); drawList(); $('s-list').querySelector('.list-scroll').scrollTop = 0;
+  const { finished, total } = tally(l), said = $('list-said');
+  said.textContent = ''; clearTimeout(listSaid);
+  listSaid = setTimeout(() => { said.textContent = `${l.name}, ${finished ? `${finished} of ${total} finished` : `${total} puzzles`}`; }, 100);
+}
 
 // Each line's detours come in their own file, loaded the first time one of its puzzles (or the line) is shown.
 // Until it's in, a word that isn't an answer waits for it (see wait()). If it can't be loaded (offline with no copy,
@@ -193,6 +200,7 @@ function drawList() {
   $('b-continue').disabled = up < 0 && !onward;
   $('unkept').hidden = keeping();
   $('tally').textContent = finished ? `${finished} of ${list.length} finished, ${stars} of ${list.length * 3} stars` : `${list.length} puzzles`;
+  route.setAttribute('aria-label', `${line.name} puzzles`);
   $('line-name').textContent = line.name;
   $('line-about').textContent = line.about;
   $('b-line').setAttribute('aria-label', `${line.name}: ${line.about}. Change line`);
@@ -220,6 +228,9 @@ function drawLines() {
     const bar = document.createElement('span'); bar.className = 'line-bar'; bar.style.background = c; bar.setAttribute('aria-hidden', 'true');
     const name = document.createElement('strong'); name.textContent = l.name;
     const about = document.createElement('small'); about.textContent = l.about;
+    // The line on show says so in words, as a strip map does, not only by its darker edge (which a hover looks like).
+    const here = l === line ? document.createElement('small') : null;
+    if (here) { here.className = 'here'; here.textContent = 'You are here'; }
     const prog = document.createElement('span'); prog.className = 'line-prog';
     if (finished) {   // "12 of 81 · 30★", the dot drawn, as the font's own has no width
       const sep = document.createElement('span'); sep.className = 'sep';
@@ -228,7 +239,7 @@ function drawLines() {
     } else prog.textContent = going ? 'Under way' : `${total} puzzles`;
     const said = finished ? `${finished} of ${total} finished, ${stars} star${stars === 1 ? '' : 's'}` : going ? 'under way' : `${total} puzzles`;
     btn.setAttribute('aria-label', `${l.name}: ${l.about}. ${said}`);
-    const main = document.createElement('span'); main.className = 'line-main'; main.append(name, about);
+    const main = document.createElement('span'); main.className = 'line-main'; main.append(name, ...(here ? [here] : []), about);
     btn.append(bar, main, prog);
     btn.addEventListener('click', () => { if (l !== line) showLine(l); closeSheets(); });
     li.append(btn); ul.append(li);

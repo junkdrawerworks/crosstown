@@ -412,6 +412,13 @@ for (const l of LINES.length > 1 ? LINES : []) {
     const tidy = width >= 360 ? new Set(tops).size === 1 : tops[0] < tops[1] && tops[1] === tops[2];
     assert.ok(tidy && boxes.every(b => b.h <= 44.5 && b.right <= width - 15.5), `the list buttons with "${await tab.textContent('#b-continue')}" at ${width}px: ${JSON.stringify(boxes)}`);
   }
+  // On to the next line: the focus stays on the big button, so a screen reader is told which line is on show now.
+  if (l === LINES[0]) {
+    await tab.click('#b-continue');
+    await tab.waitForFunction(said => document.getElementById('list-said').textContent === said, `${next.name}, ${next.puzzles.length} puzzles`, { timeout: 2000 })
+      .catch(async () => assert.fail(`On to the next line said "${await tab.textContent('#list-said')}"`));
+    assert.equal(await tab.getAttribute('#route', 'aria-label'), `${next.name} puzzles`);
+  }
   assert.deepEqual(errors, []);
   await other.close();
 }
@@ -972,8 +979,11 @@ if (LINES.length > 1) {
   assert.equal(await tab.getAttribute('#lines li:nth-child(1) .line-row', 'aria-label'), `${main.name}: ${main.about}. ${n} of ${n} finished, ${n * 3} stars`);
   assert.equal(await tab.textContent('#lines li:nth-child(2) .line-prog'), `${second.puzzles.length} puzzles`);
   assert.equal(await tab.textContent('#lines-note'), `Each line is its own set of puzzles. Your progress on every line is kept: ${n} of ${all} finished.`);
+  assert.deepEqual(await tab.$$eval('#lines .here', h => h.map(x => [x.closest('li') === x.closest('ul').children[1], x.textContent])), [[true, 'You are here']], 'the line on show should say so');
   await tab.click('#lines li:nth-child(1) .line-row');
   await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
+  await tab.waitForFunction(said => document.getElementById('list-said').textContent === said, `${main.name}, ${n} of ${n} finished`, { timeout: 2000 })
+    .catch(async () => assert.fail(`picking a line said "${await tab.textContent('#list-said')}"`));
   assert.deepEqual(await tab.evaluate(() => [document.activeElement.id, document.activeElement.getAttribute('aria-label')]), ['b-line', `${main.name}: ${main.about}. Change line`], 'focus should come back to the line button, naming the new line');
   assert.equal(await tab.locator('#route li').count(), main.puzzles.length);
   assert.equal(await tab.locator('#route li.done').count(), main.puzzles.length, 'nothing finished on the Main Line should be lost');
