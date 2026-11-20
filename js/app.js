@@ -759,7 +759,7 @@ function showDone() {
   });
   // The last puzzle on a line says the line is finished, how it went, and offers the next line with any left.
   const { n, to } = after();
-  $('done-eyebrow').textContent = n >= 0 ? 'End of the line' : to ? `${cur.line.name} finished` : 'Every line finished';
+  $('done-eyebrow').textContent = n >= 0 ? 'Last stop' : to ? `${cur.line.name} finished` : 'Every line finished';
   const t = tally(cur.line);
   // Emptied when it's not shown, as the sheet's description still reads it.
   $('done-line').textContent = n >= 0 ? '' : `${cur.line.name}: ${t.finished} of ${t.total}, ${t.stars} of ${t.total * 3} stars`;

@@ -226,6 +226,8 @@ await page.waitForSelector('#sheet-done:not([hidden])');
 }
 assert.equal(await focused(), 'b-done-next', 'the done sheet should start on Next puzzle');
 assert.equal(await text('#done-title'), p.name);
+// An ordinary puzzle's sheet says "Last stop", which can't be taken for the end of a Line of puzzles.
+assert.equal(await text('#sheet-done .eyebrow'), 'Last stop');
 assert.equal(await page.locator('#done-stars .got').count(), 1);
 // Earned and missed stars say which they are, not only by colour, and the sheet's description gives the result.
 assert.deepEqual(await page.$$eval('#done-stars li', l => l.map(li => li.textContent)), ['Earned: Every stop on a line', 'Missed: No tokens spent', 'Missed: Crosstown found first']);
