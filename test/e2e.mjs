@@ -57,7 +57,7 @@ assert.deepEqual(await page.evaluate(() => { const t = document.getElementById('
 // fits it without moving the map.
 await page.click('#b-continue');
 const HOW = 'Drag across the letters to trace a word, or tap them and tap the last one again';
-const TOO_SHORT = 'Too short';
+const TOO_SHORT = 'Too short: words have 4 letters or more';
 assert.equal(await text('#readout'), HOW);
 for (const [width, height] of [[320, 568], [390, 844]]) {
   await page.setViewportSize({ width, height });
@@ -117,13 +117,13 @@ assert.equal(await text('#readout'), 'Not a word on this map');
 // A detour earns fare by its length, once.
 const first = detour([2, 4], 5);
 await drag(page, first.path);
-assert.match(await text('#readout'), new RegExp(`^Detour: ${first.word}, \\+${fareFor(first.word)} fare`));
+assert.match(await text('#readout'), new RegExp(`^Detour: ${first.word.toUpperCase()}, \\+${fareFor(first.word)} fare`));
 let fare = fareFor(first.word);
 assert.equal(await page.locator('#pips .full').count(), fare % FARE_PER_TOKEN);
 await page.click('#meter');
 assert.equal(await text('#readout'), `${fare % FARE_PER_TOKEN} of ${FARE_PER_TOKEN} fare to the next token`);
 await drag(page, first.path);
-assert.match(await text('#readout'), /already counted$/);
+assert.equal(await text('#readout'), `${first.word.toUpperCase()} already counted`, 'a detour should be in capitals whether new or counted already');
 
 // Enough detours for two tokens.
 const used = new Set([first.word]);
@@ -351,7 +351,7 @@ function contrast(a, b) {
     assert.deepEqual(await tab.$$eval('#done-line .term .sr-only', s => s.map(x => x.textContent)), [`${LINES[0].name}: ${n} of ${n}, ${n * 3 - 1} of ${n * 3} stars`, `Every line: ${count} of ${count}, ${got} of ${most} stars`]);
     assert.deepEqual(await tab.$$eval('#done-line .term-show', s => s.map(x => [x.getAttribute('aria-hidden'), x.textContent])), [['true', `${LINES[0].name}${n} of ${n}${n * 3 - 1}★`], ['true', `Every line${count} of ${count}${got}★`]]);
   }
-  assert.equal(await tab.textContent('#done-stats'), 'no detours', 'a map finished without detours should say "no detours", not "0 detours"');
+  assert.equal(await tab.textContent('#done-stats'), 'No detours', 'a map finished without detours should say "No detours", not "0 detours"');
   assert.equal(await tab.evaluate(() => document.activeElement.id), 'b-share', 'the last done sheet should start on Share');
   const earned = await tab.evaluate(() => ({ fill: getComputedStyle(document.querySelector('#done-stars .got svg')).fill, bg: getComputedStyle(document.querySelector('#sheet-done .panel')).backgroundColor }));
   assert.ok(contrast(earned.fill, earned.bg) >= 3, `the stars earned are hard to see on the done sheet: ${JSON.stringify(earned)}`);
@@ -459,8 +459,11 @@ function contrast(a, b) {
 // soon as the finger gets there, rather than skipping over it to spell another word; nothing is sent when it lifts. A
 // tapped word waiting beside a taken stop stays when that stop is tapped, and hears the same.
 {
-  const { other, tab, errors } = await visitor({ options: { traced: true }, best: {}, games: { [p.id]: { found: [0], detours: [], crossAt: 0 } } });
+  const { other, tab, errors } = await visitor({ options: { traced: true }, best: {}, games: { [p.id]: { found: [0], detours: [], crossAt: 0, spent: 1 } } });
   await tab.click('#b-continue');
+  // With the tokens all spent, the token button says there are none left, not none yet.
+  await tab.click('#b-token', { force: true });
+  assert.equal(await tab.textContent('#readout'), NO_TOKENS.replace('yet', 'left'));
   const alien = traces(p.grid, 'ALIEN', 20).find(t => p.lines[0].includes(t[3]) && t.slice(0, 3).every(i => !p.lines[0].includes(i)));
   assert.ok(alien, 'this check needs ALIEN on the first map, its E on the Crosstown');
   const taken = `${p.grid[alien[3]]} is on the Crosstown already. Each letter is used once`;
@@ -484,6 +487,9 @@ function contrast(a, b) {
   const far = p.lines[0].find(i => !NEIGHBORS[from].includes(i));
   await tap(tab, far);
   assert.deepEqual([await tab.textContent('#readout'), await tab.locator('#board .stop.sel').count()], [`Crosstown: ${p.name}`, 0]);
+  // The Lines sheet says a line with a puzzle under way and none finished is under way, after a full stop.
+  await tab.click('#b-back'); await tab.click('#b-line');
+  assert.equal(await tab.getAttribute('#lines li:nth-child(1) .line-row', 'aria-label'), `${LINES[0].name}: ${LINES[0].about}. Under way`);
   assert.deepEqual(errors, []);
   await other.close();
 }
@@ -923,7 +929,7 @@ for (const how of ['blocked', 'full']) {
   await tab.click('#b-continue');
   for (const line of p.lines) await drag(tab, line);
   await tab.waitForSelector('#sheet-done:not([hidden])');
-  assert.equal(await tab.textContent('#done-stats'), 'no detours, not kept in this browser', `the done sheet should say its stars aren't kept (${how})`);
+  assert.equal(await tab.textContent('#done-stats'), 'No detours, not kept in this browser', `the done sheet should say its stars aren't kept (${how})`);
   await tab.keyboard.press('Escape'); await tab.click('#b-back');
   assert.equal(await tab.getAttribute('#route li:nth-child(1)', 'class'), 'done', `a puzzle should still finish (${how})`);
   assert.equal(await tab.isVisible('#unkept'), true);
@@ -1239,7 +1245,7 @@ if (LINES.length > 1) {
   assert.equal(await tab.textContent('#readout'), 'One moment');
   await drag(tab, junk);
   await tab.waitForFunction(() => document.getElementById('readout').textContent !== 'One moment', null, { timeout: 8000 });
-  assert.match(await tab.textContent('#readout'), new RegExp(`^Detour: ${first.word}, \\+${fareFor(first.word)} fare`), 'a word that is not one buried the detour before it');
+  assert.match(await tab.textContent('#readout'), new RegExp(`^Detour: ${first.word.toUpperCase()}, \\+${fareFor(first.word)} fare`), 'a word that is not one buried the detour before it');
   assert.equal(await tab.locator('#pips .full').count(), fareFor(first.word) % FARE_PER_TOKEN);
   await tab.click('#b-back');
   await tab.evaluate(() => localStorage.clear());
@@ -1303,7 +1309,7 @@ if (LINES.length > 1) {
   assert.equal(await tab.getAttribute('#lines li:nth-child(2) .line-row', 'aria-current'), 'true');
   assert.equal(await tab.evaluate(() => document.activeElement.getAttribute('aria-current')), 'true', 'the Lines sheet should start on the line on show');
   assert.equal(await tab.textContent('#lines li:nth-child(1) .line-prog'), `Finished${n * 3}★`, 'a finished line should say so');   // with a dot drawn between
-  assert.equal(await tab.getAttribute('#lines li:nth-child(1) .line-row', 'aria-label'), `${main.name}: ${main.about}. finished, ${n * 3} stars`);
+  assert.equal(await tab.getAttribute('#lines li:nth-child(1) .line-row', 'aria-label'), `${main.name}: ${main.about}. Finished, ${n * 3} stars`);
   assert.equal(await tab.textContent('#lines li:nth-child(2) .line-prog'), `${second.puzzles.length} puzzles`);
   const [nn, aa, ss] = await tab.evaluate(ns => ns.map(v => v.toLocaleString()), [n, all, n * 3]);
   assert.equal(await tab.textContent('#lines-note'), `Each line is its own set of puzzles and keeps its own progress. ${nn} of ${aa} finished, ${ss} stars.`);
@@ -1332,7 +1338,7 @@ if (LINES.length > 1) {
   const d = DETOURS[q.id].split(' ').map(w => [w, traces(q.grid, w.toUpperCase(), 1)[0]]).find(([, t]) => t);
   assert.ok(own.size === 48 && d, 'the puzzle should have a traceable detour');
   await drag(tab, d[1]);
-  assert.match(await tab.textContent('#readout'), new RegExp(`^Detour: ${d[0]}, \\+${fareFor(d[0])} fare`));
+  assert.match(await tab.textContent('#readout'), new RegExp(`^Detour: ${d[0].toUpperCase()}, \\+${fareFor(d[0])} fare`));
   await drag(tab, q.lines[0]);
   assert.equal(await tab.textContent('#readout'), `Crosstown: ${q.name}, found`);
 
@@ -1524,7 +1530,7 @@ if (LINES.length > 2) {
         const [w, t] = ds.shift();
         await drag(tab, t);
         await tab.waitForFunction(() => document.getElementById('readout').textContent !== 'One moment', null, { timeout: 8000 });
-        if ((await tab.textContent('#readout')).startsWith(`Detour: ${w},`)) earned += fareFor(w);
+        if ((await tab.textContent('#readout')).startsWith(`Detour: ${w.toUpperCase()},`)) earned += fareFor(w);
       }
       await tab.click('#b-token'); await tab.click('#b-token');
       assert.equal(await tab.locator('#board .guide').count(), 1);

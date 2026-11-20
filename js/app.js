@@ -286,7 +286,7 @@ function drawLines() {
       const st = document.createElement('span'); st.className = 'st'; st.textContent = `${stars}★`;
       prog.append(whole ? 'Finished' : `${finished} of ${total}`, sep, st);
     } else prog.textContent = going ? 'Under way' : `${total} puzzles`;
-    const said = whole ? `finished, ${stared}` : finished ? `${finished} of ${total} finished, ${stared}${going ? `, ${going} under way` : ''}` : going ? 'under way' : `${total} puzzles`;
+    const said = whole ? `Finished, ${stared}` : finished ? `${finished} of ${total} finished, ${stared}${going ? `, ${going} under way` : ''}` : going ? 'Under way' : `${total} puzzles`;
     btn.setAttribute('aria-label', `${l.name}: ${l.about}. ${said}`);
     const main = document.createElement('span'); main.className = 'line-main'; main.append(name, ...(here ? [here] : []), about);
     btn.append(bar, main, prog);
@@ -625,7 +625,7 @@ function submit() {
 }
 function judgeWord(word) {
   const { game, words } = cur;
-  if (word.length < MIN_LENGTH) { say(word.length > 1 ? 'Too short' : '', 'note nope'); paint(); return; }
+  if (word.length < MIN_LENGTH) { say(word.length > 1 ? `Too short: words have ${MIN_LENGTH} letters or more` : '', 'note nope'); paint(); return; }
   const k = words.findIndex((w, n) => w === word && !game.found.includes(n));
   if (k >= 0) return found(k);
   if (cur.extra.failed) cur.extra = detoursOf(cur.line.id);   // ask again: the signal may be back
@@ -690,7 +690,8 @@ function fares(game, p, extra, list) {
     }
   }
   const tokens = won > 1 ? `. ${won} tokens earned` : won ? '. Token earned' : '';
-  const news = got.length === 1 ? [`Detour: ${got[0][0]}, +${got[0][1]} fare${tokens}`, 'note']
+  // In capitals, as found words are, whether new or counted already.
+  const news = got.length === 1 ? [`Detour: ${got[0][0].toUpperCase()}, +${got[0][1]} fare${tokens}`, 'note']
     : got.length ? [`${got.length} detours, +${got.reduce((n, [, f]) => n + f, 0)} fare${tokens}`, 'note']
     : again ? [`${again} already counted`, 'note nope']
     : ['Not a word on this map', 'note nope'];
@@ -770,7 +771,7 @@ const routeFirst = game => game.hint?.level === 2 && !game.found.includes(game.h
 $('b-token').addEventListener('click', () => {
   const { p, game } = cur;
   if (game.done) return;
-  if (!game.tokens) { say(`No tokens yet. Detours, words that aren't lines, earn fare: ${FARE_PER_TOKEN} fare is a token`, 'note'); return; }
+  if (!game.tokens) { say(`No tokens ${game.spent ? 'left' : 'yet'}. Detours, words that aren't lines, earn fare: ${FARE_PER_TOKEN} fare is a token`, 'note'); return; }
   if (routeFirst(game)) { say('Trace the dashed route first. No token spent', 'note'); return; }
   if (game.hint && game.hint.level === 1) { game.hint.level = 2; say('The dashed route starts at the solid ring', 'note'); }
   else {
@@ -876,7 +877,8 @@ function showDone() {
   if (saved.options.clock) stats.unshift(clock(game.ms));
   if (game.night) stats.push('night service');
   if (!keeping()) stats.push('not kept in this browser');
-  $('done-stats').textContent = stats.join(', ');
+  const said = stats.join(', ');
+  $('done-stats').textContent = said[0].toUpperCase() + said.slice(1);   // "No detours" on its own
   // The Crosstown is keyed by the map's name, spaces and all ("JUNK DRAWER"), where its letters are the line's.
   const key = $('done-key'); key.textContent = '';
   const named = p.name.toUpperCase(), xt = named.normalize('NFD').replace(/[^A-Z]/g, '') === words[0] ? named : words[0];
