@@ -355,6 +355,17 @@ $('b-pill-up').addEventListener('click', () => {
   $('b-continue').focus({ preventScroll: true });
 });
 
+// Surprise me, at the foot of the Lines sheet: a puzzle not yet played, from any line, picked at random. Its line's list
+// is behind it for Back, as when a line is picked.
+$('b-surprise').addEventListener('click', () => {
+  const pool = PUZZLES.filter(p => unplayed(p.id));
+  if (!pool.length) return;
+  const p = pool[Math.floor(Math.random() * pool.length)], l = lineOf(p.line);
+  if (l !== line) showLine(l);
+  closeSheets();
+  fromList(l.puzzles.indexOf(p));
+});
+
 // Today's stop: one puzzle a day, from any line, of those not yet played (nothing found on it and never finished). It's
 // picked by the date, so it needs nothing from anywhere and is the same all day: each puzzle gets a number from the day
 // and its id, and the lowest of those not yet played is today's. Playing another puzzle doesn't change it, and once
@@ -451,6 +462,7 @@ function drawLines() {
   const [d, a, g] = [done, all, got].map(n => n.toLocaleString());
   const count = done === all ? ` All ${a} finished, ${g} stars.` : done ? ` ${d} of ${a} finished${got ? `, ${g} star${got === 1 ? '' : 's'}` : ''}.` : '';
   $('lines-note').textContent = (keeping() ? 'Each line keeps its own progress.' : unkept()) + count;
+  $('b-surprise').hidden = !PUZZLES.some(p => unplayed(p.id));
   ul.children[at]?.querySelector('button').focus({ preventScroll: true });   // drawn again while open: focus stays put
 }
 

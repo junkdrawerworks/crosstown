@@ -2430,6 +2430,37 @@ for (const [width, height] of [[320, 568], [320, 700], [360, 740], [390, 844], [
   await all.other.close();
 }
 
+// Surprise me, at the foot of the Lines sheet, opens a puzzle not yet played, from any line, with its line's list
+// behind it for Back. With every puzzle played it's gone.
+{
+  const ALL = LINES.flatMap(l => l.puzzles);
+  // Everything played but one puzzle on the Theater Line and one on the Airport Line.
+  const left = [LINES.find(l => l.id === 'theater').puzzles[5], LINES.find(l => l.id === 'airport').puzzles[60]];
+  const games = Object.fromEntries(ALL.filter(x => !left.includes(x)).map(x => [x.id, finished(x)]));
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games });
+  const seen = new Set();
+  for (let n = 0; n < 16 && seen.size < 2; n++) {
+    await tab.click('#b-line');
+    await tab.waitForSelector('#sheet-lines:not([hidden])');
+    await tab.click('#b-surprise');
+    await tab.waitForSelector('#s-play:not([hidden])');
+    const where = await tab.textContent('#where');
+    assert.ok(['Theater, No. 6', 'Airport, No. 61'].includes(where), `Surprise me opened ${where}, which has been played`);
+    seen.add(where);
+    await tab.waitForFunction(() => history.state?.crosstown, null, { timeout: 5000 });
+    await tab.goBack();
+    await tab.waitForSelector('#s-list:not([hidden])', { timeout: 5000 });
+    assert.equal(await tab.textContent('#line-name'), `${where.split(',')[0]} Line`, "Back from a surprise should go to its line's list");
+  }
+  assert.equal(seen.size, 2, 'Surprise me should pick from every line');
+  assert.deepEqual(errors, []);
+  await other.close();
+  const all = await visitor({ options: {}, best: {}, games: Object.fromEntries(ALL.map(x => [x.id, finished(x)])) });
+  await all.tab.click('#b-line');
+  assert.equal(await all.tab.isHidden('#b-surprise'), true, 'with every puzzle played there should be no surprise to offer');
+  await all.other.close();
+}
+
 // It can be installed.
 const cdp = await ctx.newCDPSession(page);
 const manifest = await cdp.send('Page.getAppManifest');
