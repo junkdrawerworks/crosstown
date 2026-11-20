@@ -1734,6 +1734,8 @@ if (LINES.length > 1) {
     await drag(tab, q.lines[1]);
     await tab.click('#b-back');
     assert.deepEqual([await tab.textContent('#route li:nth-child(1) .row-sub'), await tab.textContent('#route li:nth-child(1) .row-go')], [`1 of ${q.lines.length} lines found, best ★★★`, 'Resume']);
+    // The route stays solid through it, as the line is still finished.
+    assert.equal(await tab.evaluate(() => { const bg = (n, w) => getComputedStyle(document.querySelector(`#route li:nth-child(${n})`), w).backgroundColor; return bg(1, '::after') === bg(2, '::before') && bg(1, '::after') === bg(3, '::after'); }), true, 'the route should stay solid through a puzzle played again');
     assert.equal(await tab.textContent('#tally'), full, 'a finished puzzle played again should still count, with its best stars');
     assert.equal(await tab.textContent('#b-continue'), `On to ${second.name.replace(/ Line$/, '')}`, 'a line with a puzzle played again should stay finished');
     await tab.click('#route li:nth-child(1) .row');

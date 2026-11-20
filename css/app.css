@@ -233,7 +233,7 @@ a { color: inherit; }
 .route li::before { top: 0; height: 50%; }
 .route li::after { top: 50%; height: 50%; }
 .route li:first-child::before, .route li:last-child::after { display: none; }
-.route li.done::before, .route li.done::after, .route li.after-done::before { background: var(--line-deep, var(--cross)); }   /* the roundels' shade */
+.route li.done::before, .route li.done::after, .route li.best::after, .route li.after-done::before { background: var(--line-deep, var(--cross)); }   /* the roundels' shade */
 /* A finished line ends as a strip map ends one: the route runs on past the last stop to a flat bar, the terminus. */
 .route.finished li:last-child::after { display: block; }
 .route.finished::after {

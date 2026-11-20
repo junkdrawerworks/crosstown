@@ -264,8 +264,9 @@ function drawList() {
     const li = document.createElement('li');
     // The puzzle the big button plays, not yet started, is the next stop (one under way says Resume).
     const next = i === up && state === 'todo';
-    li.className = state + (prevDone ? ' after-done' : '') + (next ? ' next' : '');
-    prevDone = state === 'done';
+    // A finished puzzle played again keeps the route solid through it (`best`), as the line is still finished.
+    li.className = state + (prevDone ? ' after-done' : '') + (next ? ' next' : '') + (state === 'going' && best ? ' best' : '');
+    prevDone = state === 'done' || best > 0;
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'row';
     const sub = document.createElement('span'); sub.className = 'row-sub';
