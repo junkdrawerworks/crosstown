@@ -276,7 +276,7 @@ a { color: inherit; }
 
 .sign { background: var(--sign); color: var(--on-sign); border-radius: 6px; padding: 10px 14px 9px; display: grid; grid-template-columns: 1fr auto; column-gap: 12px; align-items: end; }
 .sign-label { grid-column: 1 / -1; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--sign-muted); }
-.sign-clue { font-size: 22px; line-height: 1.15; font-weight: 800; letter-spacing: -.005em; text-wrap: balance; padding-top: 2px; }
+.sign-clue { font-size: 22px; line-height: 1.15; font-weight: 800; letter-spacing: -.005em; text-wrap: pretty; padding-top: 2px; }
 .sign-clue.dark-hours { font-size: 16px; font-weight: 600; color: var(--sign-muted); }
 .sign-count { font-size: 13.5px; font-weight: 700; color: var(--sign-muted); font-variant-numeric: tabular-nums; white-space: nowrap; padding-bottom: 2px; }
 

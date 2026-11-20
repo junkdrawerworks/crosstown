@@ -64,6 +64,18 @@ for (const [width, height] of [[320, 568], [390, 844]]) {
   assert.equal(await page.evaluate(() => { const r = document.getElementById('readout'); return r.getBoundingClientRect().height <= parseFloat(getComputedStyle(r).minHeight) + 0.5; }), true, `the first visit's note is taller than the readout at ${width} px`);
 }
 assert.equal(await text('#clue'), p.clue);
+// A clue that wraps on the sign isn't left with a stub over a longer line ("It’s in" over "here somewhere" at 360 px).
+await page.setViewportSize({ width: 360, height: 740 });
+const clueLines = await page.evaluate(() => {
+  const t = document.getElementById('clue').firstChild, r = document.createRange(), lines = [];
+  for (let i = 0; i < t.length; i++) {
+    r.setStart(t, i); r.setEnd(t, i + 1); const b = r.getBoundingClientRect();
+    if (!lines.length || b.top > lines.at(-1).top + 3) lines.push({ top: b.top, left: b.left, right: b.right }); else lines.at(-1).right = b.right;
+  }
+  return lines.map(l => l.right - l.left);
+});
+assert.ok(clueLines.every((w, k) => k === clueLines.length - 1 || w >= 0.55 * clueLines[k + 1]), `the clue "${p.clue}" wraps lopsided at 360 px: ${clueLines}`);
+await page.setViewportSize({ width: 390, height: 844 });
 assert.equal(await text('#count'), `0 of ${p.lines.length} lines`);
 assert.equal(await page.locator('#board .stop').count(), 48);
 assert.equal(await page.isDisabled('#b-token'), true);
