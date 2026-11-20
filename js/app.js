@@ -718,12 +718,27 @@ function found(k) {
     // that one (Results on any map of a finished line opened later reads as any finished map does).
     const ended = l => tally(l).finished === l.puzzles.length;
     cur.justEnded = !ended(cur.line) ? null : LINES.every(ended) ? 'all' : 'line';
+    askToKeep();
     const word = $('readout').textContent;
     setTimeout(() => { if (cur?.p === p && $('readout').textContent === word) sayName(); }, 550);
     setTimeout(() => { if (cur?.p === p) { cur.finishing = false; showDone(); paint(); } }, 900);
     return;
   }
   keep(); paint();
+}
+
+// Once a puzzle is finished there's progress worth keeping, so once a visit the browser is asked to keep it rather
+// than clear it to make room or after a spell away. Safari deletes a site's storage "after seven days of Safari use
+// without user interaction on the site" (webkit.org/blog/10218, March 2020), and grants persist() "based on
+// heuristics like whether the website is opened as a Home Screen Web App" (webkit.org/blog/14403, August 2023).
+// Chromium and Safari decide without asking; Firefox would ask with a prompt, so there it's asked only in the
+// installed app.
+let askedToKeep = false;
+function askToKeep() {
+  if (askedToKeep || single || !keeping() || !navigator.storage?.persist || !navigator.storage.persisted) return;
+  askedToKeep = true;
+  if (/\bGecko\/\d/.test(navigator.userAgent) && !matchMedia('(display-mode: standalone)').matches) return;
+  navigator.storage.persisted().then(yes => yes || navigator.storage.persist()).catch(() => {});
 }
 
 // The line a new token would ring: any ordinary line first, the Crosstown only once it's the last one left.

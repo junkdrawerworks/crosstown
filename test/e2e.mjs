@@ -890,6 +890,33 @@ for (const how of ['blocked', 'full']) {
   assert.deepEqual(errors, []);
   await other.close();
 }
+// After a puzzle is finished, the browser is asked once a visit to keep the progress (where it hasn't already said it
+// will), and not before.
+{
+  const nearly = q => ({ found: q.lines.map((_, k) => k).slice(1), detours: [] });
+  const [a, b] = PUZZLES;
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  await context.addInitScript(s => {
+    if (!sessionStorage.getItem('seeded')) { localStorage.setItem('crosstown.v1', s); sessionStorage.setItem('seeded', '1'); }
+    window.asked = 0;
+    Object.defineProperty(navigator, 'storage', { value: { persisted: async () => false, persist: async () => { window.asked++; return true; } } });
+  }, JSON.stringify({ options: {}, best: {}, games: { [a.id]: nearly(a), [b.id]: nearly(b) } }));
+  const tab = await context.newPage();
+  const errors = [];
+  tab.on('pageerror', e => errors.push(e.message));
+  await tab.goto(base);
+  await tab.click('#b-continue');
+  assert.equal(await tab.evaluate(() => window.asked), 0, 'the browser should not be asked before anything is finished');
+  await drag(tab, a.lines[0]);
+  await tab.waitForSelector('#sheet-done:not([hidden])');
+  await tab.waitForFunction(() => window.asked === 1, null, { timeout: 3000 }).catch(() => assert.fail('a finish should ask the browser to keep progress'));
+  await tab.click('#b-done-next');
+  await drag(tab, b.lines[0]);
+  await tab.waitForSelector('#sheet-done:not([hidden])');
+  assert.equal(await tab.evaluate(() => window.asked), 1, 'the browser should be asked once a visit');
+  assert.deepEqual(errors, []);
+  await context.close();
+}
 // Each saved game keeps its board's letters. Progress on a board laid out again since starts fresh, since its line
 // numbers would draw lines on the wrong letters, but its best time stays. A game saved before games kept their
 // letters counts as one on the board as it is now.
