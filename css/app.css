@@ -197,8 +197,10 @@ a { color: inherit; }
 
 .route { display: flex; flex-direction: column; }
 .route li { position: relative; }
-/* the route line: a segment above and below each roundel, inked as far as you've ridden */
-.route li::before, .route li::after { content: ''; position: absolute; left: 17px; width: 6px; background: var(--rule); }
+/* the route line: a segment above and below each roundel, inked as far as you've ridden, and a pale tint of the line's
+   colour beyond, so a line not yet ridden still looks like that line (the Main Line's colour is the ink: a grey) */
+.route { --unridden: color-mix(in srgb, var(--line, var(--cross)) 30%, var(--bg)); }
+.route li::before, .route li::after { content: ''; position: absolute; left: 17px; width: 6px; background: var(--unridden); }
 .route li::before { top: 0; height: 50%; }
 .route li::after { top: 50%; height: 50%; }
 .route li:first-child::before, .route li:last-child::after { display: none; }
@@ -219,7 +221,7 @@ a { color: inherit; }
 }
 .roundel {
   display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
-  background: var(--bg); border: 4px solid var(--rule); color: var(--muted);
+  background: var(--bg); border: 4px solid var(--unridden); color: var(--muted);
   font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; line-height: 1; padding-top: 2px;
 }
 .going .roundel { border-color: var(--line, var(--cross)); color: var(--ink); }

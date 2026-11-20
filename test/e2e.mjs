@@ -1203,6 +1203,14 @@ if (LINES.length > 1) {
       await tab.emulateMedia({ colorScheme });
       const roundel = await tab.evaluate(() => { const s = getComputedStyle(document.querySelector('#route li.done .roundel')); return { color: s.color, bg: s.backgroundColor }; });
       assert.ok(contrast(roundel.color, roundel.bg) >= 4.5, `a finished roundel's number on the ${l.name} is hard to read in ${colorScheme}: ${JSON.stringify(roundel)}`);
+      // The stops not yet ridden are ringed in a pale tint of the line's colour, so a fresh line looks like that line;
+      // the Main Line's colour is the ink, so its tint is a grey.
+      const ring = await tab.evaluate(() => {
+        const probe = document.createElement('i'); probe.style.color = 'color-mix(in srgb, var(--line) 30%, var(--bg))'; document.getElementById('route').append(probe);
+        const want = getComputedStyle(probe).color; probe.remove();
+        return { ring: getComputedStyle(document.querySelector('#route li.todo .roundel')).borderTopColor, segment: getComputedStyle(document.querySelector('#route li.todo:last-child'), '::before').backgroundColor, want };
+      });
+      assert.ok(ring.ring === ring.want && ring.segment === ring.want, `the ${l.name}'s stops not yet ridden should be a tint of its colour in ${colorScheme}: ${JSON.stringify(ring)}`);
     }
   }
   assert.deepEqual(errors, []);
