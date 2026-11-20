@@ -209,11 +209,13 @@ function paint() {
   for (let n = 0; n < FARE_PER_TOKEN; n++) { const pip = document.createElement('i'); if (n < game.fare) pip.className = 'full'; pips.append(pip); }
   $('meter').setAttribute('aria-label', `Fare: ${game.fare} of ${FARE_PER_TOKEN}`);
   // A token rings a line's stops, then draws its route. While a route shows on a line not yet found the button is
-  // off: the route already gives the line away, and another token would ring a different line and lose it.
+  // off: the route already gives the line away, and another token would ring a different line and lose it. It can
+  // still be tapped then, to say why (see routeFirst()).
   const tok = $('b-token');
-  const routeShowing = game.hint?.level === 2 && !found.has(game.hint.line);
-  tok.disabled = !game.tokens || !left || routeShowing;
-  tok.classList.toggle('ready', !tok.disabled);
+  tok.disabled = !game.tokens || !left;
+  const held = !tok.disabled && routeFirst(game);
+  if (held) tok.setAttribute('aria-disabled', 'true'); else tok.removeAttribute('aria-disabled');
+  tok.classList.toggle('ready', !tok.disabled && !held);
   $('token-label').textContent = game.tokens ? `Use a token (${game.tokens})` : 'No tokens';
   $('fare').hidden = game.done; $('after').hidden = !game.done;
   $('b-next').hidden = nextUp(cur.i) < 0;
@@ -498,9 +500,11 @@ function nextHint(game, p) {
   return open.find(k => k !== 0) ?? open[0];
 }
 
+const routeFirst = game => game.hint?.level === 2 && !game.found.includes(game.hint.line);
 $('b-token').addEventListener('click', () => {
   const { p, game } = cur;
   if (!game.tokens || game.done) return;
+  if (routeFirst(game)) { say('Trace the dashed route first. Your tokens keep', 'note'); return; }
   if (game.hint && game.hint.level === 1) { game.hint.level = 2; say('The dashed route starts at the solid ring', 'note'); }
   else {
     const pick = nextHint(game, p);

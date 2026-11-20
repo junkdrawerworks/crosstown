@@ -321,12 +321,16 @@ function contrast(a, b) {
 }
 
 // While a route shows on a line not yet found, the token button stays off, even with tokens and other lines left:
-// another token would ring a different line and lose the route. Tracing that line turns it back on.
+// another token would ring a different line and lose the route. A tap on it says so, and spends nothing. Tracing
+// that line turns it back on.
 {
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games: { [p.id]: { found: [], detours: [], hint: { line: 1, level: 2 }, tokens: 2, spent: 2 } } });
   await tab.click('#b-continue');
   assert.equal(await tab.locator('#board .guide').count(), 1);
   assert.equal(await tab.isDisabled('#b-token'), true, 'a token while a route is showing would lose the route');
+  await tab.click('#b-token', { force: true });
+  assert.equal(await tab.textContent('#readout'), 'Trace the dashed route first. Your tokens keep', 'a tap on the token button while a route shows should say why it is off');
+  assert.deepEqual([await tab.textContent('#token-label'), await tab.locator('#board .guide').count()], ['Use a token (2)', 1]);
   await drag(tab, p.lines[1]);
   assert.equal(await tab.locator('#board .guide').count(), 0);
   assert.equal(await tab.isDisabled('#b-token'), false, 'once the route is traced, a token should work again');
