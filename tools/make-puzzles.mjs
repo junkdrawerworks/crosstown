@@ -1,13 +1,20 @@
-// Lays out every puzzle in tools/themes.mjs and writes js/puzzles.js:  node tools/make-puzzles.mjs [id ...]
+// Lays out the puzzles in tools/themes/ and writes js/puzzles.js and js/detours/:
+//
+//   node tools/make-puzzles.mjs                every puzzle on every line
+//   node tools/make-puzzles.mjs market         just the puzzles on that line (others are kept as they are)
+//   node tools/make-puzzles.mjs tide-pool ...  just those puzzles, and print their boards
 //
 // For each theme it picks a set of words that fills the 48 stops exactly, packs them into the grid as lines that
 // never share a stop or cut across each other, and keeps the tidiest layout it finds. It then lists every other
 // dictionary word that can be traced on that board (the "detours" that earn fare). The same seed gives the same
-// boards, so running it again changes nothing unless a theme changed. Pass ids to print those boards.
+// boards, so running it again changes nothing unless a theme changed. The work is shared across the CPUs.
 import { createRequire } from 'node:module';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { cpus } from 'node:os';
+import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { W, H, N, row, col, NEIGHBORS, diagonalSquare, spell, traces } from '../js/board.js';
-import { THEMES } from './themes.mjs';
+import { LINES } from './themes.mjs';
 import { isRude } from './rude-words.mjs';
 
 const require = createRequire(import.meta.url);
@@ -193,9 +200,7 @@ function detours(grid, answers) {
 }
 
 // ---- make them ------------------------------------------------------------------------------------------------
-const show = new Set(process.argv.slice(2));
-const puzzles = [];
-for (const theme of THEMES) {
+function make(theme) {
   const sets = wordSets(theme);
   if (!sets.length) throw new Error(`${theme.id}: no set of 6 to 8 words fills ${N - theme.cross.length} stops`);
   let best = null;
@@ -232,21 +237,101 @@ for (const theme of THEMES) {
   if (!best) throw new Error(`${theme.id}: couldn't lay it out`);
   const extra = detours(best.grid, best.words);
   const name = theme.name ?? theme.id[0].toUpperCase() + theme.id.slice(1).replaceAll('-', ' ');
-  puzzles.push({ id: theme.id, name, clue: theme.clue, grid: best.grid, lines: best.lines, detours: extra.join(' ').toLowerCase() });
-  console.log(`${theme.id.padEnd(15)} score ${String(best.score).padStart(3)}  ${best.words.length - 1} lines + ${theme.cross}  ${extra.length} detours  ${best.words.slice(1).join(' ')}`);
-  if (show.has(theme.id)) {
-    for (let r = 0; r < H; r++) console.log('   ' + best.grid.slice(r * W, r * W + W).split('').join(' '));
-    best.lines.forEach((l, k) => console.log(`   ${spell(best.grid, l)}: ${l.join(',')}`));
-  }
+  let log = `${theme.id.padEnd(22)} score ${String(best.score).padStart(3)}  ${best.words.length - 1} lines + ${theme.cross}  ${extra.length} detours  ${best.words.slice(1).join(' ')}`;
+  if (best.score >= 100) log += '  <- a word can be traced another way';
+  return { puzzle: { id: theme.id, name, clue: theme.clue, grid: best.grid, lines: best.lines, detours: extra.join(' ').toLowerCase() }, log };
 }
 
-const body = puzzles.map(p => `  { id: ${JSON.stringify(p.id)}, name: ${JSON.stringify(p.name)}, clue: ${JSON.stringify(p.clue)},\n    grid: '${p.grid}',\n    lines: ${JSON.stringify(p.lines)},\n    detours: '${p.detours}' },`).join('\n');
-await writeFile(new URL('../js/puzzles.js', import.meta.url),
-`// Written by tools/make-puzzles.mjs from tools/themes.mjs. Don't edit by hand: change the theme and run the tool.
-// grid: the 48 letters, across then down. lines: the stops of each theme word in order, the Crosstown first.
-// detours: every other word that can be traced on the board; finding one earns fare.
-export const PUZZLES = [
-${body}
+// A worker lays out the themes it's sent, one at a time.
+if (!isMainThread) {
+  parentPort.on('message', theme => {
+    try { parentPort.postMessage(make(theme)); } catch (err) { parentPort.postMessage({ error: err.message }); }
+  });
+} else {
+  await main();
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const lineIds = new Set(LINES.map(l => l.id));
+  const all = LINES.flatMap(l => l.themes);
+  const ids = new Set(all.map(t => t.id));
+  for (const a of args) if (!lineIds.has(a) && !ids.has(a)) throw new Error(`${a} is neither a line nor a puzzle`);
+  if (ids.size !== all.length) throw new Error('two puzzles share an id: ids must be unique across every line');
+  const show = new Set(args.filter(a => ids.has(a)));
+  const wanted = t => !args.length || show.has(t.id) || args.some(a => LINES.find(l => l.id === a)?.themes.includes(t));
+
+  // The puzzles that aren't being laid out again are kept as they are.
+  const kept = new Map();
+  if (args.length && existsSync(new URL('../js/puzzles.js', import.meta.url))) {
+    const { PUZZLES } = await import('../js/puzzles.js');
+    const detoursOf = {};
+    for (const line of LINES) {
+      if (existsSync(new URL(`../js/detours/${line.id}.js`, import.meta.url))) Object.assign(detoursOf, (await import(`../js/detours/${line.id}.js`)).DETOURS);
+    }
+    for (const p of PUZZLES) kept.set(p.id, { id: p.id, name: p.name, clue: p.clue, grid: p.grid, lines: p.lines, detours: detoursOf[p.id] ?? '' });
+  }
+  const todo = all.filter(t => wanted(t) || !kept.has(t.id));
+
+  // Share the work across the CPUs, keeping the printed order.
+  const made = new Map();
+  const queue = todo.slice();
+  const workers = Math.max(1, Math.min(todo.length, cpus().length));
+  let printed = 0;
+  await Promise.all(Array.from({ length: workers }, () => new Promise((resolve, reject) => {
+    const w = new Worker(new URL(import.meta.url));
+    const next = () => { const t = queue.shift(); if (t) w.postMessage(t); else { w.terminate(); resolve(); } };
+    let current = null;
+    w.on('message', res => {
+      if (res.error) { w.terminate(); reject(new Error(res.error)); return; }
+      made.set(res.puzzle.id, res);
+      while (printed < todo.length && made.has(todo[printed].id)) console.log(made.get(todo[printed++].id).log);
+      next();
+    });
+    w.on('error', reject);
+    next();
+  })));
+
+  for (const id of show) {
+    const p = made.get(id).puzzle;
+    for (let r = 0; r < H; r++) console.log('   ' + p.grid.slice(r * W, r * W + W).split('').join(' '));
+    p.lines.forEach(l => console.log(`   ${spell(p.grid, l)}: ${l.join(',')}`));
+  }
+
+  const puzzleOf = t => made.get(t.id)?.puzzle ?? kept.get(t.id);
+  const header = '// Written by tools/make-puzzles.mjs from tools/themes/. Don\'t edit by hand: change the theme and run the tool.\n';
+  const lines = LINES.map(line => {
+    const puzzles = line.themes.map(t => {
+      const p = puzzleOf(t);
+      return `    { id: ${JSON.stringify(p.id)}, name: ${JSON.stringify(p.name)}, clue: ${JSON.stringify(p.clue)},\n      grid: '${p.grid}', lines: ${JSON.stringify(p.lines)} },`;
+    });
+    return `  { id: ${JSON.stringify(line.id)}, name: ${JSON.stringify(line.name)}, about: ${JSON.stringify(line.about)}, color: ${JSON.stringify(line.color)}, puzzles: [\n${puzzles.join('\n')}\n  ] },`;
+  });
+  await writeFile(new URL('../js/puzzles.js', import.meta.url),
+`${header}// The lines, in the order the list shows them. Each puzzle has its grid (the 48 letters, across then down) and its
+// lines (the stops of each theme word in order, the Crosstown first).
+export const LINES = [
+${lines.join('\n')}
 ];
+
+// Every other word that can be traced on each board (a detour, which earns fare), one file per line, loaded when a
+// puzzle on that line opens: they're most of the weight.
+export const DETOURS = {
+${LINES.map(l => `  ${JSON.stringify(l.id)}: () => import('./detours/${l.id}.js'),`).join('\n')}
+};
+
+// Every puzzle on every line, each knowing its line.
+export const PUZZLES = LINES.flatMap(line => line.puzzles.map(p => Object.assign(p, { line: line.id })));
 `);
-console.log(`\n${puzzles.length} puzzles written to js/puzzles.js`);
+  await mkdir(new URL('../js/detours/', import.meta.url), { recursive: true });
+  for (const line of LINES) {
+    const body = line.themes.map(t => `  ${JSON.stringify(t.id)}: '${puzzleOf(t).detours}',`).join('\n');
+    await writeFile(new URL(`../js/detours/${line.id}.js`, import.meta.url),
+`${header}// Every word of four letters or more, other than the answers, that can be traced on each board of the ${line.name}.
+export const DETOURS = {
+${body}
+};
+`);
+  }
+  console.log(`\n${todo.length} laid out, ${all.length} puzzles on ${LINES.length} line${LINES.length > 1 ? 's' : ''} written to js/puzzles.js and js/detours/`);
+}

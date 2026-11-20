@@ -1,7 +1,8 @@
 // Plays the game in Chromium through the real page:  node test/e2e.mjs  (needs Playwright)
 import assert from 'node:assert/strict';
 import { playwright, serve, drag, tap, tapOut } from '../tools/play.mjs';
-import { PUZZLES } from '../js/puzzles.js';
+import { LINES } from '../js/puzzles.js';
+import { DETOURS } from '../js/detours/main.js';
 import { traces, spell, adjacent, NEIGHBORS } from '../js/board.js';
 import { fareFor, FARE_PER_TOKEN } from '../js/rules.js';
 
@@ -16,6 +17,8 @@ page.on('requestfailed', r => problems.push('failed: ' + r.url()));
 page.on('request', r => { if (!r.url().startsWith(base)) problems.push('left the site: ' + r.url()); });
 
 const text = sel => page.textContent(sel);
+// The list opens on the first line (the Main Line), and puzzle numbers count along it.
+const PUZZLES = LINES[0].puzzles.map(q => ({ ...q, detours: DETOURS[q.id] }));
 const p = PUZZLES[0];
 const words = p.lines.map(l => spell(p.grid, l));
 // A detour that avoids the given lines, of at least `min` letters, with the stops to trace it.

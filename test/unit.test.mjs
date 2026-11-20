@@ -4,8 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { W, H, N, row, col, adjacent, diagonalSquare, spell, spans, traces } from '../js/board.js';
-import { PUZZLES } from '../js/puzzles.js';
-import { THEMES } from '../tools/themes.mjs';
+import { LINES, DETOURS as LOAD } from '../js/puzzles.js';
+import { LINES as THEME_LINES, THEMES } from '../tools/themes.mjs';
 import { isRude } from '../tools/rude-words.mjs';
 import { fareFor, FARE_PER_TOKEN, starsFor } from '../js/rules.js';
 
@@ -15,10 +15,36 @@ const acrossTown = line => {
   return (col(a) === 0 && col(b) === W - 1) || (col(a) === W - 1 && col(b) === 0) || (row(a) === 0 && row(b) === H - 1) || (row(a) === H - 1 && row(b) === 0);
 };
 
-test('the pack matches the themes, in order, with no repeats', () => {
-  assert.deepEqual(PUZZLES.map(p => p.id), THEMES.map(t => t.id));
-  assert.equal(new Set(PUZZLES.map(p => p.id)).size, PUZZLES.length);
-  assert.ok(PUZZLES.length >= 30);
+// Each line's detours, from its own file, put back on its puzzles.
+const PUZZLES = [];
+for (const line of LINES) {
+  const { DETOURS } = await LOAD[line.id]();
+  for (const p of line.puzzles) PUZZLES.push({ ...p, line: line.id, detours: DETOURS[p.id] });
+}
+
+test('the lines match the themes, in order, with no repeats', async () => {
+  assert.deepEqual(LINES.map(l => [l.id, l.name, l.about, l.color]), THEME_LINES.map(l => [l.id, l.name, l.about, l.color]));
+  LINES.forEach((line, n) => {
+    assert.deepEqual(line.puzzles.map(p => p.id), THEME_LINES[n].themes.map(t => t.id), `${line.name} is out of step with its themes`);
+    assert.ok(line.puzzles.length >= 30, `${line.name} is short`);
+    assert.match(line.color, /^(cross|l[1-8])$/);
+  });
+  assert.equal(new Set(PUZZLES.map(p => p.id)).size, PUZZLES.length, 'ids are what progress is saved under, so each is used once across every line');
+  assert.equal(new Set(THEMES.map(t => t.cross)).size, THEMES.length, 'two puzzles share a Crosstown');
+  assert.equal(new Set(LINES.map(l => l.id)).size, LINES.length);
+  // Every line's detours file has exactly its own puzzles.
+  for (const line of LINES) {
+    const { DETOURS } = await LOAD[line.id]();
+    assert.deepEqual(Object.keys(DETOURS), line.puzzles.map(p => p.id));
+  }
+});
+
+test('the Main Line keeps the first 108 puzzles, in order, so saved progress and puzzle numbers stay put', () => {
+  const main = LINES[0];
+  assert.equal(main.id, 'main');
+  assert.equal(main.puzzles.length, 108);
+  assert.equal(main.puzzles[0].id, 'junk-drawer');
+  assert.equal(main.puzzles[107].id, 'fairgrounds');
 });
 
 for (const p of PUZZLES) {
@@ -108,7 +134,7 @@ test('fare and stars', () => {
 
 test('the offline copy lists every file the page loads', async () => {
   const sw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
-  for (const f of ['index.html', 'css/app.css', 'js/app.js', 'js/board.js', 'js/rules.js', 'js/puzzles.js', 'fonts/overpass.woff2', 'icon.svg', 'manifest.webmanifest']) {
+  for (const f of ['index.html', 'css/app.css', 'js/app.js', 'js/board.js', 'js/rules.js', 'js/puzzles.js', 'fonts/overpass.woff2', 'icon.svg', 'manifest.webmanifest', ...LINES.map(l => `js/detours/${l.id}.js`)]) {
     assert.ok(sw.includes(`'${f}'`), `sw.js doesn't keep ${f}`);
   }
 });

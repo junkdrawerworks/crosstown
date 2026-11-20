@@ -1,5 +1,5 @@
 // Crosstown: the list of puzzles, the map you trace on, and what's saved between visits.
-import { PUZZLES } from './puzzles.js';
+import { LINES, DETOURS, PUZZLES } from './puzzles.js';
 import { W, H, N, row, col, adjacent, spell } from './board.js';
 import { MIN_LENGTH, FARE_PER_TOKEN, fareFor, starsFor, clock } from './rules.js';
 
@@ -14,7 +14,7 @@ const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l2.7 5
 const KEY = 'crosstown.v1';
 const fresh = () => ({ found: [], detours: [], fare: 0, tokens: 0, spent: 0, hint: null, ms: 0, done: false, crossAt: -1, night: false });
 const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
-let saved = { options: { clock: false, night: false }, games: {}, best: {} };
+let saved = { options: { clock: false, night: false, line: LINES[0].id }, games: {}, best: {} };
 try {
   const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
   if (raw && typeof raw === 'object') saved = { options: { ...saved.options, ...raw.options }, games: isObject(raw.games) ? raw.games : {}, best: isObject(raw.best) ? raw.best : {} };
@@ -46,17 +46,52 @@ function gameFor(id) {
 }
 const started = g => !!g && (g.done || g.found.length > 0 || g.detours.length > 0);
 
+// ---- the lines --------------------------------------------------------------------------------------------------
+// The list shows one line at a time; the one last shown is kept with the options. Puzzle numbers count along a line.
+const lineOf = id => LINES.find(l => l.id === id);
+let line = lineOf(saved.options.line) || LINES[0];
+let list = line.puzzles;
+const shortName = l => l.name.replace(/ Line$/, '');
+const tint = l => (l.color === 'cross' ? ['var(--cross)', 'var(--on-cross)'] : [`var(--${l.color})`, 'var(--on-line)']);
+function tally(l) {
+  let finished = 0, stars = 0;
+  for (const p of l.puzzles) { const g = gameFor(p.id); if (g?.done) { finished++; stars += starsFor(g); } }
+  return { finished, stars, total: l.puzzles.length };
+}
+function setLine(l) {
+  line = l; list = l.puzzles;
+  saved.options.line = l.id; save();
+  const [c, on] = tint(l);
+  $('s-list').style.setProperty('--line', c); $('s-list').style.setProperty('--on-line-c', on);
+  detoursOf(l.id);   // fetched ahead, so they're in by the time a puzzle opens
+}
+
+// Each line's detours come in their own file, loaded the first time one of its puzzles (or the line) is shown.
+// Until it's in, a word that isn't an answer waits for it (see submit()). If it can't be loaded at all (offline
+// with no copy), detours just don't count this time, and the next puzzle asks again.
+const detourSets = new Map();
+function detoursOf(lineId) {
+  let d = detourSets.get(lineId);
+  if (d && !d.failed) return d;
+  d = { words: {}, ready: false, failed: false };
+  d.wait = DETOURS[lineId]().then(m => { d.words = m.DETOURS; }, () => { d.failed = true; }).finally(() => { d.ready = true; });
+  detourSets.set(lineId, d);
+  return d;
+}
+
 // ---- the list ---------------------------------------------------------------------------------------------------
 function nextUp(from = -1) {
-  for (let k = 1; k <= PUZZLES.length; k++) { const i = (from + k) % PUZZLES.length; if (!gameFor(PUZZLES[i].id)?.done) return i; }
+  for (let k = 1; k <= list.length; k++) { const i = (from + k) % list.length; if (!gameFor(list[i].id)?.done) return i; }
   return -1;
 }
+// The next line along with a puzzle left to play, for when this one is finished.
+const nextLine = () => { const at = LINES.indexOf(line); for (let k = 1; k < LINES.length; k++) { const l = LINES[(at + k) % LINES.length]; if (tally(l).finished < l.puzzles.length) return l; } return null; };
 
 function drawList() {
   const route = $('route');
   route.textContent = '';
   let finished = 0, stars = 0, prevDone = false;
-  PUZZLES.forEach((p, i) => {
+  list.forEach((p, i) => {
     const g = gameFor(p.id);
     const state = g?.done ? 'done' : started(g) ? 'going' : 'todo';
     const li = document.createElement('li');
@@ -87,10 +122,35 @@ function drawList() {
     btn.addEventListener('click', () => fromList(i));
     li.append(btn); route.append(li);
   });
-  const up = nextUp();
-  $('b-continue').textContent = up < 0 ? 'All finished' : `${started(gameFor(PUZZLES[up].id)) ? 'Resume' : 'Play'} No. ${up + 1}`;
-  $('b-continue').disabled = up < 0;
-  $('tally').textContent = finished ? `${finished} of ${PUZZLES.length} finished, ${stars} of ${PUZZLES.length * 3} stars` : `${PUZZLES.length} puzzles`;
+  const up = nextUp(), onward = up < 0 ? nextLine() : null;
+  $('b-continue').textContent = up >= 0 ? `${started(gameFor(list[up].id)) ? 'Resume' : 'Play'} No. ${up + 1}` : onward ? `On to the ${onward.name}` : 'All finished';
+  $('b-continue').disabled = up < 0 && !onward;
+  $('tally').textContent = finished ? `${finished} of ${list.length} finished, ${stars} of ${list.length * 3} stars` : `${list.length} puzzles`;
+  $('line-name').textContent = line.name;
+  $('line-about').textContent = line.about;
+  $('b-line').hidden = LINES.length < 2;
+}
+
+// The lines sheet: every line with how far along it you are. Picking one shows its list from the top.
+function openLines() {
+  const ul = $('lines'); ul.textContent = '';
+  for (const l of LINES) {
+    const { finished, total } = tally(l);
+    const li = document.createElement('li');
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'line-row';
+    if (l === line) btn.setAttribute('aria-current', 'true');
+    const [c] = tint(l);
+    const bar = document.createElement('span'); bar.className = 'line-bar'; bar.style.background = c; bar.setAttribute('aria-hidden', 'true');
+    const name = document.createElement('strong'); name.textContent = l.name;
+    const about = document.createElement('small'); about.textContent = l.about;
+    const prog = document.createElement('span'); prog.className = 'line-prog';
+    prog.textContent = finished === total ? 'All finished' : finished ? `${finished} of ${total} finished` : `${total} puzzles`;
+    const main = document.createElement('span'); main.className = 'line-main'; main.append(name, about);
+    btn.append(bar, main, prog);
+    btn.addEventListener('click', () => { const changed = l !== line; closeSheets(); if (changed) { setLine(l); drawList(); $('s-list').querySelector('.list-scroll').scrollTop = 0; } });
+    li.append(btn); ul.append(li);
+  }
+  openSheet('sheet-lines');
 }
 
 // ---- one puzzle -------------------------------------------------------------------------------------------------
@@ -170,13 +230,13 @@ function say(text, kind = '', chip = null) {
 const showTrace = () => say(sel.length ? spell(cur.p.grid, sel) : '');
 
 function openPuzzle(i) {
-  const p = PUZZLES[i];
+  const p = list[i];
   const lineOf = new Int8Array(N);
   p.lines.forEach((line, k) => line.forEach(stop => { lineOf[stop] = k; }));
   const game = { ...(gameFor(p.id) || fresh()), grid: p.grid };
-  cur = { i, p, words: p.lines.map(l => spell(p.grid, l)), extra: new Set(p.detours.split(' ')), lineOf, game };
+  cur = { i, p, line, words: p.lines.map(l => spell(p.grid, l)), extra: detoursOf(line.id), lineOf, game };
   sel = []; cursor = -1; $('spoken').textContent = '';
-  $('where').textContent = `No. ${i + 1}`;
+  $('where').textContent = LINES.length > 1 ? `${shortName(line)} · No. ${i + 1}` : `No. ${i + 1}`;
   buildBoard();
   for (const k of game.found) drawLine(k, false);
   $('s-list').hidden = true; $('s-play').hidden = false;
@@ -304,9 +364,20 @@ board.addEventListener('keydown', e => {
 board.addEventListener('blur', () => { $('spoken').textContent = ''; if (cursor >= 0) { cursor = -1; if (cur) paint(); } });
 
 function submit() {
-  const { p, game, words } = cur;
-  const word = spell(p.grid, sel);
+  const word = spell(cur.p.grid, sel);
   sel = [];
+  judgeWord(word);
+}
+function judgeWord(word) {
+  const { p, game, words } = cur;
+  if (word.length >= MIN_LENGTH && !cur.extra.ready && !words.some((w, n) => w === word && !game.found.includes(n))) {
+    // The line's detours are still on their way: this word waits for them, then counts or doesn't.
+    const mine = cur;
+    say('One moment', 'note');
+    paint();
+    mine.extra.wait.then(() => { if (cur === mine) judgeWord(word); });
+    return;
+  }
   if (word.length < MIN_LENGTH) {
     say(word.length > 1 ? 'Too short' : '', 'note nope');
   } else {
@@ -314,7 +385,7 @@ function submit() {
     const lower = word.toLowerCase();
     if (k >= 0) return found(k);
     if (game.detours.includes(lower)) say(`${word} already counted`, 'note nope');
-    else if (cur.extra.has(lower)) {
+    else if (isDetour(cur.extra, p.id, lower)) {
       const fare = fareFor(lower);
       game.detours.push(lower); game.fare += fare;
       let won = 0; while (game.fare >= FARE_PER_TOKEN) { game.fare -= FARE_PER_TOKEN; game.tokens++; won++; }
@@ -323,6 +394,13 @@ function submit() {
     } else say('Not a word on this map', 'note nope');
   }
   paint();
+}
+
+// Is this word one of the puzzle's detours? Each puzzle's list is read into a set the first time it's asked.
+const detourCache = new Map();
+function isDetour(extra, id, word) {
+  if (!detourCache.has(id) && extra.words[id] !== undefined) detourCache.set(id, new Set(extra.words[id].split(' ')));
+  return !!detourCache.get(id)?.has(word);
 }
 
 function found(k) {
@@ -420,12 +498,12 @@ twice($('m-erase'), 'Tap again to erase everything', () => {
 });
 
 function shareText() {
-  const { p, game, i } = cur;
+  const { p, game, i, line: l } = cur;
   const n = starsFor(game);
   const bits = [`${p.lines.length} lines`, game.spent ? `${game.spent} token${game.spent > 1 ? 's' : ''}` : 'no tokens'];
   if (saved.options.clock) bits.push(clock(game.ms));
   if (game.night) bits.push('night service');
-  return `Crosstown No. ${i + 1} ${'★'.repeat(n)}${'☆'.repeat(3 - n)}\n${bits.join(', ')}\n${SITE}`;
+  return `Crosstown ${LINES.length > 1 ? `${l.name} ` : ''}No. ${i + 1} ${'★'.repeat(n)}${'☆'.repeat(3 - n)}\n${bits.join(', ')}\n${SITE}`;
 }
 
 function showDone() {
@@ -499,15 +577,22 @@ window.addEventListener('popstate', e => {
   if (cur && !id) {
     if (anySheet()) { closeSheets(); addStep(); } else leave();
   } else if (!cur && id) {
-    const i = PUZZLES.findIndex(p => p.id === id);
-    if (i >= 0) { if (anySheet()) closeSheets(); openPuzzle(i); }
+    const p = PUZZLES.find(q => q.id === id);
+    if (p) { if (anySheet()) closeSheets(); if (p.line !== line.id) { setLine(lineOf(p.line)); drawList(); } openPuzzle(list.indexOf(p)); }
   }
 });
 
 // ---- start ------------------------------------------------------------------------------------------------------
 $('b-back').addEventListener('click', back);
-$('b-continue').addEventListener('click', () => { const n = nextUp(); if (n >= 0) fromList(n); });
+$('b-continue').addEventListener('click', () => {
+  const n = nextUp();
+  if (n >= 0) { fromList(n); return; }
+  const l = nextLine();
+  if (l) { setLine(l); drawList(); $('s-list').querySelector('.list-scroll').scrollTop = 0; $('b-continue').focus({ preventScroll: true }); }
+});
+$('b-line').addEventListener('click', openLines);
 window.addEventListener('pagehide', () => { if (cur) { stopClock(); keep(); } });
+setLine(line);
 drawList();
 // A reload on a puzzle's step opens on the list, so that step goes too, and Back from the list leaves the game.
 if (!single && history.state?.[STEP]) { backing = true; history.back(); }
