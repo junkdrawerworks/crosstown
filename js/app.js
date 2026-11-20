@@ -764,6 +764,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && anySheet()
 function openMenu() {
   $('o-clock').checked = saved.options.clock; $('o-night').checked = saved.options.night;
   $('m-restart').hidden = !cur; $('m-erase').hidden = !!cur;
+  if (cur?.game.done) $('m-restart').textContent = 'Play this puzzle again';
   openSheet('sheet-menu');
 }
 $('b-menu').addEventListener('click', openMenu);
@@ -773,15 +774,22 @@ $('m-how').addEventListener('click', () => { closeSheets('keep'); openSheet('she
 $('o-clock').addEventListener('change', e => { setOption('clock', e.target.checked); if (cur) $('clock').hidden = !e.target.checked; else drawList(); });
 $('o-night').addEventListener('change', e => { setOption('night', e.target.checked); if (cur) paint(); else drawList(); });
 
-// The page can't show a confirm box everywhere it runs, so the button asks for a second tap instead.
+// The page can't show a confirm box everywhere it runs, so the button asks for a second tap instead. The ask can be
+// worked out at the first tap (`ask` a function).
 let armed = null;
 function twice(btn, ask, act) {
   btn.addEventListener('click', () => {
-    if (armed !== btn) { armed = btn; btn.textContent = ask; return; }
+    if (armed !== btn) { armed = btn; btn.textContent = typeof ask === 'function' ? ask() : ask; return; }
     armed = null; act();
   });
 }
-twice($('m-restart'), 'Tap again to clear this puzzle', () => {
+// A finished map's stars go with it, so the second tap says how many.
+const restartAsk = () => {
+  if (!cur.game.done) return 'Tap again to clear this puzzle';
+  const n = starsFor(cur.game);
+  return n === 1 ? 'Tap again: its 1 star goes too' : `Tap again: its ${n} stars go too`;
+};
+twice($('m-restart'), restartAsk, () => {
   dropWaiting(cur.p.id);
   cur.game = fresh(); setGame(cur.p.id, null);
   const i = cur.i; closeSheets(); openPuzzle(i);

@@ -284,6 +284,14 @@ assert.equal(await text('#m-restart'), 'Tap again to clear this puzzle');
 await page.click('#m-restart');
 assert.equal(await text('#count'), `0 of ${PUZZLES[1].lines.length} lines`);
 await page.click('#b-back');
+// On the map finished with one star, the second tap says so in the singular. Closing the sheet keeps the map.
+await page.click('#route li:nth-child(1) .row');
+await page.click('#b-menu');
+await page.click('#m-restart');
+assert.equal(await text('#m-restart'), 'Tap again: its 1 star goes too');
+await page.keyboard.press('Escape');
+assert.equal(await text('#count'), 'All found');
+await page.click('#b-back');
 
 // Fits a phone: nothing scrolls sideways, on the list or in a puzzle.
 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'the list scrolls sideways on a phone');
@@ -1147,6 +1155,15 @@ if (LINES.length > 1) {
   assert.equal(await tab.textContent('#sheet-done .eyebrow'), 'Last stop', 'Results on an old map should not say its line was just finished');
   assert.deepEqual([await tab.isHidden('#done-line'), await tab.textContent('#done-line')], [true, '']);
   assert.equal(await tab.textContent('#b-done-next'), `On to the ${second.name}`);
+  await tab.keyboard.press('Escape');
+  // Starting a finished map over is playing it again, and its second tap says what goes: its stars.
+  await tab.click('#b-menu');
+  assert.equal(await tab.textContent('#m-restart'), 'Play this puzzle again');
+  await tab.click('#m-restart');
+  assert.equal(await tab.textContent('#m-restart'), 'Tap again: its 3 stars go too', "a finished map's start-over should name the stars it takes");
+  await tab.keyboard.press('Escape');
+  await tab.click('#b-menu');
+  assert.equal(await tab.textContent('#m-restart'), 'Play this puzzle again', 'closing the sheet should take back the first tap');
   await tab.keyboard.press('Escape'); await tab.click('#b-back');
   // A finished line's route ends at a terminus, "End of the line"; one under way runs off the end as before.
   const terminus = () => tab.evaluate(() => getComputedStyle(document.getElementById('route'), '::after').content);
