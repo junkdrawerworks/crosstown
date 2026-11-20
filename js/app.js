@@ -993,7 +993,7 @@ function showDone() {
   }
   strips.hidden = !ended;
   $('b-done-next').hidden = n < 0 && !to;
-  $('b-done-next').textContent = to ? `On to the ${to.name}` : 'Next puzzle';
+  $('b-done-next').textContent = to ? `On to ${shortName(to)}` : 'Next puzzle';
   openSheet('sheet-done');
 }
 $('b-results').addEventListener('click', showDone);

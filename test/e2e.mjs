@@ -1532,7 +1532,7 @@ if (LINES.length > 1) {
   await tab.click('#b-results');
   assert.equal(await tab.textContent('#sheet-done .eyebrow'), 'Last stop', 'Results on an old map should not say its line was just finished');
   assert.deepEqual([await tab.isHidden('#done-line'), await tab.textContent('#done-line')], [true, '']);
-  assert.equal(await tab.textContent('#b-done-next'), `On to the ${second.name}`);
+  assert.equal(await tab.textContent('#b-done-next'), `On to ${second.name.replace(/ Line$/, '')}`);
   await tab.keyboard.press('Escape');
   // Starting a finished map over is playing it again, and its second tap says what goes: its stars.
   await tab.click('#b-menu');
@@ -1724,7 +1724,7 @@ if (LINES.length > 2) {
   const line2 = await tab.evaluate(c => { const d = document.createElement('i'); d.style.color = `var(--${c})`; document.body.append(d); const v = getComputedStyle(d).color; d.remove(); return v; }, second.color);
   assert.equal(await tab.evaluate(() => getComputedStyle(document.querySelector('#done-line .rt')).backgroundColor), line2, "the strip should be in the line's colour");
   assert.deepEqual(strip, { count: 1, border: true, bar: true, height: 6, shown: `${second.name}${total} of ${total}${total * 3 - 1}★` });
-  assert.deepEqual([await tab.evaluate(() => document.activeElement.id), await tab.textContent('#b-done-next')], ['b-done-next', `On to the ${third.name}`], 'a finished line should offer the next one');
+  assert.deepEqual([await tab.evaluate(() => document.activeElement.id), await tab.textContent('#b-done-next')], ['b-done-next', `On to ${third.name.replace(/ Line$/, '')}`], 'a finished line should offer the next one');
   await tab.keyboard.press('Escape');
   assert.equal(await tab.textContent('#b-next'), `On to ${third.name.replace(/ Line$/, '')}`, "the map's Next should offer the next line too");
   await tab.setViewportSize({ width: 320, height: 568 });
@@ -1843,7 +1843,7 @@ if (LINES.length > 2) {
     assert.deepEqual([await tab.textContent('#clock'), (await savedGame(q.id)).ms], [end.clock, g.ms], `${tag}: the clock ran on after the end`);
     if (move === 'next') await tab.click('#b-done-next');
     else if (move === 'on') {
-      assert.equal(await tab.textContent('#b-done-next'), `On to the ${y.name}`);
+      assert.equal(await tab.textContent('#b-done-next'), `On to ${y.name.replace(/ Line$/, '')}`);
       await tab.click('#b-done-next');
     } else if (move === 'map') {
       await tab.click('#sheet-done .panel [data-close]');
