@@ -200,6 +200,14 @@ a { color: inherit; }
 .route li::after { top: 50%; height: 50%; }
 .route li:first-child::before, .route li:last-child::after { display: none; }
 .route li.done::before, .route li.done::after, .route li.after-done::before { background: var(--line-deep, var(--cross)); }   /* the roundels' shade */
+/* A finished line ends as a strip map ends one: the route runs on past the last stop to a flat bar, the terminus. */
+.route.finished li:last-child::after { display: block; }
+.route.finished::after {
+  content: 'End of the line'; display: block; min-height: 34px; padding: 8px 0 0 54px;
+  font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+  background: linear-gradient(var(--line-deep, var(--cross)) 0 0) 17px 0 / 6px 14px no-repeat,
+    linear-gradient(var(--line-deep, var(--cross)) 0 0) 6px 12px / 28px 6px no-repeat;
+}
 .row {
   position: relative; z-index: 1;
   display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 14px;

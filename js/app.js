@@ -208,6 +208,7 @@ function drawList() {
     $('tally').textContent = `Every line finished: ${all.toLocaleString()} puzzles, ${got.toLocaleString()} of ${(all * 3).toLocaleString()} stars`;
   } else $('tally').textContent = finished ? `${finished} of ${list.length} finished, ${stars} of ${list.length * 3} stars` : `${list.length} puzzles`;
   route.setAttribute('aria-label', `${line.name} puzzles`);
+  route.classList.toggle('finished', finished === list.length);
   $('line-name').textContent = line.name;
   $('line-about').textContent = line.about;
   $('b-line').setAttribute('aria-label', `${line.name}: ${line.about}. Change line`);
