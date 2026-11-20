@@ -1853,6 +1853,8 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
     assert.ok(Date.now() < end, "the new release's offline copy kept the old index.html");
     await new Promise(r => setTimeout(r, 100));
   }
+  // Each release keeps its copy under its own name (making it never touches the one in use), and the old one goes.
+  assert.deepEqual(await page.evaluate(() => caches.keys()), ['crosstown-next']);
 
   // A release whose copy is cut short (here one line's detours don't come) leaves the copy from before whole, and is
   // tried again as the signal comes back, without another page load.
@@ -1872,6 +1874,7 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
   }
   const inCopy = await page.evaluate(async lines => (await Promise.all(lines.map(l => caches.match(`js/detours/${l}.js`)))).filter(Boolean).length, LINES.map(l => l.id));
   assert.equal(inCopy, LINES.length, 'every line\'s detours should be in the offline copy');
+  assert.deepEqual(await page.evaluate(() => caches.keys()), ['crosstown-after']);
 
   // A page of a new release that comes from the network, but one of whose files doesn't (here puzzles.js, on the first
   // load and the one after), doesn't take the copy's older file to go with the new ones: the mix wouldn't run, and

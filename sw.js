@@ -7,9 +7,10 @@
 // fails to come, none goes in, the copy from before stays as it was, and the page asks again later (when the signal
 // comes back, see the end of js/app.js). Files fetched while the game is in use never go into it. A new copy is made
 // only when this file changes by a byte, so FILES is a fingerprint of every file in SHELL: change any of them and
-// test/e2e.mjs fails until FILES is changed to match (it says what to), which changes this file.
-const CACHE = 'crosstown-v2'; // bump the number when the file list changes
+// test/e2e.mjs fails until FILES is changed to match (it says what to), which changes this file. Each release keeps
+// its copy under its own name, so making the next one never touches the one in use, and this worker reads only its own.
 const FILES = 'fc880c01'; // test/e2e.mjs checks this
+const CACHE = 'crosstown-' + FILES;
 const SHELL = [
   './', 'index.html', 'icon.svg', 'manifest.webmanifest',
   'css/app.css', 'js/app.js', 'js/board.js', 'js/rules.js', 'js/puzzles.js', 'fonts/overpass.woff2',
@@ -94,9 +95,9 @@ function detours(e) {
 
 // A file from the copy, marked like the network's (see askAgainNextTime() below), so a reload once the network is
 // back asks again rather than reusing it.
-const kept = request => caches.match(request, { ignoreSearch: true }).then(r => r && askAgainNextTime(r));
+const kept = request => caches.open(CACHE).then(c => c.match(request, { ignoreSearch: true })).then(r => r && askAgainNextTime(r));
 // With no network: the file from the copy, or for anything it hasn't got, the app's page.
-const offline = request => kept(request).then(r => r || caches.match('index.html'));
+const offline = request => kept(request).then(r => r || caches.open(CACHE).then(c => c.match('index.html')));
 
 // GitHub Pages lets browsers keep files for ten minutes, so without this an update can take that long to show up.
 // Ask the server every time instead; a file that hasn't changed comes back as a quick "not modified".
