@@ -463,7 +463,10 @@ function paint() {
   // The buttons for after a finish wait for the done sheet (see found()).
   const over = game.done && !cur.finishing;
   $('fare').hidden = over; $('after').hidden = !over;
-  if (over) { const { n, to } = after(); $('b-next').hidden = n < 0 && !to; $('b-next').textContent = to ? `On to ${shortName(to)}` : 'Next puzzle'; }
+  if (over) {
+    const { n, to } = after(), map = nextMap();
+    $('b-next').hidden = n < 0 && !to && !map; $('b-next').textContent = map ? 'Next map' : to ? `On to ${shortName(to)}` : 'Next puzzle';
+  }
 }
 
 // The readout, a live region: `heard` is said after the text but not shown (what the chip and the drawn line tell the
@@ -945,7 +948,7 @@ function found(k) {
     game.done = true; game.hint = null;
     if (!saved.best[p.id] || game.ms < saved.best[p.id]) saved.best[p.id] = Math.round(game.ms);
     keepBest(p.id, game);
-    cur.finishing = true;
+    cur.finishing = cur.finishedHere = true;
     keep(); paint();
     cur.justEnded = !endsLine || !ended(cur.line) ? null : LINES.every(ended) ? 'all' : 'line';
     askToKeep();
@@ -1162,6 +1165,9 @@ function terminus(name, color, n, stars) {
 }
 // After a finished puzzle: the next one on its line (n), or with the line finished, the next line with one left (to).
 function after() { const n = nextUp(cur.i); return { n, to: n < 0 ? nextLine() : null }; }
+// A map opened again on a finished line goes on to the next map along it, round to No. 1 after the last, from the
+// button under it. Finishing a puzzle offers the next line there, as Results always does.
+const nextMap = () => cur.game.done && !cur.finishedHere && nextUp(cur.i) < 0;
 // Next puzzle, or on to the next line's next puzzle. Either way the puzzle's step in the history is changed, not added
 // to, so Back means the list, and after a new line it's that line's list.
 function goNext() {
@@ -1173,12 +1179,21 @@ function goNext() {
   openPuzzle(n >= 0 ? n : nextUp());
   // A new line says so where the eye is, unless the readout is saying how to trace (a first visit).
   if (to && !cur.game.done && traced()) say(`Now on the ${to.name}`, 'note');
+  moved();
+}
+// The next map along a finished line, the same way.
+function goMap() {
+  stopClock(); keep();
+  openPuzzle((cur.i + 1) % list.length);
+  moved();
+}
+function moved() {
   changeStep();
   // The map may have had the focus already, so moving it there says nothing new: the new puzzle is said instead.
   const dark = saved.options.night && !cur.game.found.length && !cur.game.done;
   $('spoken').textContent = `${shortName(line)}, No. ${cur.i + 1}. ${dark ? 'Night service' : cur.p.clue}`;
 }
-$('b-next').addEventListener('click', goNext);
+$('b-next').addEventListener('click', () => (nextMap() ? goMap() : goNext()));
 $('b-done-next').addEventListener('click', goNext);
 
 $('b-share').addEventListener('click', async () => {

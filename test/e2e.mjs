@@ -1751,6 +1751,24 @@ if (LINES.length > 1) {
     await tab.reload(); await tab.evaluate(() => document.fonts.ready);
     assert.equal(await tab.textContent('#tally'), full);
   }
+  // A map opened again on a finished line goes on to the next map along it, from the button under it, round to No. 1
+  // after the last. Results still offers the next line, and Back still means the list.
+  {
+    const n = main.puzzles.length;
+    await tab.click('#route li:last-child .row');
+    assert.equal(await tab.textContent('#b-next'), 'Next map', "a map opened again on a finished line should offer the next map");
+    await tab.click('#b-next');
+    assert.equal(await tab.textContent('#where'), 'Main, No. 1', 'Next map after the last should go round to No. 1');
+    assert.equal(await tab.textContent('#spoken'), `Main, No. 1. ${main.puzzles[0].clue}`);
+    await tab.click('#b-next');
+    assert.equal(await tab.textContent('#where'), 'Main, No. 2');
+    await tab.click('#b-results');
+    assert.equal(await tab.textContent('#b-done-next'), `On to ${second.name.replace(/ Line$/, '')}`, 'Results should still offer the next line');
+    await tab.keyboard.press('Escape');
+    await tab.goBack();
+    await tab.waitForSelector('#s-list:not([hidden])', { timeout: 5000 }).catch(() => assert.fail('Back after Next map should go to the list'));
+    assert.equal(await tab.locator('#route li').count(), n);
+  }
   // A finished line short of three stars on some puzzles: its tally ends with a way to the first of them.
   {
     const some = { ...games, [main.puzzles[4].id]: { ...finished(main.puzzles[4]), spent: 1 }, [main.puzzles[8].id]: { ...finished(main.puzzles[8]), crossAt: 2 } };
