@@ -123,7 +123,7 @@ function drawList() {
     li.append(btn); route.append(li);
   });
   const up = nextUp(), onward = up < 0 ? nextLine() : null;
-  $('b-continue').textContent = up >= 0 ? `${started(gameFor(list[up].id)) ? 'Resume' : 'Play'} No. ${up + 1}` : onward ? `On to the ${onward.name}` : 'All finished';
+  $('b-continue').textContent = up >= 0 ? `${started(gameFor(list[up].id)) ? 'Resume' : 'Play'} No. ${up + 1}` : onward ? `On to ${shortName(onward)}` : 'All finished';
   $('b-continue').disabled = up < 0 && !onward;
   $('tally').textContent = finished ? `${finished} of ${list.length} finished, ${stars} of ${list.length * 3} stars` : `${list.length} puzzles`;
   $('line-name').textContent = line.name;

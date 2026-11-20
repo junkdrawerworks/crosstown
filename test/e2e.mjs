@@ -388,6 +388,23 @@ for (const [width, height] of [[360, 780], [320, 568]]) {
   assert.deepEqual(errors, []);
   await other.close();
 }
+// With a line finished, the big button offers the next line, and the three still share a row from 360 up. Below that
+// the big button has a row of its own and the other two share the next.
+for (const l of LINES.length > 1 ? LINES : []) {
+  const games = Object.fromEntries(l.puzzles.map(q => [q.id, finished(q)]));
+  const { other, tab, errors } = await visitor({ options: { line: l.id }, best: {}, games });
+  const next = LINES[(LINES.indexOf(l) + 1) % LINES.length];
+  assert.equal(await tab.textContent('#b-continue'), `On to ${next.name.replace(/ Line$/, '')}`);
+  for (const width of [430, 390, 360, 320]) {
+    await tab.setViewportSize({ width, height: 800 });
+    const boxes = await tab.evaluate(() => ['b-continue', 'b-how', 'b-list-menu'].map(id => { const r = document.getElementById(id).getBoundingClientRect(); return { top: Math.round(r.top), h: r.height, right: r.right }; }));
+    const tops = boxes.map(b => b.top);
+    const tidy = width >= 360 ? new Set(tops).size === 1 : tops[0] < tops[1] && tops[1] === tops[2];
+    assert.ok(tidy && boxes.every(b => b.h <= 44.5 && b.right <= width - 15.5), `the list buttons with "${await tab.textContent('#b-continue')}" at ${width}px: ${JSON.stringify(boxes)}`);
+  }
+  assert.deepEqual(errors, []);
+  await other.close();
+}
 
 // The bar names the line and the number. On a small phone with the clock past an hour, only the line's name gives
 // way: the number always shows whole.
@@ -695,7 +712,7 @@ if (LINES.length > 1) {
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games });
   assert.equal(await tab.textContent('#line-name'), main.name);
   assert.equal(await tab.textContent('#tally'), `${main.puzzles.length} of ${main.puzzles.length} finished, ${main.puzzles.length * 3} of ${main.puzzles.length * 3} stars`);
-  assert.equal(await tab.textContent('#b-continue'), `On to the ${second.name}`, 'a finished line should offer the next one');
+  assert.equal(await tab.textContent('#b-continue'), `On to ${second.name.replace(/ Line$/, '')}`, 'a finished line should offer the next one');
   await tab.click('#b-continue');
   assert.equal(await tab.textContent('#line-name'), second.name);
   assert.equal(await tab.locator('#route li').count(), second.puzzles.length);

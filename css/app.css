@@ -334,6 +334,7 @@ a { color: inherit; }
 /* Narrow phones (many Androids are 360 wide): keep the button labels on one line. */
 @media (max-width: 374px) {
   .mast-row .btn:not(.icon) { padding: 0 12px; }
+  .mast-row .btn.primary { padding: 0 10px; }   /* room for "On to University" beside the other two */
 }
 @media (max-width: 359px) {
   .mast-row .primary { flex-basis: 100%; }
