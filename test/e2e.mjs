@@ -81,7 +81,7 @@ assert.equal(await page.locator('#board .stop').count(), 48);
 assert.equal(await page.isDisabled('#b-token'), true);
 // With no tokens the button is off but still says, when tapped, how to get one; the meter, tapped, gives the count.
 // Both notes fit the readout without moving the map, on a small phone too.
-const NO_TOKENS = `No tokens yet. Detours, words that aren't lines, earn fare: ${FARE_PER_TOKEN} fare is a token`;
+const NO_TOKENS = `No tokens yet. Detours, words that aren’t lines, earn fare: ${FARE_PER_TOKEN} fare is a token`;
 await page.click('#b-token', { force: true });
 assert.equal(await text('#readout'), NO_TOKENS, 'a tap on the token button with none should say how fare works');
 for (const [width, height] of [[320, 568], [390, 844]]) {
@@ -912,7 +912,7 @@ if (LINES.length > 1) {
   await tab.click('#b-continue'); await drag(tab, a.lines[1]); await tab.click('#b-back');
   assert.equal((await kept())[1], cut, 'the save put aside should stay put');
   // The list says the save couldn't be read and a copy is kept, for this visit.
-  const ASIDE = "Your saved progress couldn't be read, so this list starts fresh. A copy is kept in this browser.";
+  const ASIDE = "Your saved progress couldn’t be read, so this list starts fresh. A copy is kept in this browser.";
   assert.equal(await tab.isVisible('#aside-note') && await tab.textContent('#aside-note'), ASIDE, 'the list should say a save was put aside');
 
   await tab.evaluate(s => localStorage.setItem('crosstown.v1', s), whole);
@@ -1101,7 +1101,7 @@ for (const how of ['blocked', 'full']) {
   const errors = [];
   tab.on('pageerror', e => errors.push(e.message));
   await tab.goto(base);
-  const note = "This browser isn't keeping your progress, so it goes when the page closes.";
+  const note = "This browser isn’t keeping your progress, so it goes when the page closes.";
   assert.equal(await tab.isVisible('#unkept') && await tab.textContent('#unkept'), note, `the list should say progress isn't kept (${how})`);
   await tab.click('#b-continue');
   for (const line of p.lines) await drag(tab, line);
@@ -1112,7 +1112,7 @@ for (const how of ['blocked', 'full']) {
   assert.equal(await tab.isVisible('#unkept'), true);
   // The Lines sheet doesn't claim each line keeps its progress.
   await tab.click('#b-line');
-  assert.equal(await tab.textContent('#lines-note'), `This browser isn't keeping progress, so it goes when the page closes. 1 of ${LINES.reduce((n, l) => n + l.puzzles.length, 0)} finished, 3 stars.`, `the Lines sheet should say progress isn't kept (${how})`);
+  assert.equal(await tab.textContent('#lines-note'), `This browser isn’t keeping progress, so it goes when the page closes. 1 of ${LINES.reduce((n, l) => n + l.puzzles.length, 0)} finished, 3 stars.`, `the Lines sheet should say progress isn’t kept (${how})`);
   await tab.keyboard.press('Escape');
   await tab.click('#b-list-menu'); await tab.click('#m-erase'); await tab.click('#m-erase');
   assert.equal(await tab.textContent('#toast'), 'Erased for this visit only');
@@ -1425,12 +1425,12 @@ if (LINES.length > 1) {
   await tab.click('#b-continue');
   await drag(tab, first.path);
   await tab.waitForFunction(() => document.getElementById('readout').textContent !== 'One moment', null, { timeout: 8000 });
-  assert.equal(await tab.textContent('#readout'), "Can't check detours right now. Try that word again in a moment");
+  assert.equal(await tab.textContent('#readout'), "Can’t check detours right now. Try that word again in a moment");
   assert.equal(await tab.locator('#pips .full').count(), 0);
   // Each try asks for the file at an address of its own, as a browser may hand back a failed import's failure.
   await drag(tab, first.path);
   await tab.waitForFunction(() => document.getElementById('readout').textContent !== 'One moment', null, { timeout: 8000 });
-  assert.equal(await tab.textContent('#readout'), "Can't check detours right now. Try that word again in a moment");
+  assert.equal(await tab.textContent('#readout'), "Can’t check detours right now. Try that word again in a moment");
   server.refuse = null;
   await drag(tab, first.path);
   await tab.waitForFunction(() => document.getElementById('readout').textContent.startsWith('Detour:'), null, { timeout: 8000 })
@@ -2058,7 +2058,7 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
   await page.click('#b-continue');
   assert.equal(await page.textContent('#clue'), pq.clue);
   await drag(page, pd.path);
-  assert.equal(await page.textContent('#readout'), "Can't check detours right now. Reload to play the new version");
+  assert.equal(await page.textContent('#readout'), "Can’t check detours right now. Reload to play the new version");
   release = '';
   assert.deepEqual(problems, [], 'problems while offline or on a stalled connection');
   await ctx.close();

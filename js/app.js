@@ -166,7 +166,7 @@ function showLine(l) {
 // for the file at an address of its own (`?try=1`, and so on, which the offline copy answers as the plain file). The
 // one-file copy has every line's detours in it, and nothing to fetch.
 const detourSets = new Map();
-const STALE = "Can't check detours right now. Reload to play the new version";
+const STALE = "Can’t check detours right now. Reload to play the new version";
 let toldNewer = false;
 function detoursOf(lineId) {
   let d = detourSets.get(lineId);
@@ -237,7 +237,7 @@ function drawList() {
   $('b-continue').hidden = end;
   // Where reading worked and only the writes since have failed (storage full, say), what was saved is still there.
   $('unkept').hidden = keeping();
-  $('unkept').textContent = readFailed ? "This browser isn't keeping your progress, so it goes when the page closes."
+  $('unkept').textContent = readFailed ? "This browser isn’t keeping your progress, so it goes when the page closes."
     : 'This browser has stopped saving, so new progress goes when the page closes.';
   $('tally').classList.toggle('end', end);
   $('aside-note').hidden = !startedFresh;   // the network's tally, in ink where the big button was
@@ -312,7 +312,7 @@ function drawLines() {
   const [d, a, g] = [done, all, got].map(n => n.toLocaleString());
   const count = done === all ? ` All ${a} finished, ${g} stars.` : done ? ` ${d} of ${a} finished${got ? `, ${g} star${got === 1 ? '' : 's'}` : ''}.` : '';
   $('lines-note').textContent = (keeping() ? 'Each line keeps its own progress.'
-    : "This browser isn't keeping progress, so it goes when the page closes.") + count;
+    : "This browser isn’t keeping progress, so it goes when the page closes.") + count;
   ul.children[at]?.querySelector('button').focus({ preventScroll: true });   // drawn again while open: focus stays put
 }
 
@@ -747,7 +747,7 @@ function land(mine, q, arrived) {
   mine.waiting = null; clearTimeout(q.timer); pending.delete(mine);
   if (game.done) return;
   if (!arrived) {
-    if (shown) { say(q.extra.stale ? STALE : "Can't check detours right now. Try that word again in a moment", 'note'); paint(); }
+    if (shown) { say(q.extra.stale ? STALE : "Can’t check detours right now. Try that word again in a moment", 'note'); paint(); }
     return;
   }
   const { news, counted } = fares(game, mine.p, q.extra, q.words);
@@ -850,7 +850,7 @@ const routeFirst = game => game.hint?.level === 2 && !game.found.includes(game.h
 $('b-token').addEventListener('click', () => {
   const { p, game } = cur;
   if (game.done) return;
-  if (!game.tokens) { say(`No tokens ${game.spent ? 'left' : 'yet'}. Detours, words that aren't lines, earn fare: ${FARE_PER_TOKEN} fare is a token`, 'note'); return; }
+  if (!game.tokens) { say(`No tokens ${game.spent ? 'left' : 'yet'}. Detours, words that aren’t lines, earn fare: ${FARE_PER_TOKEN} fare is a token`, 'note'); return; }
   if (routeFirst(game)) { say('Trace the dashed route first. No token spent', 'note'); return; }
   if (game.hint && game.hint.level === 1) { game.hint.level = 2; say('The dashed route starts at the solid ring', 'note'); }
   else {
