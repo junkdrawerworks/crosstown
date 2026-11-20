@@ -51,6 +51,10 @@ try { saved = load(); localStorage.setItem(`${KEY}.check`, '1'); localStorage.re
 // The games saved couldn't be read when the page opened, so the list starts fresh, and says so (see drawList()).
 const startedFresh = putAside === 'games';
 const keeping = () => !readFailed && !writeFailed;
+// What the list and the Lines sheet say when it isn't. Where reading worked and only the writes since have failed
+// (storage full, say), what was saved is still there, so only new progress goes.
+const unkept = () => (readFailed ? 'This browser isn’t keeping your progress, so it goes when the page closes.'
+  : 'This browser has stopped saving, so new progress goes when the page closes.');
 
 // This window's changes, laid over what's stored (`now`). Where both windows have played the same puzzle, the two
 // games are put together (see combine()). A game this window took out (Start this puzzle over) goes whatever the
@@ -272,12 +276,10 @@ function drawList() {
   $('b-continue').textContent = up >= 0 ? `${started(gameFor(list[up].id)) ? 'Resume' : 'Play'} No. ${up + 1}` : onward ? `On to ${shortName(onward)}` : '';
   $('b-continue').disabled = false;   // off in the page as sent, until this has run
   $('b-continue').hidden = end;
-  // Where reading worked and only the writes since have failed (storage full, say), what was saved is still there.
   $('unkept').hidden = keeping();
-  $('unkept').textContent = readFailed ? "This browser isn’t keeping your progress, so it goes when the page closes."
-    : 'This browser has stopped saving, so new progress goes when the page closes.';
-  $('tally').classList.toggle('end', end);
-  $('aside-note').hidden = !startedFresh;   // the network's tally, in ink where the big button was
+  $('unkept').textContent = unkept();
+  $('tally').classList.toggle('end', end);   // the network's tally, in ink where the big button was
+  $('aside-note').hidden = !startedFresh;
   if (end) {
     let all = 0, got = 0;
     for (const l of LINES) { const t = tally(l); all += t.total; got += t.stars; }
@@ -348,8 +350,7 @@ function drawLines() {
   // Each line keeps its own progress (unless the browser isn't keeping any), then the count over every line.
   const [d, a, g] = [done, all, got].map(n => n.toLocaleString());
   const count = done === all ? ` All ${a} finished, ${g} stars.` : done ? ` ${d} of ${a} finished${got ? `, ${g} star${got === 1 ? '' : 's'}` : ''}.` : '';
-  $('lines-note').textContent = (keeping() ? 'Each line keeps its own progress.'
-    : "This browser isn’t keeping progress, so it goes when the page closes.") + count;
+  $('lines-note').textContent = (keeping() ? 'Each line keeps its own progress.' : unkept()) + count;
   ul.children[at]?.querySelector('button').focus({ preventScroll: true });   // drawn again while open: focus stays put
 }
 

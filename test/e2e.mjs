@@ -1174,7 +1174,7 @@ for (const how of ['blocked', 'full']) {
   assert.equal(await tab.isVisible('#unkept'), true);
   // The Lines sheet doesn't claim each line keeps its progress.
   await tab.click('#b-line');
-  assert.equal(await tab.textContent('#lines-note'), `This browser isn’t keeping progress, so it goes when the page closes. 1 of ${LINES.reduce((n, l) => n + l.puzzles.length, 0)} finished, 3 stars.`, `the Lines sheet should say progress isn’t kept (${how})`);
+  assert.equal(await tab.textContent('#lines-note'), `This browser isn’t keeping your progress, so it goes when the page closes. 1 of ${LINES.reduce((n, l) => n + l.puzzles.length, 0)} finished, 3 stars.`, `the Lines sheet should say progress isn’t kept (${how})`);
   await tab.keyboard.press('Escape');
   await tab.click('#b-list-menu'); await tab.click('#m-erase'); await tab.click('#m-erase');
   assert.equal(await tab.textContent('#toast'), 'Erased for this visit only');
@@ -1188,7 +1188,12 @@ for (const how of ['blocked', 'full']) {
   assert.equal(await tab.isHidden('#unkept'), true);
   await tab.evaluate(() => { Storage.prototype.setItem = () => { throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); }; });
   await tab.click('#route li:nth-child(2) .row'); await drag(tab, PUZZLES[1].lines[1]); await tab.click('#b-back');
-  assert.equal(await tab.isVisible('#unkept') && await tab.textContent('#unkept'), 'This browser has stopped saving, so new progress goes when the page closes.');
+  const stopped = 'This browser has stopped saving, so new progress goes when the page closes.';
+  assert.equal(await tab.isVisible('#unkept') && await tab.textContent('#unkept'), stopped);
+  // The Lines sheet says the same, not that everything goes.
+  await tab.click('#b-line');
+  assert.equal(await tab.textContent('#lines-note'), `${stopped} 1 of ${LINES.reduce((n, l) => n + l.puzzles.length, 0)} finished, 3 stars.`, 'the Lines sheet should say only new progress goes');
+  await tab.keyboard.press('Escape');
   assert.deepEqual(errors, []);
   await other.close();
 }
