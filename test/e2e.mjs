@@ -334,6 +334,13 @@ function contrast(a, b) {
   assert.equal(await letters(tab), 'visible', 'the finished map should show behind the done sheet');
   assert.equal(await tab.isHidden('#b-done-next'), true);
   assert.equal(await tab.textContent('#sheet-done .eyebrow'), 'Every line finished');
+  // It gives the line's tally and the whole network's, each a strip ending at a terminus, heard in words.
+  {
+    const all = LINES.reduce((n, l) => n + l.puzzles.length, 0), n = PUZZLES.length;
+    const [count, got, most] = await tab.evaluate(ns => ns.map(v => v.toLocaleString()), [all, all * 3 - 1, all * 3]);
+    assert.deepEqual(await tab.$$eval('#done-line .term .sr-only', s => s.map(x => x.textContent)), [`${LINES[0].name}: ${n} of ${n}, ${n * 3 - 1} of ${n * 3} stars`, `Every line: ${count} of ${count}, ${got} of ${most} stars`]);
+    assert.deepEqual(await tab.$$eval('#done-line .term-show', s => s.map(x => [x.getAttribute('aria-hidden'), x.textContent])), [['true', `${LINES[0].name}${n} of ${n}${n * 3 - 1}★`], ['true', `Every line${count} of ${count}${got}★`]]);
+  }
   assert.equal(await tab.textContent('#done-stats'), 'no detours', 'a map finished without detours should say "no detours", not "0 detours"');
   assert.equal(await tab.evaluate(() => document.activeElement.id), 'b-share', 'the last done sheet should start on Share');
   const earned = await tab.evaluate(() => ({ fill: getComputedStyle(document.querySelector('#done-stars .got svg')).fill, bg: getComputedStyle(document.querySelector('#sheet-done .panel')).backgroundColor }));
@@ -1268,7 +1275,15 @@ if (LINES.length > 2) {
   await drag(tab, last.lines[0]);
   await tab.waitForSelector('#sheet-done:not([hidden])');
   assert.equal(await tab.textContent('#sheet-done .eyebrow'), `${second.name} finished`);
-  assert.equal(await tab.textContent('#done-line'), `${second.name}: ${total} of ${total}, ${total * 3 - 1} of ${total * 3} stars`);
+  assert.equal(await tab.textContent('#done-line .sr-only'), `${second.name}: ${total} of ${total}, ${total * 3 - 1} of ${total * 3} stars`);
+  // The tally is a strip in the line's colour, with a route ending at a terminus bar.
+  const strip = await tab.evaluate(() => {
+    const t = document.querySelector('#done-line .term'), rt = t.querySelector('.rt'), c = getComputedStyle(rt).backgroundColor;
+    return { count: document.querySelectorAll('#done-line .term').length, border: getComputedStyle(t).borderTopColor === c, bar: getComputedStyle(rt, '::after').backgroundColor === c, height: rt.getBoundingClientRect().height, shown: t.querySelector('.term-show').textContent };
+  });
+  const line2 = await tab.evaluate(c => { const d = document.createElement('i'); d.style.color = `var(--${c})`; document.body.append(d); const v = getComputedStyle(d).color; d.remove(); return v; }, second.color);
+  assert.equal(await tab.evaluate(() => getComputedStyle(document.querySelector('#done-line .rt')).backgroundColor), line2, "the strip should be in the line's colour");
+  assert.deepEqual(strip, { count: 1, border: true, bar: true, height: 6, shown: `${second.name}${total} of ${total}${total * 3 - 1}★` });
   assert.deepEqual([await tab.evaluate(() => document.activeElement.id), await tab.textContent('#b-done-next')], ['b-done-next', `On to the ${third.name}`], 'a finished line should offer the next one');
   await tab.keyboard.press('Escape');
   assert.equal(await tab.textContent('#b-next'), `On to ${third.name.replace(/ Line$/, '')}`, "the map's Next should offer the next line too");

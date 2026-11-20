@@ -822,15 +822,38 @@ function showDone() {
   // with any left once its own line is finished.
   const { n, to } = after(), ended = cur.justEnded;
   $('done-eyebrow').textContent = ended === 'all' ? 'Every line finished' : ended ? `${cur.line.name} finished` : 'Last stop';
-  const t = tally(cur.line);
-  // Emptied when it's not shown, as the sheet's description still reads it.
-  $('done-line').textContent = ended ? `${cur.line.name}: ${t.finished} of ${t.total}, ${t.stars} of ${t.total * 3} stars` : '';
-  $('done-line').hidden = !ended;
+  // The line's tally, on a strip in its colour over a route to a terminus, as a finished line's route ends on the
+  // list. The finish that ends every line adds the whole network's. Emptied when it's not shown, as the sheet's
+  // description still reads it.
+  const strips = $('done-line'); strips.textContent = '';
+  if (ended) {
+    const t = tally(cur.line);
+    strips.append(terminus(cur.line.name, tint(cur.line)[0], t.finished, t.stars));
+    if (ended === 'all') {
+      let all = 0, got = 0;
+      for (const l of LINES) { const n = tally(l); all += n.finished; got += n.stars; }
+      strips.append(terminus('Every line', 'var(--cross)', all, got));
+    }
+  }
+  strips.hidden = !ended;
   $('b-done-next').hidden = n < 0 && !to;
   $('b-done-next').textContent = to ? `On to the ${to.name}` : 'Next puzzle';
   openSheet('sheet-done');
 }
 $('b-results').addEventListener('click', showDone);
+// "Market Line" and "81 of 81 · 243★" over a route to a terminus bar (every one of them finished, so the count is the
+// total too). A screen reader hears it in words: "Market Line: 81 of 81, 243 of 243 stars".
+function terminus(name, color, n, stars) {
+  const part = (tag, cls, text = '') => { const el = document.createElement(tag); el.className = cls; el.textContent = text; return el; };
+  const [count, most, got] = [n, n * 3, stars].map(v => v.toLocaleString());
+  const strip = part('p', 'term'); strip.style.setProperty('--c', color);
+  const shown = part('span', 'term-show'); shown.setAttribute('aria-hidden', 'true');
+  const tail = part('span', 'term-n', `${count} of ${count}`);
+  tail.append(part('span', 'sep'), part('span', 'st', `${got}★`));
+  shown.append(part('strong', 'term-name', name), tail, part('span', 'rt'));
+  strip.append(part('span', 'sr-only', `${name}: ${count} of ${count}, ${got} of ${most} stars`), shown);
+  return strip;
+}
 // After a finished puzzle: the next one on its line (n), or with the line finished, the next line with one left (to).
 function after() { const n = nextUp(cur.i); return { n, to: n < 0 ? nextLine() : null }; }
 // Next puzzle, or on to the next line's next puzzle. Either way the puzzle's step in the history is changed, not added

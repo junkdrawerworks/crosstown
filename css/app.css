@@ -349,7 +349,18 @@ a { color: inherit; }
 .stars svg { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--stop-edge); stroke-width: 1.8; stroke-linejoin: round; }
 .stars li.got svg { fill: var(--star); stroke: var(--star); }
 .done-stats { color: var(--muted); font-variant-numeric: tabular-nums; }
-.done-stats + .done-stats { margin-top: -12px; }   /* the line's tally, under the puzzle's */
+/* The finish that ends a line: its tally on a strip in its colour (set from app.js as --c), over a route that runs to
+   a terminus bar, as a finished line's route ends on the list. The route draws in as the sheet rises. */
+.done-line { display: flex; flex-direction: column; gap: 8px; }
+.term { border: 2px solid var(--c); border-radius: 12px; padding: 8px 14px 5px; }
+.term-show { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: 12px; row-gap: 8px; }
+.term-name { font-weight: 800; font-size: 17px; line-height: 1.2; overflow-wrap: anywhere; }
+.term .rt { grid-column: 1 / -1; height: 6px; margin: 7px 3px 7px 0; border-radius: 3px 0 0 3px; background: var(--c); position: relative; animation: ride .4s .15s ease-out both; }
+.term .rt::after { content: ''; position: absolute; right: -3px; top: -7px; width: 6px; height: 20px; border-radius: 1px; background: var(--c); }
+@keyframes ride { from { clip-path: inset(-8px 100% -8px 0); } to { clip-path: inset(-8px -8px -8px 0); } }
+.term-n { color: var(--muted); font-size: 13.5px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.term-n .sep { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; vertical-align: middle; margin: 0 6px 3px; }
+.term-n .st { color: var(--star); }
 .key-title { font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: -6px; }
 .key { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; }
 .key li { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14.5px; letter-spacing: .03em; min-width: 0; overflow-wrap: anywhere; }
