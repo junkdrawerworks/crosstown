@@ -1975,6 +1975,18 @@ if (LINES.length > 1) {
   await tab.click('#b-line');
   assert.equal(await tab.getAttribute('#lines li:nth-child(2) .line-row', 'aria-label'), `${m.name}: ${m.about}. 28 of ${m.puzzles.length} finished, 84 stars, 1 under way`);
   assert.equal(await tab.textContent('#lines li:nth-child(2) .line-prog'), `28 of ${m.puzzles.length}84★`);
+  // Along each row's foot, a strip filled in the line's colour as far as you've got: 28 of the Market Line, none of the
+  // rest.
+  const strips = await tab.evaluate(() => [...document.querySelectorAll('#lines .line-row')].map(row => {
+    const strip = row.querySelector('.line-strip'), fill = strip?.firstElementChild;
+    if (!fill) return null;
+    const probe = document.createElement('i'); probe.style.color = getComputedStyle(row.querySelector('.line-bar')).backgroundColor; document.body.append(probe);
+    const colour = getComputedStyle(probe).color; probe.remove();
+    const a = strip.getBoundingClientRect(), b = row.getBoundingClientRect();
+    return { got: Math.round((1000 * fill.getBoundingClientRect().width) / a.width) / 1000, colour: getComputedStyle(fill).backgroundColor === colour, foot: a.bottom >= b.bottom - 3 && a.height <= 5 };
+  }));
+  const want = LINES.map(l => ({ got: l === m ? Math.round((1000 * 28) / m.puzzles.length) / 1000 : 0, colour: true, foot: true }));
+  assert.deepEqual(strips, want, 'each line in the Lines sheet should have a strip along its foot, filled as far as you\'ve got');
   await tab.keyboard.press('Escape');
   await tab.click('#tally .tally-link');
   assert.equal(await tab.textContent('#where'), `${m.name.replace(/ Line$/, '')}, No. 20`);

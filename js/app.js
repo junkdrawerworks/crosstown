@@ -375,7 +375,11 @@ function drawLines() {
     const said = whole ? `Finished, ${stared}` : finished ? `${finished} of ${total} finished, ${stared}${going ? `, ${going} under way` : ''}` : going ? 'Under way' : `${total} puzzles`;
     btn.setAttribute('aria-label', `${l.name}: ${l.about}. ${said}`);
     const main = document.createElement('span'); main.className = 'line-main'; main.append(name, ...(here ? [here] : []), about);
-    btn.append(bar, main, prog);
+    // Along the row's foot, a strip filled in the line's colour as far as you've got.
+    const strip = document.createElement('span'); strip.className = 'line-strip'; strip.setAttribute('aria-hidden', 'true');
+    const fill = document.createElement('i'); fill.style.width = `${(100 * finished) / total}%`; strip.append(fill);
+    btn.style.setProperty('--row-line', c);
+    btn.append(bar, main, prog, strip);
     btn.addEventListener('click', () => { if (l !== line) showLine(l); closeSheets(); });
     li.append(btn); ul.append(li);
   }
