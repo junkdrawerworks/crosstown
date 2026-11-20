@@ -58,6 +58,15 @@ test('the Main Line boards are the ones Mark played', async () => {
 });
 
 // A clue or name changed in a theme only reaches the game when the tool runs, so check that it did.
+test('the words How to play and the README give as examples are lines on the Main Line', async () => {
+  const main = new Set(LINES[0].puzzles.flatMap(p => p.lines.map(l => spell(p.grid, l))));
+  for (const file of ['../index.html', '../README.md']) {
+    const examples = [...(await readFile(new URL(file, import.meta.url), 'utf8')).matchAll(/\blike ([A-Z]{4,})\b/g)].map(m => m[1]);
+    assert.ok(examples.length >= 2, `${file} gives fewer examples than expected`);
+    for (const w of examples) assert.ok(main.has(w), `${file} gives ${w} as an example, but it isn't a line on the Main Line`);
+  }
+});
+
 test('each puzzle has its theme’s name and clue', () => {
   for (const p of PUZZLES) {
     const theme = THEMES.find(t => t.id === p.id);

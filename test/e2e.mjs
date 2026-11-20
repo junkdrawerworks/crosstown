@@ -232,6 +232,8 @@ assert.deepEqual(await page.$$eval('#done-stars li', l => l.map(li => li.textCon
 assert.equal(await page.getAttribute('#sheet-done .panel', 'aria-describedby'), 'done-sum done-stats done-line');
 assert.deepEqual([await text('#done-sum'), await text('#done-line')], ['1 of 3 stars.', ''], "the description should say the stars, and nothing of a line that isn't finished");
 assert.equal(await page.locator('#done-key li').count(), p.lines.length);
+assert.equal(await text('#done-key li.xt'), `${p.name.toUpperCase()} (the Crosstown)`, 'the key should give the Crosstown as the map names it, spaces and all');
+assert.notEqual(p.name.toUpperCase(), words[0], 'the first map should have a Crosstown of two words, to test the key');
 assert.equal(await page.locator('#board .stop.on').count(), 48);
 
 // Sharing falls back to the clipboard, or to text you can select.

@@ -749,11 +749,13 @@ function showDone() {
   if (saved.options.clock) stats.unshift(clock(game.ms));
   if (game.night) stats.push('night service');
   $('done-stats').textContent = stats.join(', ');
+  // The Crosstown is keyed by the map's name, spaces and all ("JUNK DRAWER"), where its letters are the line's.
   const key = $('done-key'); key.textContent = '';
+  const named = p.name.toUpperCase(), xt = named.normalize('NFD').replace(/[^A-Z]/g, '') === words[0] ? named : words[0];
   words.forEach((w, k) => {
     const li = document.createElement('li'); if (k === 0) li.className = 'xt';
     const sw = document.createElement('i'); sw.className = `c${k}`;
-    li.append(sw, k === 0 ? `${w} (the Crosstown)` : w); key.append(li);
+    li.append(sw, k === 0 ? `${xt} (the Crosstown)` : w); key.append(li);
   });
   // The last puzzle on a line says the line is finished, how it went, and offers the next line with any left.
   const { n, to } = after();
