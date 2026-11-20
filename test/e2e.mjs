@@ -364,7 +364,7 @@ await page.click('#b-back');
 await page.click('#route li:nth-child(1) .row');
 await page.click('#b-menu');
 await page.click('#m-restart');
-assert.equal(await text('#m-restart'), 'Tap again: its 1 star goes too');
+assert.equal(await text('#m-restart'), 'Tap again: its 1 star stays');
 await page.keyboard.press('Escape');
 assert.equal(await text('#count'), 'All found');
 await page.click('#b-back');
@@ -441,17 +441,16 @@ function contrast(a, b) {
   }
   assert.equal(await tab.locator('#board .stop.cursor').count(), 1);
 
-  // With every puzzle finished, the big button on the list goes rather than sitting there doing nothing, and the tally
-  // gives the whole network's: every puzzle, and the stars, with the one star missed on the last puzzle.
+  // With every puzzle finished, the tally gives the whole network's: every puzzle, and the stars, with the one star
+  // missed on the last puzzle, and a way to it. The big button goes for three stars, at the first puzzle short of them.
   await tab.click('#b-back');
   const all = LINES.reduce((n, l) => n + l.puzzles.length, 0);
   const [puzzles, got, most] = await tab.evaluate(ns => ns.map(n => n.toLocaleString()), [all, all * 3 - 1, all * 3]);
-  assert.equal(await tab.isHidden('#b-continue'), true, 'with every line finished, the big button should go, not sit there off');
-  assert.equal(await tab.textContent('#tally'), `Every line finished: ${puzzles} puzzles, ${got} of ${most} stars`);
+  assert.equal(await tab.textContent('#b-continue'), 'Go for three stars', 'with every line finished and a star short, the big button should go for three stars');
+  assert.equal(await tab.textContent('#tally'), `Every line finished: ${puzzles} puzzles, ${got} of ${most} stars No. ${PUZZLES.length} short of three stars`);
   // In ink and heavier than an ordinary tally: it's the biggest moment the list has.
   const look = await tab.evaluate(() => { const s = getComputedStyle(document.getElementById('tally')), h = getComputedStyle(document.querySelector('h1')); return [s.color === h.color, s.fontSize, s.fontWeight]; });
   assert.deepEqual(look, [true, '15px', '700'], 'the network\'s tally should be in ink, 15px, bold');
-  assert.equal(await tab.evaluate(() => document.querySelector('.mast-row button:not([hidden])').id), 'b-how', 'How to play should move up to the front of the row');
   for (const colorScheme of ['light', 'dark']) {
     await tab.emulateMedia({ colorScheme });
     // The stars on the list are small text, so full and empty ones need the contrast text does to tell apart.
@@ -459,6 +458,22 @@ function contrast(a, b) {
     assert.equal(await tab.getAttribute('#route .st', 'role'), 'img', 'the stars on the list should be read by their label, not as star glyphs');
     assert.ok(contrast(stars.color, stars.bg) >= 4.5, `the stars on the list are hard to see in ${colorScheme}: ${JSON.stringify(stars)}`);
   }
+  await tab.emulateMedia({ colorScheme: 'light' });
+  await tab.click('#b-continue');
+  assert.equal(await tab.textContent('#where'), `Main, No. ${PUZZLES.length}`, 'Go for three stars should open the puzzle short of them');
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+// With every puzzle on every line at three stars, the big button goes rather than sitting there doing nothing, and How
+// to play moves up to the front of the row.
+{
+  const games = Object.fromEntries(LINES.flatMap(l => l.puzzles).map(q => [q.id, finished(q)]));
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games });
+  const all = LINES.reduce((n, l) => n + l.puzzles.length, 0);
+  const [puzzles, most] = await tab.evaluate(ns => ns.map(n => n.toLocaleString()), [all, all * 3]);
+  assert.equal(await tab.isHidden('#b-continue'), true, 'with every star won, the big button should go, not sit there off');
+  assert.equal(await tab.textContent('#tally'), `Every line finished: ${puzzles} puzzles, ${most} of ${most} stars`);
+  assert.equal(await tab.evaluate(() => document.querySelector('.mast-row button:not([hidden])').id), 'b-how', 'How to play should move up to the front of the row');
   assert.deepEqual(errors, []);
   await other.close();
 }
@@ -1092,15 +1107,17 @@ if (LINES.length > 1) {
   // A, back on its list, stays on the line it had on show.
   await a.keyboard.press('Escape'); await a.click('#b-back');
   assert.equal(await a.textContent('#line-name'), LINES[0].name);
-  // A starts Market No. 1 over. B shows it, and B's next writes (an option, a line) don't bring the game back.
+  // A plays Market No. 1 again. B shows it, still finished with its best stars but to play again, and B's next writes
+  // (an option, a line) don't bring the old game back, or lose the stars.
   await pick(a, 2); await a.click('#route li:nth-child(1) .row');
   await a.click('#b-menu'); await a.click('#m-restart'); await a.click('#m-restart'); await a.click('#b-back');
-  await b.waitForFunction(() => document.querySelector('#route li:nth-child(1)').classList.contains('todo'), null, { timeout: 5000 })
-    .catch(() => assert.fail('a puzzle started over in one window should show as not started in the other'));
+  await b.waitForFunction(() => document.querySelector('#route li:nth-child(1) .row-go').textContent === 'Replay', null, { timeout: 5000 })
+    .catch(() => assert.fail('a puzzle started over in one window should show as one to play again in the other'));
+  assert.equal(await b.getAttribute('#route li:nth-child(1)', 'class'), 'done', 'a puzzle played again should keep its stars in the other window');
   await b.click('#b-list-menu'); await b.click('#o-clock'); await b.keyboard.press('Escape');
   await pick(b, 1);
   s = await stored();
-  assert.deepEqual([s.games[m.id], s.games[p.id]?.done, s.options.clock], [undefined, true, true], 'one window brought back a puzzle started over in the other');
+  assert.deepEqual([s.games[m.id], s.stars[m.id] > 0, s.games[p.id]?.done, s.options.clock], [undefined, true, true, true], 'one window brought back a puzzle started over in the other');
   // B erases every line while A has Market No. 2 open with a line found: A's puzzle starts afresh, and A leaving it
   // doesn't write it back. A's list empties, and A's next write doesn't bring anything back.
   const m2 = LINES[1].puzzles[1];
@@ -1700,15 +1717,53 @@ if (LINES.length > 1) {
   assert.deepEqual([await tab.isHidden('#done-line'), await tab.textContent('#done-line')], [true, '']);
   assert.equal(await tab.textContent('#b-done-next'), `On to ${second.name.replace(/ Line$/, '')}`);
   await tab.keyboard.press('Escape');
-  // Starting a finished map over is playing it again, and its second tap says what goes: its stars.
+  // Starting a finished map over is playing it again, and its second tap says its stars stay.
   await tab.click('#b-menu');
   assert.equal(await tab.textContent('#m-restart'), 'Play this puzzle again');
   await tab.click('#m-restart');
-  assert.equal(await tab.textContent('#m-restart'), 'Tap again: its 3 stars go too', "a finished map's start-over should name the stars it takes");
+  assert.equal(await tab.textContent('#m-restart'), 'Tap again: its 3 stars stay', "a finished map's start-over should say its stars stay");
   await tab.keyboard.press('Escape');
   await tab.click('#b-menu');
   assert.equal(await tab.textContent('#m-restart'), 'Play this puzzle again', 'closing the sheet should take back the first tap');
-  await tab.keyboard.press('Escape'); await tab.click('#b-back');
+  // Played again, and finished worse, it keeps its best stars: the list, the tally and the Lines sheet count three, and
+  // the line stays finished. Under way, its row says so, with its best.
+  {
+    const q = main.puzzles[0], full = `${main.puzzles.length} of ${main.puzzles.length} finished, ${main.puzzles.length * 3} of ${main.puzzles.length * 3} stars`;
+    await tab.click('#m-restart'); await tab.click('#m-restart');
+    assert.equal(await tab.textContent('#count'), `0 of ${q.lines.length} lines`);
+    await drag(tab, q.lines[1]);
+    await tab.click('#b-back');
+    assert.deepEqual([await tab.textContent('#route li:nth-child(1) .row-sub'), await tab.textContent('#route li:nth-child(1) .row-go')], [`1 of ${q.lines.length} lines found, best ★★★`, 'Resume']);
+    assert.equal(await tab.textContent('#tally'), full, 'a finished puzzle played again should still count, with its best stars');
+    assert.equal(await tab.textContent('#b-continue'), `On to ${second.name.replace(/ Line$/, '')}`, 'a line with a puzzle played again should stay finished');
+    await tab.click('#route li:nth-child(1) .row');
+    for (const l of q.lines.slice(2)) await drag(tab, l);
+    await drag(tab, q.lines[0]);
+    await tab.waitForSelector('#sheet-done:not([hidden])');
+    assert.deepEqual([await tab.textContent('#done-sum'), await tab.textContent('#sheet-done .eyebrow')], ['2 of 3 stars.', 'Last stop'], 'a puzzle played again on a finished line should not say the line was just finished');
+    await tab.keyboard.press('Escape'); await tab.click('#b-back');
+    assert.equal(await tab.textContent('#route li:nth-child(1) .st'), '★★★', 'the list should keep the best stars');
+    assert.equal(await tab.textContent('#tally'), full, 'the tally should keep the best stars');
+    await tab.click('#b-line');
+    assert.match(await tab.getAttribute('#lines li:first-child button', 'aria-label'), new RegExp(`Finished, ${main.puzzles.length * 3} stars$`), 'the Lines sheet should keep the best stars');
+    await tab.keyboard.press('Escape');
+    // Kept over a reload, from what's saved.
+    await tab.reload(); await tab.evaluate(() => document.fonts.ready);
+    assert.equal(await tab.textContent('#tally'), full);
+  }
+  // A finished line short of three stars on some puzzles: its tally ends with a way to the first of them.
+  {
+    const some = { ...games, [main.puzzles[4].id]: { ...finished(main.puzzles[4]), spent: 1 }, [main.puzzles[8].id]: { ...finished(main.puzzles[8]), crossAt: 2 } };
+    const n = main.puzzles.length, { other: o2, tab: t2 } = await visitor({ options: {}, best: {}, games: some });
+    assert.equal(await t2.textContent('#tally'), `${n} of ${n} finished, ${n * 3 - 2} of ${n * 3} stars 2 short of three stars, next No. 5`);
+    await t2.click('#tally .tally-link');
+    assert.equal(await t2.textContent('#where'), 'Main, No. 5', 'the link should open the first puzzle short of three stars');
+    await t2.click('#b-back');
+    await t2.evaluate(id => { const s = JSON.parse(localStorage.getItem('crosstown.v1')); s.stars = { [id]: 3 }; localStorage.setItem('crosstown.v1', JSON.stringify(s)); }, main.puzzles[4].id);
+    await t2.reload(); await t2.evaluate(() => document.fonts.ready);
+    assert.equal(await t2.textContent('#tally'), `${n} of ${n} finished, ${n * 3 - 1} of ${n * 3} stars No. 9 short of three stars`, 'a best of three stars kept should count over the game saved');
+    await o2.close();
+  }
   // A finished line's route ends at a terminus, "End of the line"; one under way runs off the end as before.
   const terminus = () => tab.evaluate(() => getComputedStyle(document.getElementById('route'), '::after').content);
   assert.equal(await terminus(), '"End of the line"', 'a finished line should end at a terminus');

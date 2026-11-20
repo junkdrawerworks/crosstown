@@ -18,8 +18,9 @@ const KEY = 'crosstown.v1';
 const UNREADABLE = 'crosstown.v1.unreadable';   // a save that couldn't be read, put aside to be got back by hand
 const fresh = () => ({ found: [], detours: [], fare: 0, tokens: 0, spent: 0, hint: null, ms: 0, done: false, crossAt: -1, night: false });
 const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
-// `erasedAt` is when progress on every line was last erased, in any window (see mergeInto()).
-const blank = () => ({ options: { clock: false, night: false, line: LINES[0].id }, games: {}, best: {}, erasedAt: 0 });
+// `erasedAt` is when progress on every line was last erased, in any window (see mergeInto()). `stars` is each puzzle's
+// best stars, as `best` is its best time, kept when it's played again (see bestStars()).
+const blank = () => ({ options: { clock: false, night: false, line: LINES[0].id }, games: {}, best: {}, stars: {}, erasedAt: 0 });
 // What's stored, read into shape. Best times are kept only if they're times. A save that can't be read at all, or
 // has the wrong shape (its games in a list, say, as a hand edit could leave it), is put aside first (unless one
 // already is), before anything can write over it. `putAside` says what went: 'games' when the games couldn't be read.
@@ -37,8 +38,9 @@ function load() {
   const s = blank();
   if (!isObject(raw)) return s;
   const best = isObject(raw.best) ? Object.entries(raw.best).filter(([, t]) => Number.isFinite(t) && t > 0) : [];
+  const stars = isObject(raw.stars) ? Object.entries(raw.stars).filter(([, n]) => [1, 2, 3].includes(n)) : [];
   return { options: { ...s.options, ...(isObject(raw.options) ? raw.options : {}) }, games: isObject(raw.games) ? raw.games : {}, best: Object.fromEntries(best),
-    erasedAt: Number.isFinite(raw.erasedAt) ? raw.erasedAt : 0 };
+    stars: Object.fromEntries(stars), erasedAt: Number.isFinite(raw.erasedAt) ? raw.erasedAt : 0 };
 }
 // What this window has changed since its last write: games by id (a game taken out counts too), options by name, and
 // whether every game was erased.
@@ -58,19 +60,21 @@ const unkept = () => (readFailed ? 'This browser isn’t keeping your progress, 
 
 // This window's changes, laid over what's stored (`now`). Where both windows have played the same puzzle, the two
 // games are put together (see combine()). A game this window took out (Start this puzzle over) goes whatever the
-// other has. The faster best time stays. An erase stamps the save with its time, so a window that hears of an erase
+// other has. The faster best time stays, and the more best stars. An erase stamps the save with its time, so a window that hears of an erase
 // made elsewhere since it last read drops every game it holds, the one on screen too (see catchUp()), rather than
 // writing them back: whatever it played since was played on top of progress that was erased.
 let erasedThere = false;
 function mergeInto(now) {
-  if (changed.erased) { saved.erasedAt = now.erasedAt = Math.max(Date.now(), now.erasedAt + 1); now.games = {}; now.best = {}; }
-  else if (now.erasedAt > saved.erasedAt) { saved.games = {}; saved.best = {}; changed.games.clear(); erasedThere = true; }
+  if (changed.erased) { saved.erasedAt = now.erasedAt = Math.max(Date.now(), now.erasedAt + 1); now.games = {}; now.best = {}; now.stars = {}; }
+  else if (now.erasedAt > saved.erasedAt) { saved.games = {}; saved.best = {}; saved.stars = {}; changed.games.clear(); erasedThere = true; }
   for (const id of changed.games) {
     const mine = saved.games[id];
     if (!mine) delete now.games[id];
     else now.games[id] = combine(mine, now.games[id], id);
     const t = saved.best[id];
     if (t && !(now.best[id] <= t)) now.best[id] = t;
+    const n = saved.stars[id];
+    if (n && !(now.stars[id] >= n)) now.stars[id] = n;
   }
   for (const name of changed.options) now.options[name] = saved.options[name];
   return now;
@@ -160,6 +164,13 @@ function readGame(g, id) {
   };
 }
 const started = g => !!g && (g.done || g.found.length > 0 || g.detours.length > 0);
+// A puzzle's best stars: the most any finished game of it has got. A finished game keeps it, as it keeps its best time,
+// however it's played again (see keepBest()), and a finished game saved before stars were kept counts for itself, so
+// stars already won carry over as they are. A puzzle with any is finished: the list, the tallies and the Lines sheet
+// count it, with its best.
+const bestStars = id => Math.max(saved.stars[id] || 0, starsFor(gameFor(id) || {}));
+const isFinished = id => bestStars(id) > 0;
+const keepBest = (id, game) => { const n = starsFor(game); if (n > (saved.stars[id] || 0)) saved.stars[id] = n; };
 
 // ---- the lines --------------------------------------------------------------------------------------------------
 // The list shows one line at a time; the one last picked is kept with the options. Puzzle numbers count along a line.
@@ -172,7 +183,7 @@ const shortName = l => l.name.replace(/ Line$/, '');
 const tint = l => (l.color === 'cross' ? ['var(--cross)', 'var(--on-cross)', 'var(--cross)'] : [`var(--${l.color})`, 'var(--on-line)', `var(--${l.color}-deep, var(--${l.color}))`]);
 function tally(l) {
   let finished = 0, stars = 0, going = 0;
-  for (const p of l.puzzles) { const g = gameFor(p.id); if (g?.done) { finished++; stars += starsFor(g); } else if (started(g)) going++; }
+  for (const p of l.puzzles) { const n = bestStars(p.id); if (n) { finished++; stars += n; } else if (started(gameFor(p.id))) going++; }
   return { finished, stars, going, total: l.puzzles.length };
 }
 // Shows a line. Only picking one saves it (see pickLine()), so opening the page writes nothing, and a line picked
@@ -225,11 +236,19 @@ function detoursOf(lineId) {
 
 // ---- the list ---------------------------------------------------------------------------------------------------
 function nextUp(from = -1) {
-  for (let k = 1; k <= list.length; k++) { const i = (from + k) % list.length; if (!gameFor(list[i].id)?.done) return i; }
+  for (let k = 1; k <= list.length; k++) { const i = (from + k) % list.length; if (!isFinished(list[i].id)) return i; }
   return -1;
 }
 // The next line along with a puzzle left to play, for when this one is finished.
 const nextLine = () => { const at = LINES.indexOf(line); for (let k = 1; k < LINES.length; k++) { const l = LINES[(at + k) % LINES.length]; if (tally(l).finished < l.puzzles.length) return l; } return null; };
+// The numbers (from 0) of a line's puzzles short of three stars, and with every line finished, the first of them to go
+// for: on the line on show, or the next line along with one.
+const shortOf = l => l.puzzles.flatMap((q, i) => (bestStars(q.id) < 3 ? [i] : []));
+function hunt() {
+  const at = LINES.indexOf(line);
+  for (let k = 0; k < LINES.length; k++) { const l = LINES[(at + k) % LINES.length], s = shortOf(l); if (s.length) return { l, i: s[0] }; }
+  return null;
+}
 
 function drawList() {
   const route = $('route');
@@ -237,8 +256,10 @@ function drawList() {
   let finished = 0, stars = 0, prevDone = false;
   const going = [], up = nextUp();
   list.forEach((p, i) => {
-    const g = gameFor(p.id);
-    const state = g?.done ? 'done' : started(g) ? 'going' : 'todo';
+    // A finished puzzle played again shows as under way, with its best stars, until the new game is finished; one started
+    // over and not yet traced on shows as finished, and opens on a fresh board.
+    const g = gameFor(p.id), best = bestStars(p.id);
+    const state = g?.done ? 'done' : started(g) ? 'going' : best ? 'done' : 'todo';
     if (state === 'going') going.push(i);
     const li = document.createElement('li');
     // The puzzle the big button plays, not yet started, is the next stop (one under way says Resume).
@@ -248,34 +269,36 @@ function drawList() {
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'row';
     const sub = document.createElement('span'); sub.className = 'row-sub';
+    const st = document.createElement('span'); st.className = 'st'; st.textContent = '★'.repeat(best) + '☆'.repeat(3 - best);
+    st.setAttribute('role', 'img'); st.setAttribute('aria-label', `${best} of 3 stars`);   // not "black star, white star
+    if (best) { finished++; stars += best; }
     if (state === 'done') {
-      const n = starsFor(g); finished++; stars += n;
-      const st = document.createElement('span'); st.className = 'st'; st.textContent = '★'.repeat(n) + '☆'.repeat(3 - n);
-      st.setAttribute('role', 'img'); st.setAttribute('aria-label', `${n} of 3 stars`);   // not "black star, white star
       sub.append(p.name, ' ', st);
       if (saved.options.clock && saved.best[p.id]) sub.append(` ${clock(saved.best[p.id])}`);
     } else if (state === 'going') {
       sub.textContent = `${g.found.length} of ${p.lines.length} lines found`;
+      if (best) sub.append(', best ', st);
     } else {
       sub.textContent = `${p.lines.length} lines`;
     }
     // Night service keeps the clue off the list too, the same as on the sign, until a line is found.
-    const dark = saved.options.night && !g?.done && !g?.found.length;
+    const dark = saved.options.night && state !== 'done' && !g?.found.length;
     const clue = document.createElement('span'); clue.className = 'row-clue' + (dark ? ' dark-hours' : ''); clue.textContent = dark ? 'Night service' : p.clue;
     const main = document.createElement('span'); main.className = 'row-main'; main.append(clue, sub);
     const num = document.createElement('span'); num.className = 'roundel'; num.innerHTML = `<span class="sr-only">No. </span>${i + 1}`;   // said as on screen elsewhere
     const go = document.createElement('span'); go.className = 'row-go'; go.setAttribute('aria-hidden', 'true');
-    go.textContent = state === 'going' ? 'Resume' : state === 'done' ? 'Map' : next ? 'Next stop' : '';
+    go.textContent = state === 'going' ? 'Resume' : state === 'done' ? (g?.done ? 'Map' : 'Replay') : next ? 'Next stop' : '';
     btn.append(num, main, go);
     btn.addEventListener('click', () => fromList(i));
     li.append(btn); route.append(li);
   });
-  // The big button plays the next puzzle, or moves on to the next line with one left. With every line finished it goes,
-  // rather than staying as a button that does nothing, and the tally gives the whole network's.
-  const onward = up < 0 ? nextLine() : null, end = up < 0 && !onward;
-  $('b-continue').textContent = up >= 0 ? `${started(gameFor(list[up].id)) ? 'Resume' : 'Play'} No. ${up + 1}` : onward ? `On to ${shortName(onward)}` : '';
+  // The big button plays the next puzzle, or moves on to the next line with one left. With every line finished it goes
+  // for three stars where any are short, and goes, rather than staying as a button that does nothing, once none are.
+  // The tally gives the whole network's.
+  const onward = up < 0 ? nextLine() : null, end = up < 0 && !onward, more = end && hunt();
+  $('b-continue').textContent = up >= 0 ? `${started(gameFor(list[up].id)) ? 'Resume' : 'Play'} No. ${up + 1}` : onward ? `On to ${shortName(onward)}` : more ? 'Go for three stars' : '';
   $('b-continue').disabled = false;   // off in the page as sent, until this has run
-  $('b-continue').hidden = end;
+  $('b-continue').hidden = end && !more;
   $('unkept').hidden = keeping();
   $('unkept').textContent = unkept();
   $('tally').classList.toggle('end', end);   // the network's tally, in ink where the big button was
@@ -290,15 +313,19 @@ function drawList() {
   } else $('tally').textContent = finished ? `${finished} of ${list.length} finished, ${stars} of ${list.length * 3} stars` : `${list.length} puzzles`;
   // The big button takes the line in order, so a puzzle under way further down, behind one not yet played, would be
   // lost from sight: the tally ends with a way to the nearest, "· No. 20 under way" (or "· 3 under way, next No. 20").
-  const later = going.filter(i => i > up);
-  if (up >= 0 && later.length) {
+  // A finished line's tally ends with a way to the first puzzle short of three stars, "· No. 5 short of three stars"
+  // (or "· 27 short of three stars, next No. 5").
+  const tallyLink = (label, i) => {
     const sep = document.createElement('span'); sep.className = 'sep'; sep.setAttribute('aria-hidden', 'true');
     const to = document.createElement('button'); to.type = 'button'; to.className = 'tally-link';
-    to.textContent = later.length > 1 ? `${later.length} under way, next No. ${later[0] + 1}` : `No. ${later[0] + 1} under way`;
-    to.addEventListener('click', () => fromList(later[0]));
+    to.textContent = label;
+    to.addEventListener('click', () => fromList(i));
     const run = document.createElement('span'); run.className = 'tally-run'; run.append(sep, to);
     $('tally').append(' ', run);
-  }
+  };
+  const later = going.filter(i => i > up), short = up < 0 ? shortOf(line) : [];
+  if (up >= 0 && later.length) tallyLink(later.length > 1 ? `${later.length} under way, next No. ${later[0] + 1}` : `No. ${later[0] + 1} under way`, later[0]);
+  if (short.length) tallyLink(short.length > 1 ? `${short.length} short of three stars, next No. ${short[0] + 1}` : `No. ${short[0] + 1} short of three stars`, short[0]);
   route.setAttribute('aria-label', `${line.name} puzzles`);
   route.classList.toggle('finished', finished === list.length);
   $('line-name').textContent = line.name;
@@ -909,14 +936,18 @@ function found(k) {
   // finished. The done sheet rises after that, and only then do Results and Next puzzle take the fare's place.
   if (all) {
     stopClock();
+    // Whether this finish was the one that ended its line, or every line: the done sheet marks that moment, and only
+    // that one (Results on any map of a finished line opened later reads as any finished map does, and so does a
+    // finish of a puzzle played again on a line already finished). This puzzle was finished before if it had stars.
+    const ended = l => tally(l).finished === l.puzzles.length;
+    const endedBefore = l => l.puzzles.every(q => (q.id === p.id ? saved.stars[q.id] > 0 : isFinished(q.id)));
+    const endsLine = !endedBefore(cur.line);
     game.done = true; game.hint = null;
     if (!saved.best[p.id] || game.ms < saved.best[p.id]) saved.best[p.id] = Math.round(game.ms);
+    keepBest(p.id, game);
     cur.finishing = true;
     keep(); paint();
-    // Whether this finish was the one that ended its line, or every line: the done sheet marks that moment, and only
-    // that one (Results on any map of a finished line opened later reads as any finished map does).
-    const ended = l => tally(l).finished === l.puzzles.length;
-    cur.justEnded = !ended(cur.line) ? null : LINES.every(ended) ? 'all' : 'line';
+    cur.justEnded = !endsLine || !ended(cur.line) ? null : LINES.every(ended) ? 'all' : 'line';
     askToKeep();
     const word = $('readout').textContent;
     setTimeout(() => { if (cur?.p === p && $('readout').textContent === word) sayName(); }, 550);
@@ -1026,14 +1057,15 @@ function twice(btn, ask, act) {
     armed = null; act();
   });
 }
-// A finished map's stars go with it, so the second tap says how many.
+// A finished map keeps its best stars when it's played again, so the second tap says they stay.
 const restartAsk = () => {
   if (!cur.game.done) return 'Tap again to clear this puzzle';
-  const n = starsFor(cur.game);
-  return n === 1 ? 'Tap again: its 1 star goes too' : `Tap again: its ${n} stars go too`;
+  const n = bestStars(cur.p.id);
+  return n === 1 ? 'Tap again: its 1 star stays' : `Tap again: its ${n} stars stay`;
 };
 twice($('m-restart'), restartAsk, () => {
   dropWaiting(cur.p.id); toldSpent.delete(cur.p.id);
+  keepBest(cur.p.id, cur.game);
   cur.game = fresh(); setGame(cur.p.id, null);
   const i = cur.i; closeSheets(); openPuzzle(i);
   // The new game is marked as started over, so it isn't put together with the game it replaced, still open in another
@@ -1042,7 +1074,7 @@ twice($('m-restart'), restartAsk, () => {
 });
 twice($('m-erase'), 'Tap again to erase every line', () => {
   // Every game goes, here and in any other window, rather than being merged with what's stored.
-  dropWaiting(); toldSpent.clear(); saved.games = {}; saved.best = {}; changed.games.clear(); changed.erased = true; save();
+  dropWaiting(); toldSpent.clear(); saved.games = {}; saved.best = {}; saved.stars = {}; changed.games.clear(); changed.erased = true; save();
   closeSheets(); drawList(); toast(keeping() ? 'Progress erased on every line' : 'Erased for this visit only');
 });
 
@@ -1211,7 +1243,9 @@ $('b-continue').addEventListener('click', () => {
   const n = nextUp();
   if (n >= 0) { fromList(n); return; }
   const l = nextLine();
-  if (l) { showLine(l); $('b-continue').focus({ preventScroll: true }); }
+  if (l) { showLine(l); $('b-continue').focus({ preventScroll: true }); return; }
+  const h = hunt();   // every line finished: the first puzzle short of three stars
+  if (h) { if (h.l !== line) showLine(h.l); fromList(h.i); }
 });
 $('b-line').addEventListener('click', openLines);
 // The fare meter, tapped, gives the count, and how many detours so far.
