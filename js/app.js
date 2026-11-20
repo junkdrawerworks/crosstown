@@ -494,14 +494,14 @@ function showTrace(keys = false) {
   $('readout').append(sep, part('sr-only', ', '), part('send', keys ? `Enter again on ${last}` : `tap ${last} again`));
 }
 
-// The bar names the line and the number, "Main · No. 1". On a narrow phone with the clock on, only the line's name
-// gives way, so the number always shows. The dot is drawn, since the font's own has no width and hugs the number;
-// a screen reader hears "Main, No. 1".
+// The bar names the line and the number, "Main ▬ No. 1", with a short bar between in the line's colour, as on the
+// list. On a narrow phone with the clock on, only the line's name gives way, so the number always shows. A screen
+// reader hears "Main, No. 1".
 function showWhere(i) {
   const where = $('where'), part = (cls, text = '') => { const s = document.createElement('span'); s.className = cls; s.textContent = text; return s; };
   where.textContent = '';
   if (LINES.length > 1) {
-    const sep = part('sep'); sep.setAttribute('aria-hidden', 'true');
+    const sep = part('sep'); sep.setAttribute('aria-hidden', 'true'); sep.style.setProperty('--sep', tint(line)[0]);
     where.append(part('where-line', shortName(line)), part('sr-only', ', '), sep);
   }
   where.append(part('where-no', `No. ${i + 1}`));

@@ -881,6 +881,17 @@ if (LINES.length > 1) {
     }, [LINES.map(l => l.name.replace(/ Line$/, '')), time]);
     assert.deepEqual(cut, [], `line names cut off in the bar at ${width} px with the clock at ${time}`);
   }
+  // Between the name and the number, a short bar in the line's colour, in either palette, as on the list.
+  for (const colorScheme of ['light', 'dark']) {
+    await tab.emulateMedia({ colorScheme });
+    const sep = await tab.evaluate(color => {
+      const probe = document.createElement('i'); probe.style.color = `var(--${color})`; document.body.append(probe);
+      const want = getComputedStyle(probe).color; probe.remove();
+      const s = getComputedStyle(document.querySelector('#where .sep'));
+      return { bar: parseFloat(s.width) > 2 * parseFloat(s.height), colour: s.backgroundColor === want };
+    }, l.color);
+    assert.deepEqual(sep, { bar: true, colour: true }, `the bar's separator should be a short bar in the ${l.name}'s colour in ${colorScheme}`);
+  }
   assert.deepEqual(errors, []);
   await other.close();
 }

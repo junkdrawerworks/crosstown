@@ -278,8 +278,8 @@ a { color: inherit; }
 .where { flex: 1; min-width: 0; display: flex; align-items: center; font-weight: 800; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
 .where-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .where-no { flex: none; }
-/* Drawn rather than typed: the font's middle dot has no width. The letter spacing after the name evens the gaps. */
-.where .sep { flex: none; width: .24em; height: .24em; border-radius: 50%; background: currentColor; margin-inline: .29em .35em; }
+/* A short bar in the line's colour (set from app.js). The letter spacing after the name evens the gaps. */
+.where .sep { flex: none; width: .75em; height: .3em; border-radius: .15em; background: var(--sep, currentColor); margin-inline: .34em .4em; }
 .clock { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--muted); padding-right: 4px; }
 
 .sign { background: var(--sign); color: var(--on-sign); border-radius: 6px; padding: 10px 14px 9px; display: grid; grid-template-columns: 1fr auto; column-gap: 12px; align-items: end; }
