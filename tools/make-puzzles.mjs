@@ -9,7 +9,7 @@
 // dictionary word that can be traced on that board (the "detours" that earn fare). The same seed gives the same
 // boards, so running it again changes nothing unless a theme changed. The work is shared across the CPUs.
 import { createRequire } from 'node:module';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
@@ -333,5 +333,12 @@ ${body}
 };
 `);
   }
+  // The offline copy keeps every line's detours: sw.js lists them on the line after its "each line's detours" note.
+  const swFile = new URL('../sw.js', import.meta.url);
+  const sw = await readFile(swFile, 'utf8');
+  const listed = `  ${LINES.map(l => `'js/detours/${l.id}.js',`).join(' ')}\n`;
+  const after = sw.replace(/(\/\/ each line's detours[^\n]*\n)[^\n]*\n/, (_, note) => note + listed);
+  if (after === sw && !sw.includes(listed)) throw new Error("sw.js has no \"each line's detours\" note to list them after");
+  if (after !== sw) { await writeFile(swFile, after); console.log('sw.js now keeps every line\'s detours: npm test will say what FILES in it should be'); }
   console.log(`\n${todo.length} laid out, ${all.length} puzzles on ${LINES.length} line${LINES.length > 1 ? 's' : ''} written to js/puzzles.js and js/detours/`);
 }

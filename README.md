@@ -19,15 +19,16 @@
 - **The Crosstown.** One word names the theme and starts and ends on opposite edges of the map.
 - **Detours earn fare.** Any other word of four letters or more is a detour. Four letters earn 1 fare, five earn 2, six earn 3, seven or more earn 4, and every 4 fare becomes a token.
 - **A token is a hint.** It rings the stops of a line you haven't found. A second token on the same line draws its route and marks where it starts.
+- **Seven lines.** The puzzles come in lines you switch between on the list: the Main Line (the first 108, a bit of everything), then the Market Line (food and drink), Park (nature and the outdoors), Workshop (making, fixing and the home), Theater (arts, play and pastimes), University (science, history, language and the body) and Airport (places and getting around). Each line keeps its own numbers and progress, 586 puzzles in all.
 - **Three stars.** One for finishing, one for spending no tokens, one for finding the Crosstown before any other line.
 - **Clock and night service.** Two options: time each puzzle and keep your best, and hide the clue until you find your first line.
 - No account and no server. Your progress stays in your browser. It works offline and installs to a phone's home screen.
 
 ## The puzzles
 
-The 108 puzzles are written for this game: the themes, the clues and the word lists are in `tools/themes.mjs`, and nothing is taken from any other game's puzzles. `node tools/make-puzzles.mjs` picks a set of words from each theme that fills the 48 stops exactly, packs them into the grid, and keeps the tidiest layout it finds: no word can be spelled through another line's stops, no theme word left out of the set can be traced at all, no line but the Crosstown runs edge to edge, and no two lines cut across each other. `npm test` then checks every board again without trusting the tool.
+The 586 puzzles are written for this game: the themes, the clues and the word lists are in `tools/themes/`, one file per line, and nothing is taken from any other game's puzzles. `node tools/make-puzzles.mjs` picks a set of words from each theme that fills the 48 stops exactly, packs them into the grid, and keeps the tidiest layout it finds: no word can be spelled through another line's stops, no theme word left out of the set can be traced at all, no line but the Crosstown runs edge to edge, and no two lines cut across each other. `npm test` then checks every board again without trusting the tool.
 
-To add a puzzle, add a theme (a clue, the Crosstown, and a dozen or so words of four letters or more) and run the tool.
+To add a puzzle, add a theme (a clue, the Crosstown, and a dozen or so words of four letters or more) to a line's file and run the tool: `node tools/make-puzzles.mjs market` lays out just that line, and `node tools/make-puzzles.mjs tide-pool` just that puzzle, printing its board. To add a line, give it a file in `tools/themes/` and an entry in `tools/themes.mjs`. A puzzle's id is what progress is saved under, so it never changes once published.
 
 ## Running it
 
@@ -37,7 +38,7 @@ It's a static site: plain HTML, CSS and JavaScript, with no build step.
 npx serve .                   # or any static file server, then open the printed address
 npm install                   # only for the tools and tests below
 npm test                      # checks every puzzle, then plays one in Chromium through the real page (needs Playwright)
-node tools/make-puzzles.mjs   # lays the puzzles out again from tools/themes.mjs
+node tools/make-puzzles.mjs   # lays every puzzle out again from tools/themes/ (a few minutes)
 node tools/screenshots.mjs    # redraws docs/*.png and og.png
 node tools/make-icons.mjs     # redraws the PNG icons from icon.svg
 npm run build                 # dist/crosstown.html, the whole game in one file
@@ -50,8 +51,9 @@ To put it online with GitHub Pages: **Settings → Pages → Build and deploymen
 - `js/app.js`: the list, the map, tracing with a finger, mouse or keyboard, tokens, and what's saved.
 - `js/board.js`: the grid's geometry, shared by the game, the puzzle tool and the tests.
 - `js/rules.js`: fare, stars and the clock's arithmetic.
-- `js/puzzles.js`: the boards, written by `tools/make-puzzles.mjs`. Don't edit it by hand.
-- `tools/themes.mjs`: where every puzzle starts.
+- `js/puzzles.js`: the lines and their boards, written by `tools/make-puzzles.mjs`. Don't edit it by hand.
+- `js/detours/`: each line's detours, the words that earn fare, also written by the tool. A line's file loads when the line is shown.
+- `tools/themes.mjs`: the lines, their names and colours. `tools/themes/`: where every puzzle starts, one file per line.
 - `tools/rude-words.mjs`: words that never count as detours, plurals and past tenses included, shared by the puzzle tool and the tests.
 - `tools/play.mjs`: a small static server and the hands that drag and tap for the tests and screenshots.
 - `test/unit.test.mjs`, `test/e2e.mjs`: the puzzle checks and the play-through.

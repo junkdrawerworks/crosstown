@@ -168,11 +168,11 @@ assert.equal(await page.locator('#board .stop.on').count(), 48);
 await page.click('#b-share');
 await page.waitForSelector('#toast:not([hidden]), #share-box:not([hidden])', { timeout: 5000 });
 if (await page.isVisible('#toast')) assert.equal(await text('#toast'), 'Result copied');
-else assert.match(await page.inputValue('#share-text'), /^Crosstown No. 1 /);
+else assert.match(await page.inputValue('#share-text'), /^Crosstown Main Line No. 1 /);
 
 // On to the next one, with night service on: the clue stays hidden until the first line.
 await page.click('#b-done-next');
-assert.equal(await text('#where'), 'No. 2');
+assert.equal(await text('#where'), 'Main · No. 2');
 await page.click('#b-menu');
 await page.check('#o-night');
 await page.check('#o-clock');
@@ -249,7 +249,8 @@ function contrast(a, b) {
 // The last puzzle has no next one, so its done sheet starts on Share instead.
 {
   const last = PUZZLES.at(-1);
-  const games = Object.fromEntries(PUZZLES.slice(0, -1).map(q => [q.id, finished(q)]));
+  // Every other puzzle on every line finished, so this is the last one anywhere.
+  const games = Object.fromEntries(LINES.flatMap(l => l.puzzles).filter(q => q.id !== last.id).map(q => [q.id, finished(q)]));
   games[last.id] = { found: last.lines.map((_, k) => k).slice(1), detours: [] };
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games });
   await tab.click('#b-continue');
@@ -397,7 +398,7 @@ for (const [width, height] of [[360, 780], [320, 568]]) {
   });
   assert.equal(shown.toast, false, 'a toast would cover the text to copy');
   assert.ok(shown.label === 'Select the text and copy it' && shown.gap >= 0 && shown.gap < 12, `the instruction should sit just above the box: ${JSON.stringify(shown)}`);
-  assert.ok(shown.focused && shown.value.startsWith('Crosstown No. 1 ') && shown.selected === shown.value.length, `the result should be in the box, selected: ${JSON.stringify(shown)}`);
+  assert.ok(shown.focused && shown.value.startsWith('Crosstown Main Line No. 1 ') && shown.selected === shown.value.length, `the result should be in the box, selected: ${JSON.stringify(shown)}`);
   await tab.keyboard.press('Escape');
   await tab.click('#b-results');
   assert.equal(await tab.isHidden('#share-box'), true, 'the box should go when the sheet closes');
@@ -495,39 +496,39 @@ for (const [width, height] of [[360, 780], [320, 568]]) {
   const see = (want, why) => tab.waitForFunction(want => (document.getElementById('s-list').hidden ? document.getElementById('where').textContent : 'list') === want, want, { timeout: 5000 }).catch(() => assert.fail(why));
   const left = await tab.evaluate(() => history.length);
   await tab.click('#route li:nth-child(2) .row');
-  await see('No. 2', 'the puzzle should open');
+  await see('Main · No. 2', 'the puzzle should open');
   await tab.goBack();
   await see('list', 'Back should go from a puzzle to the list');
   assert.equal(await tab.textContent('#route li:nth-child(2) .row-sub'), `1 of ${b.lines.length} lines found`);
   await tab.goForward();
-  await see('No. 2', 'Forward should open the puzzle again');
+  await see('Main · No. 2', 'Forward should open the puzzle again');
   await tab.click('#b-menu');
   await tab.goBack();
-  await see('No. 2', 'Back with a sheet open should stay on the puzzle');
+  await see('Main · No. 2', 'Back with a sheet open should stay on the puzzle');
   assert.equal(await tab.isHidden('#sheet-menu'), true, 'Back should close the open sheet');
   await tab.goBack();
   await see('list', 'Back after closing a sheet should go to the list');
 
   await tab.click('#b-continue');
-  await see('No. 1');
+  await see('Main · No. 1');
   await drag(tab, a.lines[0]);
   await tab.waitForSelector('#sheet-done:not([hidden])');
   await tab.click('#b-done-next');
-  await see('No. 2');
+  await see('Main · No. 2');
   await tab.goBack();
   await see('list', 'Back after Next puzzle should go to the list, not the puzzle before');
 
   // The back arrow, even with another puzzle opened before its Back has come through.
   await tab.click('#route li:nth-child(2) .row');
-  await see('No. 2');
+  await see('Main · No. 2');
   await tab.evaluate(() => { document.getElementById('b-back').click(); document.querySelector('#route li:nth-child(3) .row').click(); });
-  await see('No. 3');
+  await see('Main · No. 3');
   await tab.waitForFunction(id => history.state?.crosstown === id, PUZZLES[2].id, { timeout: 5000 });
   await tab.goBack();
   await see('list', 'Back after the back arrow should go to the list');
 
   await tab.click('#route li:nth-child(2) .row');
-  await see('No. 2');
+  await see('Main · No. 2');
   await tab.reload();
   await see('list', 'a reload should open on the list');
   await tab.waitForFunction(() => history.state === null, null, { timeout: 5000 });
@@ -558,6 +559,72 @@ for (const [width, height] of [[360, 780], [320, 568]]) {
   await drag(tab, p.lines[1]);
   assert.equal(await tab.textContent('#count'), `1 of ${p.lines.length} lines`, 'the next drag should trace as usual');
   await other.close();
+}
+
+// The lines: the list shows one at a time, the button above Continue changes it, and each line keeps its own
+// numbers and progress. Seeded as Mark has it: every Main Line puzzle finished.
+if (LINES.length > 1) {
+  const [main, second] = LINES;
+  const games = Object.fromEntries(main.puzzles.map(q => [q.id, finished(q)]));
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games });
+  assert.equal(await tab.textContent('#line-name'), main.name);
+  assert.equal(await tab.textContent('#tally'), `${main.puzzles.length} of ${main.puzzles.length} finished, ${main.puzzles.length * 3} of ${main.puzzles.length * 3} stars`);
+  assert.equal(await tab.textContent('#b-continue'), `On to the ${second.name}`, 'a finished line should offer the next one');
+  await tab.click('#b-continue');
+  assert.equal(await tab.textContent('#line-name'), second.name);
+  assert.equal(await tab.locator('#route li').count(), second.puzzles.length);
+  assert.equal(await tab.textContent('#route li:nth-child(1) .row-clue'), second.puzzles[0].clue);
+  assert.equal(await tab.textContent('#b-continue'), 'Play No. 1');
+  assert.equal(await tab.textContent('#tally'), `${second.puzzles.length} puzzles`);
+  await tab.reload(); await tab.evaluate(() => document.fonts.ready);
+  assert.equal(await tab.textContent('#line-name'), second.name, 'the line on show should be kept over a reload');
+
+  // The Lines sheet: every line, the one on show marked, how far along each is.
+  await tab.click('#b-line');
+  await tab.waitForSelector('#sheet-lines:not([hidden])');
+  assert.equal(await tab.locator('#lines .line-row').count(), LINES.length);
+  assert.equal(await tab.getAttribute('#lines li:nth-child(2) .line-row', 'aria-current'), 'true');
+  assert.equal(await tab.textContent('#lines li:nth-child(1) .line-prog'), 'All finished');
+  assert.equal(await tab.textContent('#lines li:nth-child(2) .line-prog'), `${second.puzzles.length} puzzles`);
+  await tab.click('#lines li:nth-child(1) .line-row');
+  await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
+  assert.equal(await tab.locator('#route li').count(), main.puzzles.length);
+  assert.equal(await tab.locator('#route li.done').count(), main.puzzles.length, 'nothing finished on the Main Line should be lost');
+  await tab.click('#b-line'); await tab.click('#lines li:nth-child(2) .line-row');
+
+  // A puzzle on the second line: its number counts along the line, and its detours (loaded with the line) earn fare.
+  const q = second.puzzles[0];
+  const { DETOURS } = await import(`../js/detours/${second.id}.js`);
+  await tab.click('#b-continue');
+  assert.equal(await tab.textContent('#where'), `${second.name.replace(/ Line$/, '')} · No. 1`);
+  const own = new Set(q.lines.flat());
+  const d = DETOURS[q.id].split(' ').map(w => [w, traces(q.grid, w.toUpperCase(), 1)[0]]).find(([, t]) => t);
+  assert.ok(own.size === 48 && d, 'the puzzle should have a traceable detour');
+  await drag(tab, d[1]);
+  assert.match(await tab.textContent('#readout'), new RegExp(`^Detour: ${d[0]}, \\+${fareFor(d[0])} fare`));
+  await drag(tab, q.lines[0]);
+  assert.equal(await tab.textContent('#readout'), `Crosstown: ${q.name}`);
+
+  // Back to the list, over to the Main Line, then Forward: the puzzle opens again, on its own line's list.
+  await tab.goBack();
+  await tab.waitForSelector('#s-list:not([hidden])');
+  await tab.click('#b-line'); await tab.click('#lines li:nth-child(1) .line-row');
+  assert.equal(await tab.textContent('#line-name'), main.name);
+  await tab.goForward();
+  await tab.waitForSelector('#s-play:not([hidden])');
+  assert.equal(await tab.textContent('#clue'), q.clue);
+  await tab.click('#b-back');
+  assert.equal(await tab.textContent('#line-name'), second.name, 'Forward to a puzzle on another line should bring its list');
+  assert.equal(await tab.textContent('#route li:nth-child(1) .row-sub'), `1 of ${q.lines.length} lines found`);
+  assert.deepEqual(errors, []);
+  await other.close();
+
+  // A line that's gone (or a damaged option) falls back to the first one.
+  const gone = await visitor({ options: { line: 'no-such-line' }, best: {}, games: {} });
+  assert.equal(await gone.tab.textContent('#line-name'), main.name);
+  assert.equal(await gone.tab.locator('#route li').count(), main.puzzles.length);
+  assert.deepEqual(gone.errors, []);
+  await gone.other.close();
 }
 
 // It can be installed.
