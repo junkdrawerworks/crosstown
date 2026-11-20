@@ -235,6 +235,32 @@ for (const order of ['phone first', 'phone second']) {
   await until(async () => /^done\b/.test(await L2.getAttribute('#route li:nth-child(3)', 'class')), 'the laptop’s second tab to show the synced puzzle');
   await L2.close();
 
+  // ---- saved here while a sync is under way ----
+  // Progress loaded from a file while a sync is still reading Drive isn't written over by what the sync read before:
+  // the sync puts the two together again. (The laptop has played something first, so the sync has something to write.)
+  {
+    await L.click('#route li:nth-child(7) .row'); await drag(L, PARK[6].lines[1]); await L.click('#b-back');
+    await syncNow(L);
+    let hold = true;
+    const slow = async route => { if (hold && route.request().url().includes('alt=media')) await new Promise(r => setTimeout(r, 1500)); return route.fallback(); };
+    await phone.ctx.route('https://www.googleapis.com/**', slow);
+    const before = (await syncState(P)).last || 0;
+    await P.click('#b-cloud');
+    await until(async () => await dot(P) === 'busy', 'a sync to start');
+    await P.click('#b-list-menu');
+    const [chooser] = await Promise.all([P.waitForEvent('filechooser'), P.click('#m-load')]);
+    await chooser.setFiles({ name: 'crosstown-progress.json', mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({ app: 'crosstown', version: 1, games: { [PARK[5].id]: finished(PARK[5]) }, best: {}, stars: {} })) });
+    await P.waitForFunction(() => document.getElementById('m-load').textContent.startsWith('Tap again'));
+    await P.click('#m-load');
+    assert.equal(await dot(P), 'busy', 'the file should be loaded while the sync is still reading Drive');
+    hold = false;
+    await until(async () => (await syncState(P)).last > before && await dot(P) === 'ok' && driveDoc().games[PARK[5].id]?.done, 'the loaded puzzle to reach Drive');
+    const s = await stored(P);
+    assert.deepEqual([s.games[PARK[5].id]?.done, s.games[PARK[6].id]?.found], [true, [1]], 'a puzzle loaded during a sync should stay on the phone, with what the sync brought');
+    await phone.ctx.unroute('https://www.googleapis.com/**', slow);
+  }
+
   // ---- an expired sign-in needs a tap ----
   await L.evaluate(() => localStorage.setItem('junkdrawer.google', JSON.stringify({ token: 'tok-expired', exp: Date.now() + 30 * 60000, scope: 'https://www.googleapis.com/auth/drive.file', email: 'mark@gmail.com' })));
   await L.reload();
@@ -257,7 +283,7 @@ for (const order of ['phone first', 'phone second']) {
   await tablet.tab.reload();
   await turnOn(tablet.tab);
   assert.equal(await tablet.tab.evaluate(() => window.__prompts), undefined, 'no Google window with a good sign-in to hand');
-  assert.deepEqual((await finishedHere(tablet.tab)).sort(), [PARK[1].id, PARK[2].id].sort(), 'the new device gets the progress');
+  assert.deepEqual((await finishedHere(tablet.tab)).sort(), [PARK[1].id, PARK[2].id, PARK[5].id].sort(), 'the new device gets the progress');
   await tablet.ctx.close();
 
   // ---- two files made at once ----
