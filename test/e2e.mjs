@@ -671,6 +671,9 @@ if (LINES.length > 1) {
   assert.deepEqual(await kept(), [cut, cut], 'a save that could not be read should be left as it was, and put aside');
   await tab.click('#b-continue'); await drag(tab, a.lines[1]); await tab.click('#b-back');
   assert.equal((await kept())[1], cut, 'the save put aside should stay put');
+  // The list says the save couldn't be read and a copy is kept, for this visit.
+  const ASIDE = "Your saved progress couldn't be read, so this list starts fresh. A copy is kept in this browser.";
+  assert.equal(await tab.isVisible('#aside-note') && await tab.textContent('#aside-note'), ASIDE, 'the list should say a save was put aside');
 
   await tab.evaluate(s => localStorage.setItem('crosstown.v1', s), whole);
   await tab.reload();
@@ -678,6 +681,19 @@ if (LINES.length > 1) {
   await tab.click('#route li:nth-child(4) .row');
   assert.equal(await tab.getAttribute('#meter', 'aria-label'), `Fare: 3 of ${FARE_PER_TOKEN}`);
   assert.equal(await tab.textContent('#token-label'), 'Use a token (1)', 'a whole token of fare should count as a token');
+  await tab.click('#b-back');
+  assert.equal(await tab.isHidden('#aside-note'), true, 'a save that could be read should say nothing of one put aside');
+
+  // A save that reads but has the wrong shape, its games wrapped in a list as a hand edit could leave it, is put aside
+  // too (one already put aside is cleared here first), rather than written over by the next save.
+  const wrapped = JSON.stringify({ options: {}, best: {}, games: [{ [a.id]: finished(a) }] });
+  await tab.evaluate(s => { localStorage.removeItem('crosstown.v1.unreadable'); localStorage.setItem('crosstown.v1', s); }, wrapped);
+  await tab.reload();
+  assert.equal(await tab.textContent('#tally'), `${PUZZLES.length} puzzles`);
+  assert.equal(await tab.isVisible('#aside-note') && await tab.textContent('#aside-note'), ASIDE);
+  assert.equal((await kept())[1], wrapped, 'a save of the wrong shape should be put aside');
+  await tab.click('#route li:nth-child(2) .row'); await drag(tab, b.lines[1]); await tab.click('#b-back');
+  assert.deepEqual([(await kept())[1], Object.keys(JSON.parse((await kept())[0]).games)], [wrapped, [b.id]], 'the copy put aside should outlast the next save');
   assert.deepEqual(errors, []);
   await context.close();
 }

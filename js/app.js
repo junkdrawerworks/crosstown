@@ -19,12 +19,20 @@ const UNREADABLE = 'crosstown.v1.unreadable';   // a save that couldn't be read,
 const fresh = () => ({ found: [], detours: [], fare: 0, tokens: 0, spent: 0, hint: null, ms: 0, done: false, crossAt: -1, night: false });
 const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
 const blank = () => ({ options: { clock: false, night: false, line: LINES[0].id }, games: {}, best: {} });
-// What's stored, read into shape. Best times are kept only if they're times. A save that can't be read at all is
-// put aside first (unless one already is), before anything can write over it.
+// What's stored, read into shape. Best times are kept only if they're times. A save that can't be read at all, or
+// has the wrong shape (its games in a list, say, as a hand edit could leave it), is put aside first (unless one
+// already is), before anything can write over it. `putAside` says what went: 'games' when the games couldn't be read.
+let putAside = null;
 function load() {
   const text = localStorage.getItem(KEY);
-  let raw;
-  try { raw = JSON.parse(text || 'null'); } catch { if (localStorage.getItem(UNREADABLE) === null) localStorage.setItem(UNREADABLE, text); }
+  let raw, bad = false;
+  try { raw = JSON.parse(text || 'null'); } catch { bad = true; }
+  const fits = k => raw[k] === undefined || isObject(raw[k]);
+  if (text !== null && !bad && !(isObject(raw) && ['options', 'games', 'best'].every(fits))) bad = true;
+  if (bad && localStorage.getItem(UNREADABLE) === null) {
+    localStorage.setItem(UNREADABLE, text);
+    putAside = isObject(raw) && fits('games') ? 'part' : 'games';
+  }
   const s = blank();
   if (!isObject(raw)) return s;
   const best = isObject(raw.best) ? Object.entries(raw.best).filter(([, t]) => Number.isFinite(t) && t > 0) : [];
@@ -38,6 +46,8 @@ const changed = { games: new Set(), options: new Set(), erased: false };
 let readFailed = false, writeFailed = false;
 let saved = blank();
 try { saved = load(); localStorage.setItem(`${KEY}.check`, '1'); localStorage.removeItem(`${KEY}.check`); } catch { readFailed = true; }
+// The games saved couldn't be read when the page opened, so the list starts fresh, and says so (see drawList()).
+const startedFresh = putAside === 'games';
 const keeping = () => !readFailed && !writeFailed;
 
 // This window's changes, laid over what's stored (`now`). Where both windows have played the same puzzle, the better
@@ -215,7 +225,8 @@ function drawList() {
   $('unkept').hidden = keeping();
   $('unkept').textContent = readFailed ? "This browser isn't keeping your progress, so it goes when the page closes."
     : 'This browser has stopped saving, so new progress goes when the page closes.';
-  $('tally').classList.toggle('end', end);   // the network's tally, in ink where the big button was
+  $('tally').classList.toggle('end', end);
+  $('aside-note').hidden = !startedFresh;   // the network's tally, in ink where the big button was
   if (end) {
     let all = 0, got = 0;
     for (const l of LINES) { const t = tally(l); all += t.total; got += t.stars; }
