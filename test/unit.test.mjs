@@ -70,6 +70,26 @@ test('the Main Line boards are the ones Mark played', async () => {
   assert.deepEqual(now, published, 're-laying a Main Line board resets saved progress on it: put it to Mark before changing test/main-line.json');
 });
 
+// Counts written out by hand in the page and the README, checked against the lines, so adding a puzzle or a line
+// can't leave them behind. The list's card for the line on show is in index.html as it first paints, before app.js
+// fills it in, so that has to match the first line too.
+test('the page and the README give the right counts, and the list first paints the first line', async () => {
+  const total = LINES.reduce((n, l) => n + l.puzzles.length, 0);
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+  const description = html.match(/<meta name="description" content="([^"]*)"/)[1];
+  for (const [file, text] of [['the meta description in index.html', description], ['index.html', html], ['README.md', readme]]) {
+    if (file !== 'index.html') assert.ok(text.includes(`${total} puzzles`), `${file} should say "${total} puzzles"`);
+    const others = [...text.matchAll(/\b(\d+) puzzles\b/g)].map(m => m[0]).filter(m => m !== `${total} puzzles`);
+    assert.deepEqual(others, [], `${file} gives another count: change it to "${total} puzzles"`);
+  }
+  const say = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve'][LINES.length];
+  assert.equal(html.match(/<strong>(\w+) lines?\.<\/strong>/)?.[1], say, `How to play in index.html should say "${say} lines."`);
+  assert.equal(readme.match(/\*\*(\w+) lines?\.\*\*/)?.[1], say, `How it plays in README.md should say "${say} lines."`);
+  assert.equal(html.match(/id="line-name">([^<]*)</)?.[1], LINES[0].name, `#line-name in index.html should read "${LINES[0].name}"`);
+  assert.equal(html.match(/id="line-about">([^<]*)</)?.[1], LINES[0].about, `#line-about in index.html should read "${LINES[0].about}"`);
+});
+
 // A clue or name changed in a theme only reaches the game when the tool runs, so check that it did.
 test('the words How to play and the README give as examples are lines on the Main Line', async () => {
   const main = new Set(LINES[0].puzzles.flatMap(p => p.lines.map(l => spell(p.grid, l))));
