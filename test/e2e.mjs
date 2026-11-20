@@ -398,7 +398,7 @@ function contrast(a, b) {
   assert.equal(await tab.locator('#board .guide').count(), 1);
   assert.equal(await tab.isDisabled('#b-token'), true, 'a token while a route is showing would lose the route');
   await tab.click('#b-token', { force: true });
-  assert.equal(await tab.textContent('#readout'), 'Trace the dashed route first. Your tokens keep', 'a tap on the token button while a route shows should say why it is off');
+  assert.equal(await tab.textContent('#readout'), 'Trace the dashed route first. No token spent', 'a tap on the token button while a route shows should say why it is off');
   assert.deepEqual([await tab.textContent('#token-label'), await tab.locator('#board .guide').count()], ['Use a token (2)', 1]);
   await drag(tab, p.lines[1]);
   assert.equal(await tab.locator('#board .guide').count(), 0);

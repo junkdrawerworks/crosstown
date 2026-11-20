@@ -673,7 +673,7 @@ $('b-token').addEventListener('click', () => {
   const { p, game } = cur;
   if (game.done) return;
   if (!game.tokens) { say(`No tokens yet. Detours, words that aren't lines, earn fare: ${FARE_PER_TOKEN} fare is a token`, 'note'); return; }
-  if (routeFirst(game)) { say('Trace the dashed route first. Your tokens keep', 'note'); return; }
+  if (routeFirst(game)) { say('Trace the dashed route first. No token spent', 'note'); return; }
   if (game.hint && game.hint.level === 1) { game.hint.level = 2; say('The dashed route starts at the solid ring', 'note'); }
   else {
     const pick = nextHint(game, p);
