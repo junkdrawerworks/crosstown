@@ -1166,6 +1166,58 @@ function takeIn(doc) {
   closeSheets(); drawList(); toast(keeping() ? 'Progress loaded' : 'Loaded for this visit only');
 }
 
+// The finished map as a picture, for Share on a phone: each line's route in its colour and every stop a plain dot, with
+// no letters, so it gives nothing away; over it the line, the number and the stars, and the address under it. Drawn in
+// the palette on screen. It's made as the done sheet opens (see showDone()), so Share can send it straight from the tap:
+// some phones only open their share sheet from a tap, and not once anything has been waited for.
+const PICTURE = { w: 1080, h: 1350, pad: 72 };
+let picture = null;   // the finished map's picture, once made
+function mapPicture() {
+  const { p, game, i, line: l } = cur;
+  const css = getComputedStyle(document.documentElement), v = name => css.getPropertyValue(name).trim();
+  const font = v('--font');
+  const canvas = document.createElement('canvas'); canvas.width = PICTURE.w; canvas.height = PICTURE.h;
+  const c = canvas.getContext('2d');
+  c.fillStyle = v('--bg'); c.fillRect(0, 0, PICTURE.w, PICTURE.h);
+  // The heading: CROSSTOWN, then "Market Line No. 47", with the stars at its right, gold if earned.
+  c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+  c.fillStyle = v('--muted'); c.font = `700 30px ${font}`;
+  if ('letterSpacing' in c) c.letterSpacing = '4px';
+  c.fillText('CROSSTOWN', PICTURE.pad, 118);
+  if ('letterSpacing' in c) c.letterSpacing = '0px';
+  // As big as fits beside the stars ("University Line No. 81" is the longest).
+  const title = `${l.name} No. ${i + 1}`;
+  let size = 62;
+  do c.font = `850 ${size}px ${font}`; while (c.measureText(title).width > PICTURE.w - 2 * PICTURE.pad - 200 && --size > 30);
+  c.fillStyle = v('--ink'); c.fillText(title, PICTURE.pad, 190);
+  const star = new Path2D('M12 3.2l2.7 5.6 6.1.8-4.5 4.3 1.1 6.1L12 17.1 6.6 20l1.1-6.1-4.5-4.3 6.1-.8z'), n = starsFor(game);
+  for (let k = 0; k < 3; k++) {
+    c.save(); c.translate(PICTURE.w - PICTURE.pad - (3 - k) * 58 + 4, 136); c.scale(2.2, 2.2);
+    if (k < n) { c.fillStyle = v('--star'); c.fill(star); } else { c.strokeStyle = v('--muted'); c.lineWidth = 1.4; c.lineJoin = 'round'; c.stroke(star); }
+    c.restore();
+  }
+  // The map, as big as fits between the heading and the address, in the board's own units (10 to a stop).
+  const top = 240, bottom = PICTURE.h - 120, s = Math.min((PICTURE.w - 2 * PICTURE.pad) / (W * 10), (bottom - top) / (H * 10));
+  const x0 = (PICTURE.w - W * 10 * s) / 2, at = k => [x0 + cx(k) * s, top + cy(k) * s];
+  const colour = k => v(k === 0 ? '--cross' : `--l${k}`);
+  const route = (path, width, stroke) => {
+    c.beginPath(); path.forEach((stop, j) => c[j ? 'lineTo' : 'moveTo'](...at(stop)));
+    c.lineWidth = width * s; c.strokeStyle = stroke; c.lineCap = c.lineJoin = 'round'; c.stroke();
+  };
+  for (const k of game.found) {
+    route(p.lines[k], k === 0 ? 3.9 : 2.7, colour(k));
+    if (k === 0) route(p.lines[0], 0.55, v('--bg'));   // the Crosstown's stripe
+  }
+  for (let stop = 0; stop < N; stop++) {
+    const [x, y] = at(stop);
+    c.beginPath(); c.arc(x, y, 3.75 * s, 0, 2 * Math.PI); c.fillStyle = colour(cur.lineOf[stop]); c.fill();
+    c.beginPath(); c.arc(x, y, 1.35 * s, 0, 2 * Math.PI); c.fillStyle = v('--bg'); c.fill();
+  }
+  c.fillStyle = v('--muted'); c.font = `600 30px ${font}`; c.textAlign = 'center';
+  c.fillText(SITE.replace(/^https:\/\/|\/$/g, ''), PICTURE.w / 2, PICTURE.h - 58);
+  return new Promise(done => canvas.toBlob(b => done(b && new File([b], `crosstown-${l.id}-${i + 1}.png`, { type: 'image/png' })), 'image/png'));
+}
+
 function shareText() {
   const { p, game, i, line: l } = cur;
   const n = starsFor(game);
@@ -1228,6 +1280,9 @@ function showDone() {
   $('b-done-next').hidden = n < 0 && !to;
   $('b-done-next').textContent = to ? `On to ${shortName(to)}` : 'Next puzzle';
   openSheet('sheet-done');
+  // The map's picture, ready for Share on a phone that can send one (see mapPicture()).
+  picture = null;
+  if (sharesPictures()) { const at = cur; mapPicture().then(f => { if (cur === at) picture = f; }, () => {}); }
 }
 $('b-results').addEventListener('click', showDone);
 $('done-stats').addEventListener('click', e => {
@@ -1282,10 +1337,14 @@ function moved() {
 $('b-next').addEventListener('click', () => (nextMap() ? goMap() : goNext()));
 $('b-done-next').addEventListener('click', goNext);
 
+// On a phone, Share opens the phone's share sheet, with the map's picture where it can take one (see mapPicture()).
+const phoneShare = () => !single && !!navigator.share && matchMedia('(pointer: coarse)').matches;
+const sharesPictures = () => phoneShare() && typeof navigator.canShare === 'function' && typeof HTMLCanvasElement.prototype.toBlob === 'function';
 $('b-share').addEventListener('click', async () => {
   const text = shareText();
-  if (!single && navigator.share && matchMedia('(pointer: coarse)').matches) {
-    try { await navigator.share({ text }); return; } catch (err) { if (err?.name === 'AbortError') return; }
+  if (phoneShare()) {
+    const files = picture && navigator.canShare({ files: [picture], text }) ? [picture] : null;
+    try { await navigator.share(files ? { files, text } : { text }); return; } catch (err) { if (err?.name === 'AbortError') return; }
   }
   try { await navigator.clipboard.writeText(text); toast('Result copied'); }
   catch {

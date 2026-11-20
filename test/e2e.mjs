@@ -1002,6 +1002,53 @@ if (LINES.length > 1) {
   await other.close();
 }
 
+// On a phone, Share sends a picture of the finished map with the result: each line's route in its colour and the stops
+// as plain dots, with no letters (only the heading and the address are written on it), the line, number and stars
+// over it. Where a phone can't share a picture, it sends the text alone, as before.
+for (const pictures of [true, false]) {
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: { [p.id]: { found: p.lines.map((_, k) => k).slice(1), detours: [] } } }, { isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  await tab.evaluate(pictures => {
+    const read = f => new Promise(done => { const r = new FileReader(); r.onload = () => done(r.result); r.readAsDataURL(f); });
+    window.__drawn = [];
+    const fill = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (t, ...rest) { window.__drawn.push(String(t)); return fill.call(this, t, ...rest); };
+    navigator.canShare = d => pictures || !d.files;
+    navigator.share = async d => { window.__shared = { text: d.text, files: d.files && await Promise.all(d.files.map(async f => ({ name: f.name, type: f.type, url: await read(f) }))) }; };
+  }, pictures);
+  await tab.click('#b-continue');
+  await drag(tab, p.lines[0]);
+  await tab.waitForSelector('#sheet-done:not([hidden])');
+  await tab.waitForTimeout(300);
+  await tab.click('#b-share');
+  await tab.waitForFunction(() => window.__shared, null, { timeout: 5000 });
+  const shared = await tab.evaluate(() => window.__shared);
+  assert.match(shared.text, /^Crosstown Main Line No\. 1 ★★☆\n.*\nhttps:\/\/crosstown\.junkdrawer\.works\/#main-1$/, 'the text goes with the picture, as before');
+  if (!pictures) { assert.equal(shared.files, undefined, 'where a picture can’t be shared, the text goes alone'); await other.close(); continue; }
+  assert.deepEqual(shared.files.map(f => [f.name, f.type]), [['crosstown-main-1.png', 'image/png']], 'Share on a phone should send the map as a picture');
+  const png = Buffer.from(shared.files[0].url.split(',')[1], 'base64');
+  assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [1080, 1350]);
+  assert.deepEqual(await tab.evaluate(() => window.__drawn), ['CROSSTOWN', 'Main Line No. 1', 'crosstown.junkdrawer.works'], 'the picture should have no letters of the map on it');
+  // Every stop is a dot in its line's colour, with the page's colour at its middle.
+  const look = await tab.evaluate(async ({ url, lines }) => {
+    const img = new Image(); img.src = url; await img.decode();
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    const s = Math.min(936 / 60, 990 / 80), x0 = (1080 - 60 * s) / 2, css = getComputedStyle(document.documentElement);
+    const rgb = name => { const p = document.createElement('i'); p.style.color = css.getPropertyValue(name); document.body.append(p); const v = getComputedStyle(p).color; p.remove(); return v.match(/\d+/g).slice(0, 3).map(Number); };
+    const px = (x, y) => [...g.getImageData(Math.round(x), Math.round(y), 1, 1).data.slice(0, 3)];
+    const off = [];
+    lines.forEach((line, k) => line.forEach(i => {
+      const x = x0 + ((i % 6) * 10 + 5) * s, y = 240 + (Math.floor(i / 6) * 10 + 5) * s;
+      const want = rgb(k === 0 ? '--cross' : `--l${k}`), ring = px(x + 2.6 * s, y), mid = px(x, y), bg = rgb('--bg');
+      if (ring.some((v, n) => Math.abs(v - want[n]) > 3) || mid.some((v, n) => Math.abs(v - bg[n]) > 3)) off.push([i, k, ring, mid]);
+    }));
+    return off;
+  }, { url: shared.files[0].url, lines: p.lines });
+  assert.deepEqual(look, [], 'each stop should be a plain dot in its line’s colour');
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // On a small phone a note that wraps onto a second line still fits the readout's height, so the map stays put.
 {
   const longest = p.detours.split(' ').reduce((a, b) => (b.length > a.length ? b : a));
