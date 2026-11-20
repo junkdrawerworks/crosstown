@@ -417,6 +417,7 @@ a { color: inherit; }
 }
 @media (max-width: 359px) {
   .mast-row .primary { flex-basis: 100%; }
+  #b-how { flex: 1; }   /* the second row filled too, the menu at its end under the big button's */
   .btn.token svg { display: none; }
   /* Room in the bar for the longest line's name beside a clock past ten minutes (past an hour from 340 up). */
   .bar { gap: 4px; }

@@ -726,7 +726,8 @@ for (const l of LINES.length > 1 ? LINES : []) {
     await tab.setViewportSize({ width, height: 800 });
     const boxes = await tab.evaluate(() => ['b-continue', 'b-how', 'b-list-menu'].map(id => { const r = document.getElementById(id).getBoundingClientRect(); return { top: Math.round(r.top), h: r.height, right: r.right }; }));
     const tops = boxes.map(b => b.top);
-    const tidy = width >= 360 ? new Set(tops).size === 1 : tops[0] < tops[1] && tops[1] === tops[2];
+    // Below 360 the second row is filled too, How to play stretching so the menu sits at the edge, under the big button's.
+    const tidy = width >= 360 ? new Set(tops).size === 1 : tops[0] < tops[1] && tops[1] === tops[2] && Math.abs(boxes[2].right - boxes[0].right) < 0.5;
     assert.ok(tidy && boxes.every(b => b.h <= 44.5 && b.right <= width - 15.5), `the list buttons with "${await tab.textContent('#b-continue')}" at ${width}px: ${JSON.stringify(boxes)}`);
   }
   // On to the next line: the focus stays on the big button, so a screen reader is told which line is on show now.
