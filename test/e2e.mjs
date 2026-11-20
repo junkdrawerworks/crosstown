@@ -850,6 +850,7 @@ for (const how of ['blocked', 'full']) {
   await tab.click('#b-continue');
   for (const line of p.lines) await drag(tab, line);
   await tab.waitForSelector('#sheet-done:not([hidden])');
+  assert.equal(await tab.textContent('#done-stats'), 'no detours, not kept in this browser', `the done sheet should say its stars aren't kept (${how})`);
   await tab.keyboard.press('Escape'); await tab.click('#b-back');
   assert.equal(await tab.getAttribute('#route li:nth-child(1)', 'class'), 'done', `a puzzle should still finish (${how})`);
   assert.equal(await tab.isVisible('#unkept'), true);
@@ -861,6 +862,17 @@ for (const how of ['blocked', 'full']) {
   assert.equal(await tab.textContent('#toast'), 'Erased for this visit only');
   assert.deepEqual(errors, [], `errors with storage ${how}`);
   await context.close();
+}
+// Storage that fills up part way through a visit: what was saved before is still there, so the list says only new
+// progress goes.
+{
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: { [p.id]: finished(p) } });
+  assert.equal(await tab.isHidden('#unkept'), true);
+  await tab.evaluate(() => { Storage.prototype.setItem = () => { throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); }; });
+  await tab.click('#route li:nth-child(2) .row'); await drag(tab, PUZZLES[1].lines[1]); await tab.click('#b-back');
+  assert.equal(await tab.isVisible('#unkept') && await tab.textContent('#unkept'), 'This browser has stopped saving, so new progress goes when the page closes.');
+  assert.deepEqual(errors, []);
+  await other.close();
 }
 // Each saved game keeps its board's letters. Progress on a board laid out again since starts fresh, since its line
 // numbers would draw lines on the wrong letters, but its best time stays. A game saved before games kept their

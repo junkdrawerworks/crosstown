@@ -211,7 +211,10 @@ function drawList() {
   $('b-continue').textContent = up >= 0 ? `${started(gameFor(list[up].id)) ? 'Resume' : 'Play'} No. ${up + 1}` : onward ? `On to ${shortName(onward)}` : '';
   $('b-continue').disabled = false;   // off in the page as sent, until this has run
   $('b-continue').hidden = end;
+  // Where reading worked and only the writes since have failed (storage full, say), what was saved is still there.
   $('unkept').hidden = keeping();
+  $('unkept').textContent = readFailed ? "This browser isn't keeping your progress, so it goes when the page closes."
+    : 'This browser has stopped saving, so new progress goes when the page closes.';
   $('tally').classList.toggle('end', end);   // the network's tally, in ink where the big button was
   if (end) {
     let all = 0, got = 0;
@@ -828,6 +831,7 @@ function showDone() {
   if (game.spent) stats.unshift(`${game.spent} token${game.spent > 1 ? 's' : ''} spent`);
   if (saved.options.clock) stats.unshift(clock(game.ms));
   if (game.night) stats.push('night service');
+  if (!keeping()) stats.push('not kept in this browser');
   $('done-stats').textContent = stats.join(', ');
   // The Crosstown is keyed by the map's name, spaces and all ("JUNK DRAWER"), where its letters are the line's.
   const key = $('done-key'); key.textContent = '';
