@@ -9,11 +9,11 @@
 // only when this file changes by a byte, so FILES is a fingerprint of every file in SHELL: change any of them and
 // test/e2e.mjs fails until FILES is changed to match (it says what to), which changes this file. Each release keeps
 // its copy under its own name, so making the next one never touches the one in use, and this worker reads only its own.
-const FILES = 'ab9d219a'; // test/e2e.mjs checks this
+const FILES = '3df6a542'; // test/e2e.mjs checks this
 const CACHE = 'crosstown-' + FILES;
 const SHELL = [
   './', 'index.html', 'icon.svg', 'manifest.webmanifest',
-  'css/app.css', 'js/app.js', 'js/saves.js', 'js/board.js', 'js/rules.js', 'js/puzzles.js', 'fonts/overpass.woff2',
+  'css/app.css', 'js/app.js', 'js/saves.js', 'js/sync.js', 'js/board.js', 'js/rules.js', 'js/puzzles.js', 'fonts/overpass.woff2',
   // each line's detours (test/unit.test.mjs checks every line is here)
   'js/detours/main.js', 'js/detours/market.js', 'js/detours/park.js', 'js/detours/workshop.js', 'js/detours/theater.js', 'js/detours/university.js', 'js/detours/airport.js',
   'icon-192.png', 'icon-512.png',

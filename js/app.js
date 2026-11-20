@@ -2,7 +2,8 @@
 import { LINES, DETOURS, PUZZLES } from './puzzles.js';
 import { W, H, N, row, col, adjacent, spell } from './board.js';
 import { MIN_LENGTH, FARE_PER_TOKEN, fareFor, starsFor, clock } from './rules.js';
-import { KEY, fresh, isObject, blank, shape, byId, readGame, started, combine, progressOf, readProgress, joinProgress, finishedIn } from './saves.js';
+import { KEY, fresh, isObject, blank, shape, byId, readGame, started, combine, progressOf, readProgress, joinProgress, finishedIn, beganAt } from './saves.js';
+import { drive } from './sync.js';
 
 const $ = id => document.getElementById(id);
 const SVG = 'http://www.w3.org/2000/svg';
@@ -52,15 +53,18 @@ const unkept = () => (readFailed ? 'This browser isn’t keeping your progress, 
 // games are put together (see combine()). A game this window took out (Start this puzzle over) goes whatever the
 // other has. The faster best time stays, and the more best stars. An erase stamps the save with its time, so a window that hears of an erase
 // made elsewhere since it last read drops every game it holds, the one on screen too (see catchUp()), rather than
-// writing them back: whatever it played since was played on top of progress that was erased.
+// writing them back: whatever it played since was played on top of progress that was erased. When a puzzle was
+// last started over (`cleared`) is kept for Google Drive, the later of the two (see mergeProgress() in saves.js).
 let erasedThere = false;
 function mergeInto(now) {
-  if (changed.erased) { saved.erasedAt = now.erasedAt = Math.max(Date.now(), now.erasedAt + 1); now.games = {}; now.best = {}; now.stars = {}; }
-  else if (now.erasedAt > saved.erasedAt) { saved.games = {}; saved.best = {}; saved.stars = {}; changed.games.clear(); erasedThere = true; }
+  if (changed.erased) { saved.erasedAt = now.erasedAt = Math.max(Date.now(), now.erasedAt + 1); now.games = {}; now.best = {}; now.stars = {}; now.cleared = {}; }
+  else if (now.erasedAt > saved.erasedAt) { saved.games = {}; saved.best = {}; saved.stars = {}; saved.cleared = {}; changed.games.clear(); erasedThere = true; }
   for (const id of changed.games) {
     const mine = saved.games[id];
     if (!mine) delete now.games[id];
     else now.games[id] = combine(mine, now.games[id], id);
+    const c = saved.cleared[id];
+    if (c && !(now.cleared[id] >= c)) now.cleared[id] = c;
     const t = saved.best[id];
     if (t && !(now.best[id] <= t)) now.best[id] = t;
     const n = saved.stars[id];
@@ -70,22 +74,32 @@ function mergeInto(now) {
   return now;
 }
 function save() {
+  const progressed = changed.games.size > 0 || changed.erased;
   try {
     const now = mergeInto(load());
     localStorage.setItem(KEY, JSON.stringify(now));
     adopt(now);
     changed.games.clear(); changed.options.clear(); changed.erased = false;
     writeFailed = false;
-  } catch { writeFailed = true; /* no storage here: play still works, it just isn't kept */ }
+  } catch { writeFailed = true; /* no storage here: play still works, it just isn't kept */ return; }
+  if (progressed) drive.changed();   // sent to Google Drive shortly, if it's on (the options stay on this device)
 }
 // Takes on what's stored as this window's own. The puzzle on screen keeps the game being played, put together with
 // what another window has saved of it (see combine()), and shows that once it can (see catchUp()). After an erase in
-// another window it starts afresh.
-function adopt(now) {
+// another window it starts afresh. What Google Drive brings (`from` 'drive') is from another device: an erase made
+// there starts it afresh too, and so does that puzzle started over there since this game began, as Drive won't keep
+// the game it replaced. (Two windows keep the better of the two games instead, as they always have: see combine().)
+function adopt(now, from = 'window') {
   saved = now;
   if (!cur) { erasedThere = false; return; }
-  if (erasedThere) { erasedThere = false; cur.game = { ...fresh(), grid: cur.p.grid }; cur.erased = true; return; }
+  const over = from === 'drive' && (now.cleared[cur.p.id] || 0) > beganAt(cur.game);
+  if (erasedThere || over) {
+    cur.erased = erasedThere ? `Progress erased ${from === 'drive' ? 'on another device' : 'in another window'}` : 'Started over on another device';
+    erasedThere = false; cur.game = { ...fresh(), grid: cur.p.grid, began: Date.now() };
+    return;
+  }
   if (started(cur.game)) saved.games[cur.p.id] = combine(cur.game, now.games[cur.p.id], cur.p.id);
+  cur.from = from;   // where what catchUp() takes in came from, which it says
 }
 const setOption = (name, value) => { saved.options[name] = value; changed.options.add(name); save(); };
 const setGame = (id, game) => { if (game) saved.games[id] = game; else delete saved.games[id]; changed.games.add(id); save(); };
@@ -522,7 +536,7 @@ function openPuzzle(i) {
   const p = list[i];
   const lineOf = new Int8Array(N);
   p.lines.forEach((line, k) => line.forEach(stop => { lineOf[stop] = k; }));
-  const game = { ...(gameFor(p.id) || fresh()), grid: p.grid };
+  const game = { ...(gameFor(p.id) || { ...fresh(), began: Date.now() }), grid: p.grid };
   // Each line's letters, as traced, and as people write it (PRIMA DONNA for PRIMADONNA, VELOUTÉ for VELOUTE), which is
   // what the found message, a tapped stop and the done sheet's key show.
   const words = p.lines.map(l => spell(p.grid, l)), shown = words.map(w => p.written?.[w] ?? w);
@@ -558,10 +572,10 @@ function catchUp() {
   held = false;
   if (!cur || cur.finishing || anySheet()) return;
   if (cur.erased) {
-    cur.erased = false; drag = null; sel = [];
+    drag = null; sel = [];
     stopClock();
     layers.lines.textContent = '';
-    say('Progress erased in another window', 'note');
+    say(cur.erased, 'note'); cur.erased = false;
     paint();
     startClock();
     return;
@@ -575,7 +589,7 @@ function catchUp() {
   saved.games[cur.p.id] = cur.game;
   layers.lines.textContent = '';
   for (const k of game.found) drawLine(k, false);
-  say(game.done ? 'Finished in another window' : 'Carried on in another window', 'note');
+  say(cur.from === 'drive' ? `${game.done ? 'Finished' : 'Played'} on another device` : `${game.done ? 'Finished' : 'Carried on'} in another window`, 'note');
   paint();
   startClock();
   if (!document.activeElement || document.activeElement === document.body || document.activeElement.closest('[hidden]')) board.focus({ preventScroll: true });
@@ -1062,6 +1076,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && anySheet()
 function openMenu() {
   $('o-clock').checked = saved.options.clock; $('o-night').checked = saved.options.night;
   $('m-restart').hidden = !cur; $('m-erase').hidden = $('m-save').hidden = $('m-load').hidden = !!cur;
+  $('drive-card').hidden = !drive.ready || !!cur;
   if (cur?.game.done) $('m-restart').textContent = 'Play this puzzle again';
   openSheet('sheet-menu');
 }
@@ -1086,6 +1101,7 @@ function disarm() {
   armed = null; loaded = null;
   $('m-restart').textContent = cur?.game.done ? 'Play this puzzle again' : 'Start this puzzle over';
   $('m-erase').textContent = 'Erase progress on every line'; $('m-load').textContent = 'Load progress from a file';
+  $('drive-card').disarm?.();
 }
 // A finished map keeps its best stars when it's played again, so the second tap says they stay.
 const restartAsk = () => {
@@ -1096,15 +1112,18 @@ const restartAsk = () => {
 twice($('m-restart'), restartAsk, () => {
   dropWaiting(cur.p.id); toldSpent.delete(cur.p.id);
   keepBest(cur.p.id, cur.game);
-  cur.game = fresh(); setGame(cur.p.id, null);
+  // When it was started over is kept, so Google Drive won't bring back the game it replaced (see mergeProgress()).
+  const t = Date.now();
+  saved.cleared[cur.p.id] = t; cur.game = fresh(); setGame(cur.p.id, null);
   const i = cur.i; closeSheets(); openPuzzle(i);
   // The new game is marked as started over, so it isn't put together with the game it replaced, still open in another
   // window, say: the better of the two stays (see combine()).
-  cur.game.restartedAt = Date.now();
+  cur.game.restartedAt = cur.game.began = t;
 });
-twice($('m-erase'), 'Tap again to erase every line', () => {
+// With Google Drive on, an erase reaches every device that saves there, so the second tap says so.
+twice($('m-erase'), () => (drive.isOn() ? 'Tap again to erase every device' : 'Tap again to erase every line'), () => {
   // Every game goes, here and in any other window, rather than being merged with what's stored.
-  dropWaiting(); toldSpent.clear(); saved.games = {}; saved.best = {}; saved.stars = {}; changed.games.clear(); changed.erased = true; save();
+  dropWaiting(); toldSpent.clear(); saved.games = {}; saved.best = {}; saved.stars = {}; saved.cleared = {}; changed.games.clear(); changed.erased = true; save();
   closeSheets(); drawList(); toast(keeping() ? 'Progress erased on every line' : 'Erased for this visit only');
 });
 
@@ -1367,13 +1386,18 @@ window.addEventListener('pagehide', () => { if (cur) { stopClock(); keep(); } })
 // Another window saved: take in what it saved. The list (and the lines sheet, if it's open) shows it straight away; a
 // puzzle on screen carries on as it is, unless the other window has a better game of it (see catchUp()). The line on
 // show stays.
-window.addEventListener('storage', e => {
-  if (e.key !== KEY && e.key !== null) return;
-  try { adopt(mergeInto(load())); } catch { return; }
+function takeStored(from) {
+  try { adopt(mergeInto(load()), from); } catch { return; }
   if (cur) { catchUp(); return; }
   drawList();
   if (!$('sheet-lines').hidden) drawLines();
-});
+}
+window.addEventListener('storage', e => { if (e.key === KEY || e.key === null) takeStored('window'); });
+// Google Drive: progress from the other devices, put together with this one's and written here by js/sync.js, is taken
+// in the same way. Its cloud button sits on the list, and its card in Options, only at crosstown.junkdrawer.works.
+drive.onUpdate(() => takeStored('drive'));
+drive.chip($('b-cloud'));
+drive.card($('drive-card'));
 setLine(line);
 drawList();
 // A reload on a puzzle's step (or a sheet's) opens on the list, so that step goes too, and Back from the list leaves

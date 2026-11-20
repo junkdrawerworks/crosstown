@@ -23,8 +23,9 @@
 - **Three stars.** One for finishing, one for spending no tokens, one for finding the Crosstown before any other line. A puzzle played again keeps its best stars, as it keeps its best time.
 - **Share a result.** It ends with a link to its puzzle by line and number, like `crosstown.junkdrawer.works/#market-47` (not by the puzzle's name, which would give its Crosstown away). The link opens that puzzle, with its line's list behind it for Back; a number the line hasn't got opens the line's list. Links in this form keep working: a puzzle keeps its number, and new puzzles go at the end of their line.
 - **Clock and night service.** Two options: time each puzzle and keep your best, and hide the clue until you find your first line.
-- No account and no server. Your progress stays in your browser. It works offline and installs to a phone's home screen.
+- No account and no server. Your progress stays in your browser, unless you save it to Google Drive. It works offline and installs to a phone's home screen.
 - **Progress in a file.** Options, on the list, has Save progress to a file, which downloads `crosstown-progress.json`, as a backup or to take to another browser, and Load progress from a file, which asks for a second tap and then adds the file to what's there, puzzle by puzzle: each keeps the better game, the faster best time and the more stars, so nothing on either side is lost, and the options stay as they are. The file holds every puzzle's game, best time and best stars by the puzzle's id, and a file saved now keeps loading in later versions.
+- **Saved to Google Drive.** At crosstown.junkdrawer.works, Options, on the list, has Save to Google Drive. Your progress then goes into one file, `Crosstown.json`, in a folder called Crosstown in your own Google Drive, and every phone and computer where you turn it on is put together with it, puzzle by puzzle, the way a file is loaded: each keeps the better game, the faster time and the more stars. What goes there: every puzzle's game, best time and best stars, and when a puzzle was started over or every line erased, so that the game started over, or the progress erased, doesn't come back from another device. What stays on each device: the options (the clock, night service, the line on show and today's stop). The first time a device turns it on, nothing on it or in Drive is lost, whichever turns it on first. It asks Google only for `drive.file`, which lets it see the files it made and nothing else, and it reads your Google account's email to show where it's saving. A cloud button beside Options shows how it's going: green when synced, amber while syncing, red when Google's hour-long sign-in has run out and a tap signs back in. Stop saving here, in the same place, stops on that device and leaves the copy in Drive. To take the permission back, remove junkdrawer.works under Third-party apps & services in your Google Account. Nothing about Drive shows anywhere but crosstown.junkdrawer.works (not in the one-file copy, and not on a test server).
 
 ## The puzzles
 
@@ -39,7 +40,7 @@ It's a static site: plain HTML, CSS and JavaScript, with no build step.
 ```sh
 npx serve .                   # or any static file server, then open the printed address
 npm install                   # only for the tools and tests below
-npm test                      # checks every puzzle, then plays the game in Chromium through the real page: every line, offline, a new release and the one-file copy (needs Playwright)
+npm test                      # checks every puzzle, then plays the game in Chromium through the real page: every line, offline, a new release, the one-file copy and saving to a stand-in Google Drive (needs Playwright)
 node tools/make-puzzles.mjs   # lays every puzzle out again from tools/themes/ (a few minutes)
 node tools/screenshots.mjs    # redraws docs/*.png and og.png
 node tools/make-icons.mjs     # redraws the PNG icons from icon.svg
@@ -51,7 +52,8 @@ To put it online with GitHub Pages: **Settings → Pages → Build and deploymen
 ### Files
 
 - `js/app.js`: the list, the map, tracing with a finger, mouse or keyboard, tokens, and reading and writing what's saved.
-- `js/saves.js`: what's saved, and how two saved games of a puzzle are put together.
+- `js/saves.js`: what's saved, and how two copies of it are put together, puzzle by puzzle.
+- `js/sync.js`: saving to Google Drive, at crosstown.junkdrawer.works only, with the client every junkdrawer.works project shares.
 - `js/board.js`: the grid's geometry, shared by the game, the puzzle tool and the tests.
 - `js/rules.js`: fare, stars and the clock's arithmetic.
 - `js/puzzles.js`: the lines and their boards, written by `tools/make-puzzles.mjs`. Don't edit it by hand.
@@ -62,6 +64,7 @@ To put it online with GitHub Pages: **Settings → Pages → Build and deploymen
 - `tools/play.mjs`: a small static server and the hands that drag and tap for the tests and screenshots.
 - `scripts/build.mjs`: bundles the game into `dist/crosstown.html`, one file, and `dist/artifact.html`, the same without the page around it, for hosts that supply their own.
 - `test/unit.test.mjs`, `test/e2e.mjs`: the puzzle checks and the play-through.
+- `test/drive.mjs`: saving to Google Drive with two and three devices, through `test/fake-google.mjs`, a stand-in for Google from the junkdrawer.works kit.
 - `test/main-line.json`: every Main Line board as published. `npm test` fails if one is laid out again, since that would start saved progress on it over.
 - `fonts/`: Overpass (SIL Open Font License), served from here so nothing loads from elsewhere.
 - `sw.js`: keeps a copy for using offline, made all at once from one release and kept under that release's own name, so making the next one never touches the copy in use. If making it is cut short, the copy from before stays as it was, and the page asks again when the signal comes back. On a connection that isn't answering, a page opens from that copy after four seconds. A page that came from the network never takes a file from the copy to go with it: if one doesn't come, the page says it didn't load all the way and offers to reload. `FILES` in it is a fingerprint of the files it keeps: change one and `npm test` says what to set it to, so a release never leaves the copy half old.

@@ -7,8 +7,9 @@ export const KEY = 'crosstown.v1';
 export const fresh = () => ({ found: [], detours: [], fare: 0, tokens: 0, spent: 0, hint: null, ms: 0, done: false, crossAt: -1, night: false });
 export const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
 // `erasedAt` is when progress on every line was last erased, in any window (see mergeInto() in app.js). `stars` is each
-// puzzle's best stars, as `best` is its best time, kept when it's played again (see bestStars() in app.js).
-export const blank = () => ({ options: { clock: false, night: false, line: LINES[0].id }, games: {}, best: {}, stars: {}, erasedAt: 0 });
+// puzzle's best stars, as `best` is its best time, kept when it's played again (see bestStars() in app.js). `cleared`
+// is when each puzzle was last started over, so Google Drive doesn't bring back the game that went (see mergeProgress()).
+export const blank = () => ({ options: { clock: false, night: false, line: LINES[0].id }, games: {}, best: {}, stars: {}, cleared: {}, erasedAt: 0 });
 // A save read into shape: anything missing is filled in, and best times and stars are kept only if they're times and
 // stars. (Whether a save can be read at all is the page's to say: see load() in app.js.)
 export function shape(raw) {
@@ -16,8 +17,9 @@ export function shape(raw) {
   if (!isObject(raw)) return s;
   const best = isObject(raw.best) ? Object.entries(raw.best).filter(([, t]) => Number.isFinite(t) && t > 0) : [];
   const stars = isObject(raw.stars) ? Object.entries(raw.stars).filter(([, n]) => [1, 2, 3].includes(n)) : [];
+  const cleared = isObject(raw.cleared) ? Object.entries(raw.cleared).filter(([, t]) => Number.isFinite(t) && t > 0) : [];
   return { options: { ...s.options, ...(isObject(raw.options) ? raw.options : {}) }, games: isObject(raw.games) ? raw.games : {}, best: Object.fromEntries(best),
-    stars: Object.fromEntries(stars), erasedAt: Number.isFinite(raw.erasedAt) ? raw.erasedAt : 0 };
+    stars: Object.fromEntries(stars), cleared: Object.fromEntries(cleared), erasedAt: Number.isFinite(raw.erasedAt) ? raw.erasedAt : 0 };
 }
 
 // A saved game, read against its puzzle, so a damaged save or one from an older layout of the board can't stop
@@ -109,3 +111,30 @@ export function joinProgress(a, b) {
 }
 // How many puzzles a copy of the progress has finished: those with stars kept, or a finished game.
 export const finishedIn = doc => new Set([...Object.keys(doc.stars), ...Object.keys(doc.games).filter(id => readGame(doc.games[id], id)?.done)]).size;
+
+// ---- progress on Google Drive -----------------------------------------------------------------------------------
+// When a game began: when it was opened fresh (`began`), or started over (`restartedAt`). A game saved before games
+// kept either began at 0, before any puzzle was started over.
+export const beganAt = g => (isObject(g) ? (Number.isFinite(g.began) ? g.began : Number.isFinite(g.restartedAt) ? g.restartedAt : 0) : 0);
+// Two copies of the progress put together, puzzle by puzzle, as joinProgress() does, but a puzzle started over on
+// either side (`cleared`) loses every game that began before that, wherever it was, so it doesn't come back. Its best
+// time and stars stay, as they do when it's started over. On a first sync (`first`), nothing on either side goes: a
+// game that began before its puzzle was started over on the other side stays, and is counted from then, so the mark
+// (which every device keeps, the latest winning) never takes it afterwards.
+export function mergeProgress(a, b, { first = false } = {}) {
+  const cleared = { ...a.cleared };
+  for (const [id, t] of Object.entries(b.cleared || {})) if (!(cleared[id] >= t)) cleared[id] = t;
+  const live = (doc, id) => {
+    const g = doc.games[id], t = cleared[id] || 0;
+    if (!isObject(g) || !(beganAt(g) < t)) return isObject(g) ? g : undefined;
+    return first ? { ...g, began: t } : undefined;
+  };
+  const out = joinProgress({ games: {}, best: a.best, stars: a.stars }, { games: {}, best: b.best, stars: b.stars });
+  for (const id of new Set([...Object.keys(a.games), ...Object.keys(b.games)])) {
+    const x = live(a, id), y = live(b, id), g = x && y ? combine(x, y, id) : x || y;
+    if (g) out.games[id] = g;
+  }
+  return { ...out, cleared };
+}
+// Keys in order, so two copies with the same progress read the same.
+export const canon = v => JSON.stringify(v, (k, x) => (isObject(x) ? Object.fromEntries(Object.keys(x).sort().map(n => [n, x[n]])) : x));
