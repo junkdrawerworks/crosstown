@@ -272,7 +272,7 @@ function openLines() {
   drawLines();
   openSheet('sheet-lines');
   const now = $('lines').querySelector('[aria-current]');
-  now.focus({ preventScroll: true }); now.scrollIntoView({ block: 'center' });
+  now.focus({ preventScroll: true }); now.scrollIntoView({ block: 'nearest' });
 }
 function drawLines() {
   const ul = $('lines'), at = [...ul.children].findIndex(li => li.contains(document.activeElement));
@@ -310,8 +310,8 @@ function drawLines() {
   // Each line keeps its own progress (unless the browser isn't keeping any), then the count over every line.
   const [d, a, g] = [done, all, got].map(n => n.toLocaleString());
   const count = done === all ? ` All ${a} finished, ${g} stars.` : done ? ` ${d} of ${a} finished${got ? `, ${g} star${got === 1 ? '' : 's'}` : ''}.` : '';
-  $('lines-note').textContent = (keeping() ? 'Each line is its own set of puzzles and keeps its own progress.'
-    : "Each line is its own set of puzzles. This browser isn't keeping progress, so it goes when the page closes.") + count;
+  $('lines-note').textContent = (keeping() ? 'Each line keeps its own progress.'
+    : "This browser isn't keeping progress, so it goes when the page closes.") + count;
   ul.children[at]?.querySelector('button').focus({ preventScroll: true });   // drawn again while open: focus stays put
 }
 

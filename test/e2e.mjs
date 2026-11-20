@@ -1099,7 +1099,7 @@ for (const how of ['blocked', 'full']) {
   assert.equal(await tab.isVisible('#unkept'), true);
   // The Lines sheet doesn't claim each line keeps its progress.
   await tab.click('#b-line');
-  assert.equal(await tab.textContent('#lines-note'), `Each line is its own set of puzzles. This browser isn't keeping progress, so it goes when the page closes. 1 of ${LINES.reduce((n, l) => n + l.puzzles.length, 0)} finished, 3 stars.`, `the Lines sheet should say progress isn't kept (${how})`);
+  assert.equal(await tab.textContent('#lines-note'), `This browser isn't keeping progress, so it goes when the page closes. 1 of ${LINES.reduce((n, l) => n + l.puzzles.length, 0)} finished, 3 stars.`, `the Lines sheet should say progress isn't kept (${how})`);
   await tab.keyboard.press('Escape');
   await tab.click('#b-list-menu'); await tab.click('#m-erase'); await tab.click('#m-erase');
   assert.equal(await tab.textContent('#toast'), 'Erased for this visit only');
@@ -1555,7 +1555,7 @@ if (LINES.length > 1) {
   assert.equal(await tab.getAttribute('#lines li:nth-child(1) .line-row', 'aria-label'), `${main.name}: ${main.about}. Finished, ${n * 3} stars`);
   assert.equal(await tab.textContent('#lines li:nth-child(2) .line-prog'), `${second.puzzles.length} puzzles`);
   const [nn, aa, ss] = await tab.evaluate(ns => ns.map(v => v.toLocaleString()), [n, all, n * 3]);
-  assert.equal(await tab.textContent('#lines-note'), `Each line is its own set of puzzles and keeps its own progress. ${nn} of ${aa} finished, ${ss} stars.`);
+  assert.equal(await tab.textContent('#lines-note'), `Each line keeps its own progress. ${nn} of ${aa} finished, ${ss} stars.`);
   // On a phone and a computer the Main Line's about stays on one line beside "Finished · 324★".
   for (const width of [390, 1280]) {
     await tab.setViewportSize({ width, height: 844 });
@@ -1563,6 +1563,25 @@ if (LINES.length > 1) {
   }
   await tab.setViewportSize({ width: 390, height: 844 });
   assert.deepEqual(await tab.$$eval('#lines .here', h => h.map(x => [x.closest('li') === x.closest('ul').children[1], x.textContent])), [[true, 'You are here']], 'the line on show should say so');
+  // On a 375x667 phone every row and Close are in sight together, the sheet opened on the first line or the last, and
+  // a sheet that fits isn't nudged so its title sits against the top edge.
+  const sheetFit = () => tab.evaluate(() => {
+    const panel = document.querySelector('#sheet-lines .panel'), box = panel.getBoundingClientRect(), close = document.querySelector('#sheet-lines .panel-row .btn').getBoundingClientRect();
+    const rows = [...document.querySelectorAll('#lines .line-row')].filter(r => { const b = r.getBoundingClientRect(); return b.top >= box.top && b.bottom <= box.bottom; });
+    return { rows: rows.length, close: close.bottom <= box.bottom && close.bottom <= innerHeight, top: panel.scrollTop, focus: document.activeElement.getAttribute('aria-current') };
+  });
+  await tab.setViewportSize({ width: 375, height: 667 });
+  assert.deepEqual(await sheetFit(), { rows: LINES.length, close: true, top: 0, focus: 'true' }, 'the Lines sheet should fit a 375x667 phone');
+  await tab.click(`#lines li:nth-child(${LINES.length}) .line-row`); await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
+  for (const [width, height] of [[375, 667], [360, 740]]) {
+    await tab.setViewportSize({ width, height });
+    await tab.click('#b-line'); await tab.waitForSelector('#sheet-lines:not([hidden])');
+    await tab.waitForFunction(() => !document.querySelector('#sheet-lines .panel').getAnimations().length);   // risen
+    assert.deepEqual(await sheetFit(), { rows: LINES.length, close: true, top: 0, focus: 'true' }, `the Lines sheet opened on the last line at ${width}x${height}`);
+    await tab.keyboard.press('Escape'); await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
+  }
+  await tab.setViewportSize({ width: 390, height: 844 });
+  await tab.click('#b-line'); await tab.waitForSelector('#sheet-lines:not([hidden])');
   await tab.click('#lines li:nth-child(1) .line-row');
   await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
   await tab.waitForFunction(said => document.getElementById('list-said').textContent === said, `${main.name}, ${n} of ${n} finished`, { timeout: 2000 })
