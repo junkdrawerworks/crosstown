@@ -536,6 +536,29 @@ function contrast(a, b) {
   await other.close();
 }
 
+// Late in a puzzle, with no detours left on the whole map that could earn another token, the first word that misses
+// says so, once. Fare still on the meter counts: three fare and one four-letter detour left can still make a token.
+{
+  const all = p.detours.split(' '), last = all.find(d => d.length === 4 && traces(p.grid, d.toUpperCase(), 1).length);
+  const { other, tab, errors } = await visitor({ options: { traced: true }, best: {}, games: { [p.id]: { found: [], detours: all.filter(d => d !== last), fare: 3, spent: 0 } } });
+  await tab.click('#b-continue');
+  const NONE_LEFT = 'Not a word on this map. No detours left that could earn a token';
+  await drag(tab, junk);
+  assert.equal(await tab.textContent('#readout'), 'Not a word on this map', 'a token can still be earned');
+  await drag(tab, traces(p.grid, last.toUpperCase(), 1)[0]);
+  assert.match(await tab.textContent('#readout'), /Token earned/);
+  await drag(tab, junk);
+  assert.equal(await tab.textContent('#readout'), NONE_LEFT, 'with no fare left to earn, the first miss should say so');
+  for (const [width, height] of [[320, 568], [390, 844]]) {
+    await tab.setViewportSize({ width, height });
+    assert.equal(await tab.evaluate(() => { const r = document.getElementById('readout'); return r.getBoundingClientRect().height <= parseFloat(getComputedStyle(r).minHeight) + 0.5; }), true, `the note on no fare left is taller than the readout at ${width} px`);
+  }
+  await drag(tab, junk);
+  assert.equal(await tab.textContent('#readout'), 'Not a word on this map', 'no fare left should be said once');
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // Finding the Crosstown says the map's name at the readout's full size, then "Crosstown" small after it. On a small
 // phone the longest name stays whole on one line with its label, and the map doesn't move.
 {

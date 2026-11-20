@@ -754,7 +754,7 @@ function judgeWord(word, through = false) {
   if (cur.waiting || (!cur.extra.ready && !game.detours.includes(word.toLowerCase()))) { wait(word); return; }
   if (cur.extra.stale && !game.detours.includes(word.toLowerCase())) { say(STALE, 'note'); paint(); return; }
   const { news, counted, won } = fares(game, cur.p, cur.extra, [word]);
-  say(...news);
+  say(...spent(news, counted, game, cur.p, cur.extra));
   if (counted) keep();
   paint();
   if (won) earned();
@@ -804,7 +804,7 @@ function land(mine, q, arrived) {
     return;
   }
   const { news, counted, won } = fares(game, mine.p, q.extra, q.words);
-  if (shown) { say(...news); if (counted) keep(); paint(); if (won) earned(); }
+  if (shown) { say(...spent(news, counted, game, mine.p, q.extra)); if (counted) keep(); paint(); if (won) earned(); }
   else if (counted) { setGame(mine.p.id, { ...game, grid: mine.p.grid }); if (!cur) drawList(); }
 }
 
@@ -829,6 +829,19 @@ function fares(game, p, extra, list) {
     : ['Not a word on this map', 'note nope'];
   return { news, counted: got.length > 0, won };
 }
+// Late in a puzzle every detour that could earn another token may have been found: the fare still to be had on the
+// whole map (a detour can run through found lines), with what's on the meter, comes to less than a token. The first
+// word that misses after that says so, once a visit to the puzzle. It changes nothing else: no free tokens.
+const toldSpent = new Set();   // the puzzles told this visit
+function spent(news, counted, game, p, extra) {
+  if (counted || toldSpent.has(p.id) || extra.words[p.id] === undefined) return news;
+  const have = new Set(game.detours);
+  let left = game.fare;
+  for (const d of extra.words[p.id].split(' ')) if (!have.has(d) && (left += fareFor(d)) >= FARE_PER_TOKEN) return news;
+  toldSpent.add(p.id);
+  return [`${news[0]}. No detours left that could earn a token`, news[1]];
+}
+
 // A token earned: the meter shows full for a moment, so the fare is seen to fill it, before it shows what's left over
 // (the next paint() does that), and the token button gives a pulse.
 let rollover = 0;
@@ -998,7 +1011,7 @@ const restartAsk = () => {
   return n === 1 ? 'Tap again: its 1 star goes too' : `Tap again: its ${n} stars go too`;
 };
 twice($('m-restart'), restartAsk, () => {
-  dropWaiting(cur.p.id);
+  dropWaiting(cur.p.id); toldSpent.delete(cur.p.id);
   cur.game = fresh(); setGame(cur.p.id, null);
   const i = cur.i; closeSheets(); openPuzzle(i);
   // The new game is marked as started over, so it isn't put together with the game it replaced, still open in another
@@ -1007,7 +1020,7 @@ twice($('m-restart'), restartAsk, () => {
 });
 twice($('m-erase'), 'Tap again to erase every line', () => {
   // Every game goes, here and in any other window, rather than being merged with what's stored.
-  dropWaiting(); saved.games = {}; saved.best = {}; changed.games.clear(); changed.erased = true; save();
+  dropWaiting(); toldSpent.clear(); saved.games = {}; saved.best = {}; changed.games.clear(); changed.erased = true; save();
   closeSheets(); drawList(); toast(keeping() ? 'Progress erased on every line' : 'Erased for this visit only');
 });
 
