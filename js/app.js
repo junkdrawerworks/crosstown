@@ -804,6 +804,13 @@ drawList();
 // the game.
 if (!single && (history.state?.[STEP] || history.state?.sheet)) { backing = true; history.back(); }
 
+// The offline copy. If making it was cut short (the signal went), it's tried again when the signal comes back or the
+// game comes back on screen, rather than at the next page load. update() fetches sw.js afresh, and sets up a new
+// release if it's changed or the last one didn't finish.
 if (!single && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  const sw = navigator.serviceWorker;
+  sw.register('sw.js').catch(() => {});
+  const again = () => sw.getRegistration().then(r => (r ? r.update() : sw.register('sw.js'))).catch(() => {});
+  window.addEventListener('online', again);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) again(); });
 }

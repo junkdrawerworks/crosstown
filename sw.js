@@ -3,12 +3,13 @@
 // Network first, so a new version shows up as soon as you're online, but a page the network hasn't answered in a few
 // seconds opens from the copy instead (see page()), and so does a line's detours (see detours()).
 
-// An installed copy downloads the whole list again only when this file changes by a byte. Otherwise each file in it is
-// refreshed only when a page that loads it is visited online, and the copy could mix two releases. So FILES is a
-// fingerprint of every file in SHELL: change any of them and test/e2e.mjs fails until FILES is changed to match (it
-// says what to), which changes this file, so every copy is made whole again at once.
+// The copy is always one whole release. It's made only when this worker is set up, all at once: if any file in SHELL
+// fails to come, none goes in, the copy from before stays as it was, and the page asks again later (when the signal
+// comes back, see the end of js/app.js). Files fetched while the game is in use never go into it. A new copy is made
+// only when this file changes by a byte, so FILES is a fingerprint of every file in SHELL: change any of them and
+// test/e2e.mjs fails until FILES is changed to match (it says what to), which changes this file.
 const CACHE = 'crosstown-v2'; // bump the number when the file list changes
-const FILES = 'd3296f07'; // test/e2e.mjs checks this
+const FILES = '8cec5f0b'; // test/e2e.mjs checks this
 const SHELL = [
   './', 'index.html', 'icon.svg', 'manifest.webmanifest',
   'css/app.css', 'js/app.js', 'js/board.js', 'js/rules.js', 'js/puzzles.js', 'fonts/overpass.woff2',
@@ -42,19 +43,17 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   if (e.request.mode === 'navigate') e.respondWith(page(e));
-  else if (fromCopy.has(e.clientId)) e.respondWith(kept(e.request).then(r => r || network(e)));
+  else if (fromCopy.has(e.clientId)) e.respondWith(kept(e.request).then(r => r || fresh(e.request)));
   else if (url.pathname.includes('/js/detours/')) e.respondWith(detours(e));
-  else e.respondWith(network(e).catch(() => offline(e.request)));
+  else e.respondWith(fresh(e.request).catch(() => offline(e.request)));
 });
 
 // A page, from the network. On a connection that's up but not answering (a train, a captive wifi, one bar of signal),
 // it opens from the copy after PATIENCE instead, if the copy has it. With no copy of the page, it waits on for the
 // network. With no network at all, it opens from the copy straight away, as it always has.
 function page(e) {
-  let answered = false, copied = false;
-  // The network's answer goes into the copy, unless the copy answered first: that page's files came from the copy,
-  // and a newer page kept beside them would be the mix this is avoiding, next time it opens from the copy.
-  const net = network(e, () => !copied);
+  let answered = false;
+  const net = fresh(e.request);
   // Safari before 16 doesn't say which page a load becomes (no resultingClientId), so the page's files couldn't come
   // from the copy too, and would wait on the network anyway. There a page waits for the network, as it always has.
   if (!e.resultingClientId) return net.catch(() => offline(e.request));
@@ -62,7 +61,6 @@ function page(e) {
     const answer = res => { if (!answered) { answered = true; resolve(res); } };
     const slow = setTimeout(() => kept(e.request).then(copy => {
       if (!copy || answered) return;
-      copied = true;
       fromCopy.add(e.resultingClientId);
       if (fromCopy.size > 50) fromCopy.delete(fromCopy.values().next().value); // the oldest, long gone
       answer(copy);
@@ -74,11 +72,10 @@ function page(e) {
 
 // A line's detours, which load while the game is open (when a line is shown), not with the page. On a connection that
 // has stopped answering since the page opened, a word traced meanwhile would wait on them for good, so they come from
-// the copy after PATIENCE, as a page does. The network's answer still goes into the copy when it comes. Only the
-// detours: they're plain data, but an older app.js from the copy beside a page that came from the network would be a
-// mix of two releases, which is worse than waiting.
+// the copy after PATIENCE, as a page does. Only the detours: they're plain data, but an older app.js from the copy
+// beside a page that came from the network would be a mix of two releases, which is worse than waiting.
 function detours(e) {
-  const net = network(e);
+  const net = fresh(e.request);
   return new Promise((resolve, reject) => {
     let answered = false;
     const answer = res => { if (!answered) { answered = true; resolve(res); } };
@@ -86,17 +83,6 @@ function detours(e) {
     net.then(res => { clearTimeout(slow); answer(res); },
       () => { clearTimeout(slow); offline(e.request).then(answer, reject); });
   });
-}
-
-// A file from the network, kept in the copy for next time (unless keep() says not). The worker stays up until it's in.
-function network(e, keep = () => true) {
-  let stored;
-  const got = fresh(e.request).then(res => {
-    if (res.ok && keep()) { const copy = res.clone(); stored = caches.open(CACHE).then(c => c.put(e.request, copy)); }
-    return res;
-  });
-  try { e.waitUntil(got.then(() => stored, () => {})); } catch { /* the event is over: the copy goes in anyway */ }
-  return got;
 }
 
 // A file from the copy, marked like the network's (see askAgainNextTime() below), so a reload once the network is

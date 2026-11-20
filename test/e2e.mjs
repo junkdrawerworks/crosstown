@@ -1182,7 +1182,8 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
 // each file for ten minutes, and asks again by its ETag. `net` is the connection: 'up', 'down' (the server drops every
 // connection) or 'stalled' (a plane's or a train's wifi: it takes each request and holds on to it). With `release`
 // set it serves the next release. The server's own switches are needed because the browser's offline switch can't
-// make a stall, and in some Chromium builds it doesn't stop the service worker's own requests.
+// make a stall, and in some Chromium builds it doesn't stop the service worker's own requests. `drop` names a file the
+// server doesn't answer (the connection goes as it's asked for), counted in `dropped`.
 {
   const { createServer } = await import('node:http');
   const { readFile } = await import('node:fs/promises');
@@ -1191,11 +1192,12 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
   const { createHash } = await import('node:crypto');
   const root = fileURLToPath(new URL('..', import.meta.url));
   const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
-  let net = 'up', release = false;
+  let net = 'up', release = '', drop = '', dropped = 0;
   const held = [];
   const server = createServer((req, res) => {
     if (net === 'down') { req.socket.destroy(); return; }
     if (net === 'stalled') { held.push([req, res]); return; }
+    if (drop && req.url.startsWith(drop)) { dropped++; req.socket.destroy(); return; }
     serve(req, res);
   }).listen(0);
   async function serve(req, res) {
@@ -1203,8 +1205,8 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
     if (path.endsWith('/')) path += 'index.html';
     let body;
     try { body = await readFile(join(root, path)); } catch { res.writeHead(404); res.end(); return; }
-    if (release && path === '/sw.js') body = Buffer.from(String(body).replace(/const FILES = '[0-9a-f]*'/, "const FILES = 'next'"));
-    if (release && path === '/index.html') body = Buffer.concat([body, Buffer.from('<!-- the next release -->\n')]);
+    if (release && path === '/sw.js') body = Buffer.from(String(body).replace(/const FILES = '[0-9a-f]*'/, `const FILES = '${release}'`));
+    if (release && path === '/index.html') body = Buffer.concat([body, Buffer.from(`<!-- release ${release} -->\n`)]);
     const etag = `"${createHash('sha1').update(body).digest('hex').slice(0, 16)}"`;
     const head = { etag, 'cache-control': 'max-age=600', 'content-type': TYPES[extname(path)] || 'text/html' };
     if (req.headers['if-none-match'] === etag) { res.writeHead(304, head); res.end(); return; }
@@ -1256,12 +1258,32 @@ assert.deepEqual(problems.filter(x => !x.startsWith('failed:')), [], 'problems w
 
   // A new release: every file in the new copy comes from the server, though the browser still has its own copies of
   // the old ones for ten minutes. (The next release changes index.html, and so FILES in sw.js, as a real one does.)
-  release = true;
+  const copyOf = () => page.evaluate(async () => (await (await caches.match('index.html'))?.text())?.match(/<!-- release (\w+) -->/)?.[1]);
+  release = 'next';
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
-  for (const end = Date.now() + 10000; !(await page.evaluate(async () => !!(await (await caches.match('index.html'))?.text())?.includes('<!-- the next release -->')));) {
+  for (const end = Date.now() + 10000; await copyOf() !== 'next';) {
     assert.ok(Date.now() < end, "the new release's offline copy kept the old index.html");
     await new Promise(r => setTimeout(r, 100));
   }
+
+  // A release whose copy is cut short (here one line's detours don't come) leaves the copy from before whole, and is
+  // tried again as the signal comes back, without another page load.
+  release = 'after'; drop = '/js/detours/park.js';
+  await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+  for (const end = Date.now() + 10000; !dropped;) { assert.ok(Date.now() < end, 'the next release was not asked for'); await new Promise(r => setTimeout(r, 100)); }
+  await page.waitForFunction(async () => { const r = await navigator.serviceWorker.getRegistration(); return !r.installing && !r.waiting; });
+  // Meanwhile the game fetches a file of the next release from the network: it isn't kept beside the copy's older ones.
+  assert.equal(await page.evaluate(async () => (await (await fetch('index.html')).text()).includes('<!-- release after -->')), true);
+  await new Promise(r => setTimeout(r, 300));
+  assert.equal(await copyOf(), 'next', 'a copy cut short should leave the one from before as it was');
+  drop = '';
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  for (const end = Date.now() + 10000; await copyOf() !== 'after';) {
+    assert.ok(Date.now() < end, 'a copy cut short was not made again when the signal came back');
+    await new Promise(r => setTimeout(r, 100));
+  }
+  const inCopy = await page.evaluate(async lines => (await Promise.all(lines.map(l => caches.match(`js/detours/${l}.js`)))).filter(Boolean).length, LINES.map(l => l.id));
+  assert.equal(inCopy, LINES.length, 'every line\'s detours should be in the offline copy');
   assert.deepEqual(problems, [], 'problems while offline or on a stalled connection');
   await ctx.close();
   server.close();
