@@ -171,6 +171,9 @@ a { color: inherit; }
 .mast-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .mast-row .primary { flex: 1 1 auto; }
 .tally { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+/* A puzzle under way further down the line, after the tally: a link in looks, with room enough to tap. */
+.tally .sep { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; vertical-align: middle; margin: 0 6px 3px; }
+.tally-link { padding: 4px 0; margin: -4px 0; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 700; white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; touch-action: manipulation; }
 .tally + .tally { margin-top: -6px; }   /* storage that isn't keeping anything, said under the tally */
 
 /* The line on show, and the button that changes it. Its colour is the line's (set from app.js as --line). */

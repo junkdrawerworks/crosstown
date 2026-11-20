@@ -1135,6 +1135,32 @@ if (LINES.length > 1) {
   await gone.other.close();
 }
 
+// A puzzle under way further down a line, behind one not yet played, stays in sight: the big button keeps the line's
+// order, and the tally ends with a way to it. With two under way, it says how many and goes to the nearer.
+if (LINES.length > 1) {
+  const m = LINES[1];
+  const games = Object.fromEntries(m.puzzles.slice(0, 30).map(q => [q.id, finished(q)]));
+  delete games[m.puzzles[7].id];
+  games[m.puzzles[19].id] = { found: [1, 2], detours: [] };
+  const { other, tab, errors } = await visitor({ options: { line: m.id }, best: {}, games });
+  assert.equal(await tab.textContent('#b-continue'), 'Play No. 8');
+  assert.equal(await tab.textContent('#tally'), `28 of ${m.puzzles.length} finished, 84 of ${m.puzzles.length * 3} stars` + 'No. 20 under way');
+  assert.equal(await tab.textContent('#tally .tally-link'), 'No. 20 under way', 'a puzzle under way behind one not played should be offered');
+  await tab.click('#tally .tally-link');
+  assert.equal(await tab.textContent('#where'), `${m.name.replace(/ Line$/, '')}, No. 20`);
+  assert.equal(await tab.textContent('#count'), `2 of ${m.puzzles[19].lines.length} lines`);
+  await tab.click('#b-back');
+  await tab.evaluate(([s, id]) => { const v = JSON.parse(s); v.games[id] = { found: [1], detours: [] }; localStorage.setItem('crosstown.v1', JSON.stringify(v)); }, [await tab.evaluate(() => localStorage.getItem('crosstown.v1')), m.puzzles[33].id]);
+  await tab.reload();
+  assert.equal(await tab.textContent('#tally .tally-link'), '2 under way, next No. 20');
+  // With nothing behind the first unfinished puzzle, there's nothing to offer.
+  await tab.click('#b-continue'); await drag(tab, m.puzzles[7].lines[1]); await tab.click('#b-back');
+  assert.equal(await tab.textContent('#b-continue'), 'Resume No. 8');
+  assert.equal(await tab.textContent('#tally .tally-link'), '2 under way, next No. 20', 'the under-way link should count only those after the big button\'s');
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // The last puzzle on a line: the done sheet says the line is finished, with its tally, and offers the next line. That
 // opens the next line's first puzzle in place of this one, so Back goes to the new line's list.
 if (LINES.length > 2) {

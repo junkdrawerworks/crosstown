@@ -164,9 +164,11 @@ function drawList() {
   const route = $('route');
   route.textContent = '';
   let finished = 0, stars = 0, prevDone = false;
+  const going = [];
   list.forEach((p, i) => {
     const g = gameFor(p.id);
     const state = g?.done ? 'done' : started(g) ? 'going' : 'todo';
+    if (state === 'going') going.push(i);
     const li = document.createElement('li');
     li.className = state + (prevDone ? ' after-done' : '');
     prevDone = state === 'done';
@@ -207,6 +209,16 @@ function drawList() {
     for (const l of LINES) { const t = tally(l); all += t.total; got += t.stars; }
     $('tally').textContent = `Every line finished: ${all.toLocaleString()} puzzles, ${got.toLocaleString()} of ${(all * 3).toLocaleString()} stars`;
   } else $('tally').textContent = finished ? `${finished} of ${list.length} finished, ${stars} of ${list.length * 3} stars` : `${list.length} puzzles`;
+  // The big button takes the line in order, so a puzzle under way further down, behind one not yet played, would be
+  // lost from sight: the tally ends with a way to the nearest, "· No. 20 under way" (or "· 3 under way, next No. 20").
+  const later = going.filter(i => i > up);
+  if (up >= 0 && later.length) {
+    const sep = document.createElement('span'); sep.className = 'sep'; sep.setAttribute('aria-hidden', 'true');
+    const to = document.createElement('button'); to.type = 'button'; to.className = 'tally-link';
+    to.textContent = later.length > 1 ? `${later.length} under way, next No. ${later[0] + 1}` : `No. ${later[0] + 1} under way`;
+    to.addEventListener('click', () => fromList(later[0]));
+    $('tally').append(sep, to);
+  }
   route.setAttribute('aria-label', `${line.name} puzzles`);
   route.classList.toggle('finished', finished === list.length);
   $('line-name').textContent = line.name;
