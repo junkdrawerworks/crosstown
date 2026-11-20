@@ -281,7 +281,7 @@ a { color: inherit; }
   visibility: hidden; opacity: 0; transform: translateY(8px); transition: opacity .18s, transform .18s, visibility 0s .18s; }
 .pill-dock.on { visibility: visible; opacity: 1; transform: none; transition: opacity .18s, transform .18s; }
 .pill { display: flex; align-items: stretch; pointer-events: auto; border-radius: 24px; overflow: hidden;
-  background: var(--line, var(--cross)); color: var(--on-line-c, var(--on-cross)); box-shadow: 0 4px 14px rgb(8 12 20 / .28); }
+  background: var(--line-deep, var(--cross)); color: var(--on-line-c, var(--on-cross)); box-shadow: 0 4px 14px rgb(8 12 20 / .28); }
 .pill button { min-height: 44px; border: 0; background: none; color: inherit; font: inherit; font-weight: 800; cursor: pointer; touch-action: manipulation; }
 .pill-go { padding: 0 14px 0 20px; white-space: nowrap; }
 .pill .pill-up { width: 48px; display: grid; place-items: center; border-left: 1.5px solid color-mix(in srgb, currentColor 35%, transparent); }

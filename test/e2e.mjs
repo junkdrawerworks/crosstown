@@ -2100,6 +2100,9 @@ if (LINES.length > 1) {
       await tab.emulateMedia({ colorScheme });
       const roundel = await tab.evaluate(() => { const s = getComputedStyle(document.querySelector('#route li.done .roundel')); return { color: s.color, bg: s.backgroundColor }; });
       assert.ok(contrast(roundel.color, roundel.bg) >= 4.5, `a finished roundel's number on the ${l.name} is hard to read in ${colorScheme}: ${JSON.stringify(roundel)}`);
+      // So are the words on the pill at the foot of a long list, in the line's colour.
+      const pill = await tab.evaluate(() => { const s = getComputedStyle(document.querySelector('.pill')); return { color: s.color, bg: s.backgroundColor }; });
+      assert.ok(contrast(pill.color, pill.bg) >= 4.5, `the pill's words on the ${l.name} are hard to read in ${colorScheme}: ${JSON.stringify(pill)}`);
       // The stops not yet ridden are ringed in a pale tint of the line's colour, so a fresh line looks like that line;
       // the Main Line's colour is the ink, so its tint is a grey.
       const ring = await tab.evaluate(() => {
