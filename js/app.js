@@ -592,16 +592,31 @@ function speak(i) {
   $('spoken').textContent = words;
 }
 
+// The map taken by the keyboard (Tab, or a puzzle opened with a key), with no word under way, says how to play it
+// with keys: on a first visit in place of the tip on dragging, and otherwise until the first key.
+const KEYS_TIP = 'Arrow keys move, Enter adds a letter, Enter again sends';
+let keysTip = false;   // the tip goes at the next key
+board.addEventListener('focus', () => {
+  if (!cur || cur.game.done || sel.length || !board.matches(':focus-visible')) return;
+  say(KEYS_TIP, 'note');
+  keysTip = traced();
+});
+
 // On a finished map every stop is on a found line, so the arrows and Enter only name lines there, as a tap does.
 board.addEventListener('keydown', e => {
   if (!cur) return;
   const step = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] }[e.key];
+  if (keysTip && (step || ['Enter', ' ', 'Escape', 'Backspace'].includes(e.key))) {
+    keysTip = false;
+    if ($('readout').textContent === KEYS_TIP) say('');
+  }
   if (step) {
     if (cursor < 0) cursor = sel.length ? sel[sel.length - 1] : 0;
     else { const r = row(cursor) + step[0], c = col(cursor) + step[1]; if (r >= 0 && r < H && c >= 0 && c < W) cursor = r * W + c; }
     speak(cursor);
   } else if (e.key === 'Enter' || e.key === ' ') {
-    if (cursor < 0) return;
+    // Before any arrow, Enter puts the cursor down (on the word's last letter, or the first stop) and says where.
+    if (cursor < 0) { cursor = sel.length ? sel[sel.length - 1] : 0; speak(cursor); e.preventDefault(); paint(); return; }
     const at = sel.indexOf(cursor);
     if (taken(cursor)) { if (!cur.game.done && takenNext(cursor)) sayTaken(cursor); else nameLine(cursor); }
     else if (at >= 0 && at === sel.length - 1) { e.preventDefault(); submit(); return; }

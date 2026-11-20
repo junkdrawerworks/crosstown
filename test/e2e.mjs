@@ -156,6 +156,7 @@ assert.equal(await page.locator('#board .guide').count(), 1);
 await page.focus('#b-menu');
 await page.keyboard.press('Tab');
 assert.deepEqual(await page.evaluate(() => [document.activeElement.id, getComputedStyle(document.activeElement).outlineStyle]), ['board', 'solid'], 'the map should show keyboard focus');
+assert.equal(await text('#readout'), 'Arrow keys move, Enter adds a letter, Enter again sends', 'the map taken by Tab should say how to play with keys');
 await page.focus('#board');
 const walk = async (to, on = page) => {
   let at = await on.evaluate(() => [...document.querySelectorAll('#board .stop')].findIndex(s => s.classList.contains('cursor')));
@@ -577,6 +578,38 @@ for (const [width, height] of [[640, 400], [375, 667]]) {
   }
   // At 200% on a laptop every one of them is too tall; on a 375x667 phone How to play is.
   assert.ok(width === 640 || await tab.evaluate(() => document.getElementById('sheet-how').querySelector('.panel').getAttribute('tabindex') === '-1'), 'How to play should be too tall for a 375x667 phone, for this check');
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
+// The map taken by the keyboard says how to play it with keys. On a first visit that takes the place of the tip on
+// dragging and stays while the arrows move; later it shows until the first key. Enter before any arrow puts the
+// cursor down, on the first stop or on the last letter of a word under way, and says where it is.
+{
+  const KEYS = 'Arrow keys move, Enter adds a letter, Enter again sends';
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games: {} });
+  const cursorAt = () => tab.evaluate(() => [...document.querySelectorAll('#board .stop')].findIndex(s => s.classList.contains('cursor')));
+  await tab.focus('#b-continue'); await tab.keyboard.press('Enter');
+  assert.equal(await tab.textContent('#readout'), KEYS, 'a puzzle opened by keyboard on a first visit should say how to play with keys');
+  await tab.keyboard.press('ArrowDown');
+  assert.equal(await tab.textContent('#readout'), KEYS, 'on a first visit the keys tip should stay while the arrows move');
+  await tab.keyboard.press('Escape');
+  await tab.click('#b-back');
+  await tab.evaluate(() => { const s = JSON.parse(localStorage.getItem('crosstown.v1')); s.options.traced = true; localStorage.setItem('crosstown.v1', JSON.stringify(s)); });
+  await tab.reload();
+  await tab.click('#b-continue');
+  assert.equal(await tab.textContent('#readout'), '', 'a tap should not bring the keys tip');
+  await tab.focus('#b-menu'); await tab.keyboard.press('Tab');
+  assert.equal(await tab.textContent('#readout'), KEYS, 'Tab to the map should say how to play with keys');
+  await tab.keyboard.press('Enter');
+  assert.deepEqual([await cursorAt(), await tab.textContent('#spoken'), await tab.textContent('#readout')], [0, `${p.grid[0]}, row 1, column 1`, ''], 'Enter before any arrow should put the cursor on the first stop and say so');
+  await tab.keyboard.press('Enter');
+  assert.equal(await tab.locator('#board .stop.sel').count(), 1, 'Enter again should add the letter');
+  await tab.locator('#board').blur();
+  await tab.focus('#b-menu'); await tab.keyboard.press('Tab');
+  assert.equal(await tab.textContent('#readout'), p.grid[0], 'with a word under way, the map taken by Tab should leave it showing');
+  await tab.keyboard.press('Space');
+  assert.equal(await cursorAt(), 0, 'Space before any arrow should put the cursor on the last letter of the word');
   assert.deepEqual(errors, []);
   await other.close();
 }
