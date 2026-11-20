@@ -2348,6 +2348,49 @@ for (const [width, height] of [[320, 568], [320, 700], [360, 740], [390, 844], [
   await other.close();
 }
 
+// Once the big button has scrolled out of sight, a pill in the line's colour at the foot of the list carries its words
+// and does what it does, and its arrow goes back to the top. It's out of the way while the button shows or a sheet is
+// open, and at the end of the list it sits under the footer, never over the last row or the links.
+{
+  const games = Object.fromEntries(PUZZLES.slice(0, 7).map(q => [q.id, finished(q)]));
+  const { other, tab, errors } = await visitor({ options: {}, best: {}, games }, { hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  const shown = () => tab.evaluate(() => getComputedStyle(document.getElementById('pill')).visibility === 'visible');
+  const scroll = top => tab.evaluate(top => { const s = document.querySelector('#s-list .list-scroll'); s.scrollTop = top === 'end' ? s.scrollHeight : top; }, top);
+  assert.equal(await shown(), false, 'the pill should be away while the big button shows');
+  await scroll(2000);
+  await tab.waitForFunction(() => document.getElementById('pill').classList.contains('on'));
+  await tab.waitForTimeout(250);
+  assert.equal(await shown(), true, 'the pill should show once the big button has scrolled away');
+  assert.equal(await tab.textContent('#b-pill-go'), 'Play No. 8');
+  const look = await tab.evaluate(() => { const p = getComputedStyle(document.querySelector('.pill')), r = document.querySelector('.pill').getBoundingClientRect(); return { bg: p.backgroundColor, bottom: innerHeight - r.bottom }; });
+  assert.ok(look.bottom >= 8 && look.bottom <= 40, `the pill should ride the foot of the window, not ${look.bottom} px above it`);
+  // A sheet puts it away.
+  await tab.click('#b-pill-up');
+  await tab.waitForFunction(() => document.querySelector('#s-list .list-scroll').scrollTop === 0, null, { timeout: 5000 });
+  assert.equal(await tab.evaluate(() => document.activeElement.id), 'b-continue', 'the arrow should go to the top, to the big button');
+  await tab.waitForFunction(() => !document.getElementById('pill').classList.contains('on'));
+  await scroll(2000);
+  await tab.waitForFunction(() => document.getElementById('pill').classList.contains('on'));
+  await tab.evaluate(() => document.getElementById('b-list-menu').click());
+  assert.equal(await tab.evaluate(() => document.getElementById('pill').classList.contains('on')), false, 'the pill should go while a sheet is open');
+  await tab.keyboard.press('Escape');
+  assert.equal(await tab.evaluate(() => document.getElementById('pill').classList.contains('on')), true);
+  // At the end of the list it covers nothing.
+  await scroll('end');
+  await tab.waitForTimeout(250);
+  const clear = await tab.evaluate(() => {
+    const pill = document.querySelector('.pill').getBoundingClientRect();
+    return ['#route li:last-child', '.jd-foot'].map(s => document.querySelector(s).getBoundingClientRect()).every(r => r.bottom <= pill.top || r.top >= pill.bottom);
+  });
+  assert.equal(clear, true, 'at the end of the list the pill should cover neither the last row nor the footer');
+  // It plays what the big button plays.
+  await tab.click('#b-pill-go');
+  await tab.waitForSelector('#s-play:not([hidden])');
+  assert.equal(await tab.textContent('#where'), 'Main, No. 8');
+  assert.deepEqual(errors, []);
+  await other.close();
+}
+
 // It can be installed.
 const cdp = await ctx.newCDPSession(page);
 const manifest = await cdp.send('Page.getAppManifest');

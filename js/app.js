@@ -304,6 +304,8 @@ function drawList() {
   $('b-continue').textContent = up >= 0 ? `${started(gameFor(list[up].id)) ? 'Resume' : 'Play'} No. ${up + 1}` : onward ? `On to ${shortName(onward)}` : more ? 'Go for three stars' : '';
   $('b-continue').disabled = false;   // off in the page as sent, until this has run
   $('b-continue').hidden = end && !more;
+  $('b-pill-go').textContent = $('b-continue').textContent;
+  drawPill();
   $('unkept').hidden = keeping();
   $('unkept').textContent = unkept();
   $('tally').classList.toggle('end', end);   // the network's tally, in ink where the big button was
@@ -337,6 +339,20 @@ function drawList() {
   $('line-about').textContent = line.about;
   $('b-line').setAttribute('aria-label', `${line.name}: ${line.about}. Change line`);
 }
+
+// The pill at the foot of the list: shown once the big button has scrolled up out of sight, and not while a sheet is
+// open or there's no big button. Its words are the big button's, and it does what that does; its arrow goes to the top.
+let buttonGone = false;
+const drawPill = () => $('pill').classList.toggle('on', buttonGone && !$('b-continue').hidden && !anySheet());
+// (While a puzzle is on screen the list has no size, and the button counts as in sight.)
+new IntersectionObserver(([e]) => { buttonGone = !e.isIntersecting && e.rootBounds?.height > 0 && e.boundingClientRect.bottom <= e.rootBounds.top + 1; drawPill(); },
+  { root: $('s-list').querySelector('.list-scroll') }).observe($('b-continue'));
+$('b-pill-go').addEventListener('click', () => $('b-continue').click());
+$('b-pill-up').addEventListener('click', () => {
+  const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  $('s-list').querySelector('.list-scroll').scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' });
+  $('b-continue').focus({ preventScroll: true });
+});
 
 // The lines sheet: every line with how far along it you are, starting on the one on show. Picking one shows its list
 // from the top. The list is drawn before the sheet closes, so focus goes back to a button that names the new line.
@@ -1025,6 +1041,7 @@ function openSheet(id) {
   if (cur) { stopClock(); board.classList.toggle('paused', !cur.game.done); }
   $('app').inert = true;   // the page behind stays out of reach of Tab and screen readers until the sheet closes
   $(id).hidden = false;
+  drawPill();
   // The main button if it's showing (Next puzzle, Done, Got it), otherwise the first one that is. Where the sheet is
   // too tall for the window (zoomed in, or a small phone), that button is out of sight at the foot, so the focus goes
   // to the sheet itself: its top shows, the arrow keys scroll it, Tab reaches the buttons, and a screen reader starts
@@ -1043,6 +1060,7 @@ function closeSheets(step = 'back') {
   if (sheetStep && step !== 'keep') { sheetStep = false; if (step === 'back') { backing = true; history.back(); } }
   for (const s of document.querySelectorAll('.sheet')) s.hidden = true;
   $('app').inert = false;
+  drawPill();
   board.classList.remove('paused');
   $('share-box').hidden = true;
   armed = null; $('m-restart').textContent = 'Start this puzzle over'; $('m-erase').textContent = 'Erase progress on every line';
