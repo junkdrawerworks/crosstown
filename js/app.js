@@ -692,8 +692,11 @@ function shareText() {
 function showDone() {
   const { p, game, words } = cur;
   $('done-title').textContent = p.name;
+  // Each star says whether it was earned, as the gold or grey star does on screen, and the sheet says how many in all
+  // (read with the stats when the focus lands on its button).
   const rows = [['Every stop on a line', true], ['No tokens spent', game.spent === 0], ['Crosstown found first', game.crossAt === 0]];
-  $('done-stars').innerHTML = rows.map(([label, got]) => `<li class="${got ? 'got' : ''}">${STAR}<span>${label}</span></li>`).join('');
+  $('done-stars').innerHTML = rows.map(([label, got]) => `<li class="${got ? 'got' : ''}">${STAR}<span><span class="sr-only">${got ? 'Earned' : 'Missed'}: </span>${label}</span></li>`).join('');
+  $('done-sum').textContent = `${rows.filter(([, got]) => got).length} of 3 stars.`;
   const stats = [`${game.detours.length} detour${game.detours.length === 1 ? '' : 's'}`];
   if (game.spent) stats.unshift(`${game.spent} token${game.spent > 1 ? 's' : ''} spent`);
   if (saved.options.clock) stats.unshift(clock(game.ms));
@@ -709,7 +712,8 @@ function showDone() {
   const { n, to } = after();
   $('done-eyebrow').textContent = n >= 0 ? 'End of the line' : to ? `${cur.line.name} finished` : 'Every line finished';
   const t = tally(cur.line);
-  $('done-line').textContent = `${cur.line.name}: ${t.finished} of ${t.total}, ${t.stars} of ${t.total * 3} stars`;
+  // Emptied when it's not shown, as the sheet's description still reads it.
+  $('done-line').textContent = n >= 0 ? '' : `${cur.line.name}: ${t.finished} of ${t.total}, ${t.stars} of ${t.total * 3} stars`;
   $('done-line').hidden = n >= 0;
   $('b-done-next').hidden = n < 0 && !to;
   $('b-done-next').textContent = to ? `On to the ${to.name}` : 'Next puzzle';

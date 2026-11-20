@@ -180,6 +180,10 @@ await page.waitForSelector('#sheet-done:not([hidden])');
 assert.equal(await focused(), 'b-done-next', 'the done sheet should start on Next puzzle');
 assert.equal(await text('#done-title'), p.name);
 assert.equal(await page.locator('#done-stars .got').count(), 1);
+// Earned and missed stars say which they are, not only by colour, and the sheet's description gives the result.
+assert.deepEqual(await page.$$eval('#done-stars li', l => l.map(li => li.textContent)), ['Earned: Every stop on a line', 'Missed: No tokens spent', 'Missed: Crosstown found first']);
+assert.equal(await page.getAttribute('#sheet-done .panel', 'aria-describedby'), 'done-sum done-stats done-line');
+assert.deepEqual([await text('#done-sum'), await text('#done-line')], ['1 of 3 stars.', ''], "the description should say the stars, and nothing of a line that isn't finished");
 assert.equal(await page.locator('#done-key li').count(), p.lines.length);
 assert.equal(await page.locator('#board .stop.on').count(), 48);
 
