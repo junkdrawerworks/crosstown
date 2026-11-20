@@ -149,8 +149,10 @@ function setLine(l) {
 const pickLine = l => { setLine(l); setOption('line', l.id); };
 // Another line's list, from the top, picked. A screen reader hears which line it is now and how far along, in a moment,
 // once the sheet that picked it has closed (the page behind it can't be heard until then).
-let listSaid = 0;
+let listSaid = 0, switching = 0;
 function showLine(l) {
+  $('s-list').classList.add('switching'); clearTimeout(switching);   // the colour fades to the new line's (see app.css)
+  switching = setTimeout(() => $('s-list').classList.remove('switching'), 400);
   pickLine(l); drawList(); $('s-list').querySelector('.list-scroll').scrollTop = 0;
   const { finished, total } = tally(l), said = $('list-said');
   said.textContent = ''; clearTimeout(listSaid);

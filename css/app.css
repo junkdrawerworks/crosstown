@@ -183,6 +183,13 @@ a { color: inherit; }
 .reload-line { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
 .reload-line p { font-weight: 700; }
 
+/* The line's colour, set on the list from app.js, is a colour the browser can blend, so changing line fades the list
+   from one line's colour to the next, as stepping onto another train. Only while changing (see showLine()): on its own
+   a transition would also fade in from ink as the page opens. */
+@property --line { syntax: '<color>'; inherits: true; initial-value: #16233b; }
+@property --line-deep { syntax: '<color>'; inherits: true; initial-value: #16233b; }
+#s-list.switching { transition: --line .35s ease, --line-deep .35s ease; }
+
 /* The line on show, and the button that changes it. Its colour is the line's (set from app.js as --line). */
 .line-pick, .line-row {
   display: grid; grid-template-columns: 8px 1fr auto; align-items: center; gap: 12px;

@@ -1598,9 +1598,17 @@ if (LINES.length > 1) {
     await tab.keyboard.press('Escape'); await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
   }
   await tab.setViewportSize({ width: 390, height: 844 });
+  // Changing line fades the list's colour to the new line's, and only then: at rest nothing on the list transitions,
+  // so the page doesn't fade in from ink as it opens.
+  const atRest = () => tab.evaluate(() => { const l = document.getElementById('s-list'); return [l.classList.contains('switching'), getComputedStyle(l).transitionDuration]; });
+  assert.deepEqual(await atRest(), [false, '0s'], 'the list should have no colour transition at rest');
+  await tab.evaluate(() => { window.faded = []; document.getElementById('s-list').addEventListener('transitionrun', e => { if (e.target.id === 's-list') window.faded.push(e.propertyName); }); });
   await tab.click('#b-line'); await tab.waitForSelector('#sheet-lines:not([hidden])');
   await tab.click('#lines li:nth-child(1) .line-row');
   await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
+  await tab.waitForFunction(() => window.faded.includes('--line'), null, { timeout: 2000 }).catch(() => assert.fail('changing line should fade to its colour'));
+  await tab.waitForFunction(() => !document.getElementById('s-list').classList.contains('switching'), null, { timeout: 2000 });
+  assert.deepEqual(await atRest(), [false, '0s']);
   await tab.waitForFunction(said => document.getElementById('list-said').textContent === said, `${main.name}, ${n} of ${n} finished`, { timeout: 2000 })
     .catch(async () => assert.fail(`picking a line said "${await tab.textContent('#list-said')}"`));
   assert.deepEqual(await tab.evaluate(() => [document.activeElement.id, document.activeElement.getAttribute('aria-label')]), ['b-line', `${main.name}: ${main.about}. Change line`], 'focus should come back to the line button, naming the new line');
@@ -1754,6 +1762,7 @@ if (LINES.length > 1) {
   const { other, tab, errors } = await visitor({ options: {}, best: {}, games });
   for (const [n, l] of LINES.entries()) {
     await tab.click('#b-line'); await tab.click(`#lines li:nth-child(${n + 1}) .line-row`);
+    await tab.waitForFunction(() => !document.getElementById('s-list').classList.contains('switching'));   // its colour faded in
     for (const colorScheme of ['light', 'dark']) {
       await tab.emulateMedia({ colorScheme });
       const roundel = await tab.evaluate(() => { const s = getComputedStyle(document.querySelector('#route li.done .roundel')); return { color: s.color, bg: s.backgroundColor }; });
