@@ -1657,8 +1657,19 @@ if (LINES.length > 1) {
   games[m.puzzles[19].id] = { found: [1, 2], detours: [] };
   const { other, tab, errors } = await visitor({ options: { line: m.id }, best: {}, games });
   assert.equal(await tab.textContent('#b-continue'), 'Play No. 8');
-  assert.equal(await tab.textContent('#tally'), `28 of ${m.puzzles.length} finished, 84 of ${m.puzzles.length * 3} stars` + 'No. 20 under way');
+  assert.equal(await tab.textContent('#tally'), `28 of ${m.puzzles.length} finished, 84 of ${m.puzzles.length * 3} stars` + ' No. 20 under way');
   assert.equal(await tab.textContent('#tally .tally-link'), 'No. 20 under way', 'a puzzle under way behind one not played should be offered');
+  // Where the link goes onto a line of its own, its dot goes with it, and it's as easy to tap as the buttons above, its
+  // text where it was.
+  for (const width of [390, 360, 320]) {
+    await tab.setViewportSize({ width, height: 844 });
+    const link = await tab.evaluate(() => {
+      const box = el => el.getBoundingClientRect(), l = box(document.querySelector('.tally-link')), d = box(document.querySelector('#tally .sep')), b = box(document.getElementById('b-continue'));
+      return { together: Math.abs((d.top + d.bottom) / 2 - (l.top + l.bottom) / 2) < 6 && d.right <= l.left, tall: l.height >= 44, clear: l.top >= b.bottom };
+    });
+    assert.deepEqual(link, { together: true, tall: true, clear: true }, `the under-way link at ${width} px`);
+  }
+  await tab.setViewportSize({ width: 390, height: 844 });
   // The Lines sheet tells a screen reader of it too; on screen the row keeps to the count.
   await tab.click('#b-line');
   assert.equal(await tab.getAttribute('#lines li:nth-child(2) .line-row', 'aria-label'), `${m.name}: ${m.about}. 28 of ${m.puzzles.length} finished, 84 stars, 1 under way`);

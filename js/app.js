@@ -257,7 +257,8 @@ function drawList() {
     const to = document.createElement('button'); to.type = 'button'; to.className = 'tally-link';
     to.textContent = later.length > 1 ? `${later.length} under way, next No. ${later[0] + 1}` : `No. ${later[0] + 1} under way`;
     to.addEventListener('click', () => fromList(later[0]));
-    $('tally').append(sep, to);
+    const run = document.createElement('span'); run.className = 'tally-run'; run.append(sep, to);
+    $('tally').append(' ', run);
   }
   route.setAttribute('aria-label', `${line.name} puzzles`);
   route.classList.toggle('finished', finished === list.length);
