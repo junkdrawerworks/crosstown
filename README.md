@@ -24,6 +24,7 @@
 - **Share a result.** It ends with a link to its puzzle by line and number, like `crosstown.junkdrawer.works/#market-47` (not by the puzzle's name, which would give its Crosstown away). The link opens that puzzle, with its line's list behind it for Back; a number the line hasn't got opens the line's list. Links in this form keep working: a puzzle keeps its number, and new puzzles go at the end of their line.
 - **Clock and night service.** Two options: time each puzzle and keep your best, and hide the clue until you find your first line.
 - No account and no server. Your progress stays in your browser. It works offline and installs to a phone's home screen.
+- **Progress in a file.** Options, on the list, has Save progress to a file, which downloads `crosstown-progress.json`, as a backup or to take to another browser, and Load progress from a file, which asks for a second tap and then adds the file to what's there, puzzle by puzzle: each keeps the better game, the faster best time and the more stars, so nothing on either side is lost, and the options stay as they are. The file holds every puzzle's game, best time and best stars by the puzzle's id, and a file saved now keeps loading in later versions.
 
 ## The puzzles
 

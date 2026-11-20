@@ -2,7 +2,7 @@
 import { LINES, DETOURS, PUZZLES } from './puzzles.js';
 import { W, H, N, row, col, adjacent, spell } from './board.js';
 import { MIN_LENGTH, FARE_PER_TOKEN, fareFor, starsFor, clock } from './rules.js';
-import { KEY, fresh, isObject, blank, shape, byId, readGame, started, combine } from './saves.js';
+import { KEY, fresh, isObject, blank, shape, byId, readGame, started, combine, progressOf, readProgress, joinProgress, finishedIn } from './saves.js';
 
 const $ = id => document.getElementById(id);
 const SVG = 'http://www.w3.org/2000/svg';
@@ -1051,7 +1051,7 @@ function closeSheets(step = 'back') {
   drawPill();
   board.classList.remove('paused');
   $('share-box').hidden = true;
-  armed = null; $('m-restart').textContent = 'Start this puzzle over'; $('m-erase').textContent = 'Erase progress on every line';
+  disarm();
   if (cur) startClock();
   opener?.focus?.({ preventScroll: true });
   catchUp();
@@ -1061,7 +1061,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && anySheet()
 
 function openMenu() {
   $('o-clock').checked = saved.options.clock; $('o-night').checked = saved.options.night;
-  $('m-restart').hidden = !cur; $('m-erase').hidden = !!cur;
+  $('m-restart').hidden = !cur; $('m-erase').hidden = $('m-save').hidden = $('m-load').hidden = !!cur;
   if (cur?.game.done) $('m-restart').textContent = 'Play this puzzle again';
   openSheet('sheet-menu');
 }
@@ -1074,12 +1074,18 @@ $('o-night').addEventListener('change', e => { setOption('night', e.target.check
 
 // The page can't show a confirm box everywhere it runs, so the button asks for a second tap instead. The ask can be
 // worked out at the first tap (`ask` a function).
-let armed = null;
+let armed = null, loaded = null;   // the button tapped once; a file read, waiting for Load's second tap
 function twice(btn, ask, act) {
   btn.addEventListener('click', () => {
-    if (armed !== btn) { armed = btn; btn.textContent = typeof ask === 'function' ? ask() : ask; return; }
-    armed = null; act();
+    if (armed !== btn) { disarm(); armed = btn; btn.textContent = typeof ask === 'function' ? ask() : ask; return; }
+    disarm(); act();
   });
+}
+// Takes back a first tap: every such button says what it did before.
+function disarm() {
+  armed = null; loaded = null;
+  $('m-restart').textContent = cur?.game.done ? 'Play this puzzle again' : 'Start this puzzle over';
+  $('m-erase').textContent = 'Erase progress on every line'; $('m-load').textContent = 'Load progress from a file';
 }
 // A finished map keeps its best stars when it's played again, so the second tap says they stay.
 const restartAsk = () => {
@@ -1101,6 +1107,45 @@ twice($('m-erase'), 'Tap again to erase every line', () => {
   dropWaiting(); toldSpent.clear(); saved.games = {}; saved.best = {}; saved.stars = {}; changed.games.clear(); changed.erased = true; save();
   closeSheets(); drawList(); toast(keeping() ? 'Progress erased on every line' : 'Erased for this visit only');
 });
+
+// Progress in a file, as a backup, or to take to another browser: crosstown-progress.json (see progressOf()). Loading
+// one adds it to what's here, puzzle by puzzle, with nothing on either side lost (see joinProgress()), once a second tap
+// says how many finished puzzles the file has.
+$('m-save').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(progressOf(saved))], { type: 'application/json' }));
+  a.download = 'crosstown-progress.json';
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  toast('Saved as crosstown-progress.json');
+});
+$('m-load').addEventListener('click', () => {
+  if (armed === $('m-load') && loaded) { takeIn(loaded); return; }
+  disarm();
+  $('load-file').value = ''; $('load-file').click();
+});
+$('load-file').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  let doc = null;
+  try { doc = readProgress(JSON.parse(await file.text())); } catch { /* not JSON: said below */ }
+  if (!doc) { disarm(); toast('That file isn’t Crosstown progress'); return; }
+  const n = finishedIn(doc), going = Object.keys(doc.games).filter(id => !doc.stars[id] && started(readGame(doc.games[id], id))).length;
+  disarm(); armed = $('m-load'); loaded = doc;
+  $('m-load').textContent = n ? `Tap again to add its ${n.toLocaleString()} finished puzzle${n === 1 ? '' : 's'}`
+    : going ? `Tap again to add its ${going} puzzle${going === 1 ? '' : 's'} under way` : 'Tap again to load it';
+});
+function takeIn(doc) {
+  const both = joinProgress(saved, doc);
+  for (const id of new Set([...Object.keys(doc.games), ...Object.keys(doc.best), ...Object.keys(doc.stars)])) {
+    if (both.games[id] !== undefined) saved.games[id] = both.games[id];
+    if (both.best[id]) saved.best[id] = both.best[id];
+    if (both.stars[id]) saved.stars[id] = both.stars[id];
+    changed.games.add(id);
+  }
+  save();
+  closeSheets(); drawList(); toast(keeping() ? 'Progress loaded' : 'Loaded for this visit only');
+}
 
 function shareText() {
   const { p, game, i, line: l } = cur;

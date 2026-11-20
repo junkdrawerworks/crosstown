@@ -84,3 +84,28 @@ export function combine(a, b, id) {
     ms: Math.max(x.ms, y.ms), done: found.length === byId.get(id).lines.length, night: x.found.length ? x.night : y.night,
   };
 }
+
+// ---- progress in a file -----------------------------------------------------------------------------------------
+// Progress as it goes into a file (Save progress to a file): every puzzle's game, best time and best stars, by the
+// puzzle's id. The options (the clock, night service, the line on show) stay with each browser. The README promises
+// that a file saved now keeps loading, so a later version may add to this but never change what's here.
+export const APP = 'crosstown';
+export const progressOf = doc => ({ app: APP, version: 1, games: doc.games, best: doc.best, stars: doc.stars });
+// A file read back, in shape, or null if it isn't Crosstown progress. A game that isn't one is left out.
+export function readProgress(raw) {
+  if (!isObject(raw) || raw.app !== APP || !isObject(raw.games)) return null;
+  const s = shape(raw);
+  return { games: Object.fromEntries(Object.entries(s.games).filter(([, g]) => isObject(g))), best: s.best, stars: s.stars };
+}
+// Two copies of the progress put together with nothing on either side lost: each puzzle keeps the better game, or the
+// two put together (see combine()), the faster best time and the more stars. `a` wins a tie, and a puzzle where `a`
+// already has the best of everything keeps `a`'s own game, so a copy loaded twice changes nothing the second time.
+export function joinProgress(a, b) {
+  const out = { games: { ...a.games }, best: { ...a.best }, stars: { ...a.stars } };
+  for (const [id, g] of Object.entries(b.games)) out.games[id] = id in out.games ? combine(out.games[id], g, id) : g;
+  for (const [id, t] of Object.entries(b.best)) if (!(out.best[id] <= t)) out.best[id] = t;
+  for (const [id, n] of Object.entries(b.stars)) if (!(out.stars[id] >= n)) out.stars[id] = n;
+  return out;
+}
+// How many puzzles a copy of the progress has finished: those with stars kept, or a finished game.
+export const finishedIn = doc => new Set([...Object.keys(doc.stars), ...Object.keys(doc.games).filter(id => readGame(doc.games[id], id)?.done)]).size;

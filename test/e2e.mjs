@@ -2464,6 +2464,81 @@ for (const [width, height] of [[320, 568], [320, 700], [360, 740], [390, 844], [
   await all.other.close();
 }
 
+// Progress saved to a file and loaded into another browser: the file has every game, best time and best stars and
+// none of the options, and loading it adds it to what's there, puzzle by puzzle, with nothing on either side lost.
+// The second tap says how many finished puzzles the file brings, and loading it again changes nothing.
+{
+  const { mkdtemp, rm, readFile, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'crosstown-file-'));
+  try {
+    const [q1, q2, q3, q4, q5] = PUZZLES, m = LINES[1].puzzles[0];
+    const one = (q, k = 1) => ({ found: q.lines.map((_, j) => j).slice(1, 1 + k), detours: [] });
+    const a = await visitor({ options: { clock: true, line: LINES[0].id }, best: { [q1.id]: 60000 }, stars: { [q2.id]: 2 },
+      games: { [q1.id]: finished(q1), [q2.id]: finished(q2), [q3.id]: finished(q3), [q4.id]: one(q4) } });
+    await a.tab.click('#b-list-menu');
+    assert.deepEqual([await a.tab.isVisible('#m-save'), await a.tab.isVisible('#m-load')], [true, true], 'Options on the list should offer to save and load progress');
+    const [download] = await Promise.all([a.tab.waitForEvent('download'), a.tab.click('#m-save')]);
+    assert.equal(download.suggestedFilename(), 'crosstown-progress.json');
+    const file = join(dir, 'progress.json');
+    await download.saveAs(file);
+    const kept = JSON.parse(await readFile(file, 'utf8'));
+    assert.deepEqual(Object.keys(kept), ['app', 'version', 'games', 'best', 'stars'], 'the file should hold the progress and nothing else');
+    assert.deepEqual([kept.app, kept.version, Object.keys(kept.games).length, kept.best, kept.stars], ['crosstown', 1, 4, { [q1.id]: 60000 }, { [q2.id]: 2 }]);
+    assert.equal(await a.tab.textContent('#toast'), 'Saved as crosstown-progress.json');
+    // On a puzzle, Options offers neither.
+    await a.tab.keyboard.press('Escape'); await a.tab.click('#route li:nth-child(4) .row'); await a.tab.click('#b-menu');
+    assert.deepEqual([await a.tab.isHidden('#m-save'), await a.tab.isHidden('#m-load')], [true, true], 'saving and loading progress belong on the list');
+    assert.deepEqual(a.errors, []);
+    await a.other.close();
+
+    // The other browser has No. 1 under way, No. 4 finished, No. 5 under way and Market No. 1 finished, and a faster
+    // best time on No. 1.
+    const b = await visitor({ options: { night: true, line: LINES[0].id }, best: { [q1.id]: 50000 }, stars: {},
+      games: { [q1.id]: one(q1, 2), [q4.id]: finished(q4), [q5.id]: one(q5), [m.id]: finished(m) } });
+    const before = await b.tab.evaluate(() => localStorage.getItem('crosstown.v1'));
+    const choose = async path => {
+      const [chooser] = await Promise.all([b.tab.waitForEvent('filechooser'), b.tab.click('#m-load')]);
+      await chooser.setFiles(path);
+    };
+    const stored = () => b.tab.evaluate(() => JSON.parse(localStorage.getItem('crosstown.v1')));
+    // A file that isn't Crosstown progress is turned away, and nothing changes.
+    const junk = join(dir, 'junk.json');
+    await writeFile(junk, JSON.stringify({ games: { [q1.id]: finished(q1) } }));
+    await b.tab.click('#b-list-menu');
+    await choose(junk);
+    await b.tab.waitForFunction(() => document.getElementById('toast').textContent !== '');
+    assert.equal(await b.tab.textContent('#toast'), 'That file isn’t Crosstown progress');
+    assert.equal(await b.tab.textContent('#m-load'), 'Load progress from a file');
+    assert.equal(await b.tab.evaluate(() => localStorage.getItem('crosstown.v1')), before, 'a file that isn’t progress changed what’s saved');
+    // The file asks for a second tap, saying what it brings; closing the sheet takes the first back.
+    await choose(file);
+    await b.tab.waitForFunction(() => document.getElementById('m-load').textContent.startsWith('Tap again'));
+    assert.equal(await b.tab.textContent('#m-load'), 'Tap again to add its 3 finished puzzles');
+    await b.tab.keyboard.press('Escape'); await b.tab.click('#b-list-menu');
+    assert.equal(await b.tab.textContent('#m-load'), 'Load progress from a file', 'closing the sheet should take back the first tap');
+    assert.equal(await b.tab.evaluate(() => localStorage.getItem('crosstown.v1')), before, 'a load not confirmed changed what’s saved');
+    await choose(file);
+    await b.tab.waitForFunction(() => document.getElementById('m-load').textContent.startsWith('Tap again'));
+    await b.tab.click('#m-load');
+    assert.equal(await b.tab.textContent('#toast'), 'Progress loaded');
+    const s = await stored();
+    assert.deepEqual([s.games[q1.id].done, s.games[q2.id].done, s.games[q3.id].done, s.games[q4.id].done, s.games[q5.id].found.length, s.games[m.id].done],
+      [true, true, true, true, 1, true], 'loading a file should keep the better game of each puzzle, from either side');
+    assert.deepEqual([s.best, s.stars, s.options.night, s.options.clock], [{ [q1.id]: 50000 }, { [q2.id]: 2 }, true, false], 'loading a file should keep the faster time and the more stars, and leave the options alone');
+    for (let n = 1; n <= 4; n++) assert.match(await b.tab.getAttribute(`#route li:nth-child(${n})`, 'class'), /^done\b/, `the list should show No. ${n} finished after loading`);
+    // The same file again changes nothing.
+    const once = await b.tab.evaluate(() => localStorage.getItem('crosstown.v1'));
+    await b.tab.click('#b-list-menu'); await choose(file);
+    await b.tab.waitForFunction(() => document.getElementById('m-load').textContent.startsWith('Tap again'));
+    await b.tab.click('#m-load');
+    assert.equal(await b.tab.evaluate(() => localStorage.getItem('crosstown.v1')), once, 'loading the same file twice should change nothing the second time');
+    assert.deepEqual(b.errors, []);
+    await b.other.close();
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
 // It can be installed.
 const cdp = await ctx.newCDPSession(page);
 const manifest = await cdp.send('Page.getAppManifest');
