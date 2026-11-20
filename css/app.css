@@ -422,8 +422,8 @@ a { color: inherit; }
 .how { display: flex; flex-direction: column; gap: 10px; }
 .how li { padding-left: 20px; position: relative; text-wrap: pretty; }
 .how li::before { content: ''; position: absolute; left: 0; top: .42em; width: 10px; height: 10px; border-radius: 50%; border: 3px solid var(--ink); }
-/* Google Drive, only at crosstown.junkdrawer.works (js/sync.js): a card in Options, and on the list a cloud button
-   with a dot, green when synced, amber while syncing, red when it needs a tap. */
+/* Google Drive, only at crosstown.junkdrawer.works (js/sync.js): a card in Options, and at the top of the list a cloud
+   button with a dot, green when synced, amber while syncing, red when it needs a tap. */
 .drive-card { display: flex; flex-direction: column; gap: 6px; padding: 12px 0 4px; border-top: 1px solid var(--rule); }
 .drive-card h3 { font-size: 16px; font-weight: 800; }
 .drive-card p { color: var(--muted); font-size: 14px; text-wrap: pretty; }
@@ -433,6 +433,9 @@ a { color: inherit; }
 .drive-card .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .drive-card .row .btn { flex: 1 1 auto; }
 .cloud { position: relative; }
+/* At the top of the list, across from the logo, so the row of buttons under the line keeps the room it had. */
+.mast { position: relative; }
+.mast > .cloud { position: absolute; top: 0; right: -11px; }
 .cloud .dot { position: absolute; right: 7px; top: 9px; width: 9px; height: 9px; border-radius: 50%; background: var(--l3); box-shadow: 0 0 0 2px var(--bg); }
 .cloud[data-s="busy"] .dot { background: var(--l4); animation: pulse .8s ease-in-out infinite alternate; }
 .cloud[data-s="tap"] .dot, .cloud[data-s="error"] .dot { background: var(--l1); }
