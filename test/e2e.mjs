@@ -179,10 +179,30 @@ await page.keyboard.press('Escape');
 assert.equal(await page.evaluate(() => document.activeElement.id), 'b-menu');
 assert.equal(await letters(), 'visible');
 
-// Finish it. The Crosstown wasn't first and tokens were spent, so one star.
-for (const k of [0, 1, 5, 6].filter(k => k < p.lines.length)) await drag(page, p.lines[k]);
-for (let k = 7; k < p.lines.length; k++) await drag(page, p.lines[k]);
+// Finish it. The Crosstown wasn't first and tokens were spent, so one star. The last word stays while its line draws,
+// then the readout says the map's name; the done sheet rises after that, and only then does the footer change.
+await page.evaluate(() => {
+  // One observer, so the changes come in the order they were made.
+  const log = window.finishing = [], readout = document.getElementById('readout');
+  const seen = new MutationObserver(records => {
+    for (const r of records) {
+      const what = r.type === 'attributes' ? `${r.target.id} ${r.target.hidden ? 'hidden' : 'shown'}` : `readout ${readout.textContent}`;
+      if (log.at(-1) !== what) log.push(what);
+    }
+  });
+  seen.observe(readout, { childList: true, subtree: true, characterData: true });
+  for (const id of ['after', 'sheet-done']) seen.observe(document.getElementById(id), { attributes: true, attributeFilter: ['hidden'] });
+});
+const order = [0, 1, 5, 6].filter(k => k < p.lines.length);
+for (let k = 7; k < p.lines.length; k++) order.push(k);
+for (const k of order) await drag(page, p.lines[k]);
 await page.waitForSelector('#sheet-done:not([hidden])');
+{
+  const log = await page.evaluate(() => window.finishing), at = what => log.indexOf(what);
+  const word = at(`readout ${words[order.at(-1)]}, found. All ${p.lines.length} lines found`), name = at(`readout ${p.name}`);
+  assert.ok(word >= 0 && name > word && at('sheet-done shown') > name && at('after shown') > at('sheet-done shown'), `the finish should go word, name, done sheet, footer: ${JSON.stringify(log)}`);
+  assert.equal(await text('#readout'), p.name, 'a map finished should say its name');
+}
 assert.equal(await focused(), 'b-done-next', 'the done sheet should start on Next puzzle');
 assert.equal(await text('#done-title'), p.name);
 assert.equal(await page.locator('#done-stars .got').count(), 1);

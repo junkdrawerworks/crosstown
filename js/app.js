@@ -315,8 +315,10 @@ function paint() {
   if (held) tok.setAttribute('aria-disabled', 'true'); else tok.removeAttribute('aria-disabled');
   tok.classList.toggle('ready', !tok.disabled && !held);
   $('token-label').textContent = game.tokens ? `Use a token (${game.tokens})` : 'No tokens';
-  $('fare').hidden = game.done; $('after').hidden = !game.done;
-  if (game.done) { const { n, to } = after(); $('b-next').hidden = n < 0 && !to; $('b-next').textContent = to ? `On to ${shortName(to)}` : 'Next puzzle'; }
+  // The buttons for after a finish wait for the done sheet (see found()).
+  const over = game.done && !cur.finishing;
+  $('fare').hidden = over; $('after').hidden = !over;
+  if (over) { const { n, to } = after(); $('b-next').hidden = n < 0 && !to; $('b-next').textContent = to ? `On to ${shortName(to)}` : 'Next puzzle'; }
 }
 
 // The readout, a live region: `heard` is said after the text but not shown (what the chip and the drawn line tell the
@@ -359,7 +361,7 @@ function openPuzzle(i) {
   for (const k of game.found) drawLine(k, false);
   $('s-list').hidden = true; $('s-play').hidden = false;
   // A first visit, with nothing saved yet, is told how to trace, until the first word replaces it.
-  if (game.done) say(p.name, 'note');
+  if (game.done) sayName();
   else if (!Object.keys(saved.games).length) say('Drag across the letters to trace a word, or tap them and tap the last one again', 'note');
   else say('');
   paint();
@@ -370,6 +372,8 @@ function openPuzzle(i) {
 }
 
 const keep = () => setGame(cur.p.id, cur.game);
+// A finished map says its name, with the Crosstown's colour, however it was reached.
+const sayName = () => say(cur.p.name, 'note', 0);
 
 // Back on the list, the puzzle just left is in sight with the focus on it, however it was reached (Continue, Next
 // puzzle a few times, Forward from another line's list), so a keyboard carries on from there.
@@ -607,12 +611,17 @@ function found(k) {
   const n = p.lines.length, all = game.found.length === n;
   say(k === 0 ? `Crosstown: ${p.name}` : cur.words[k], k === 0 ? 'note' : '', k,
     all ? `, found. All ${n} lines found` : k === 0 ? ', found' : `, found. ${game.found.length} of ${n} lines`);
+  // The last line: its word stays while the line draws, then the map says its name, as it does when it's opened again
+  // finished. The done sheet rises after that, and only then do Results and Next puzzle take the fare's place.
   if (all) {
     stopClock();
     game.done = true; game.hint = null;
     if (!saved.best[p.id] || game.ms < saved.best[p.id]) saved.best[p.id] = Math.round(game.ms);
+    cur.finishing = true;
     keep(); paint();
-    setTimeout(() => { if (cur?.p === p) showDone(); }, 900);
+    const word = $('readout').textContent;
+    setTimeout(() => { if (cur?.p === p && $('readout').textContent === word) sayName(); }, 550);
+    setTimeout(() => { if (cur?.p === p) { cur.finishing = false; showDone(); paint(); } }, 900);
     return;
   }
   keep(); paint();
