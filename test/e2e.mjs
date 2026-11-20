@@ -159,9 +159,11 @@ await walk(p.lines[2][0]);
 const ring = await page.evaluate(() => {
   const stop = document.querySelector('#board .stop.cursor'), cur = stop.querySelector('.cur'), dot = stop.querySelector('.dot'), s = getComputedStyle(cur);
   const first = document.querySelector('#board .stop.first .ring');
-  return { blue: stop.classList.contains('c2'), shown: s.opacity, gap: cur.r.baseVal.value - parseFloat(s.strokeWidth) / 2 - dot.r.baseVal.value, stroke: s.stroke, first: first && getComputedStyle(first).stroke };
+  // On an edge stop the ring reaches past the map's edge (the stops are 10 apart, 5 from the edge), so it isn't cut off.
+  const reach = cur.r.baseVal.value + parseFloat(s.strokeWidth) / 2, overflow = getComputedStyle(document.getElementById('board')).overflow;
+  return { blue: stop.classList.contains('c2'), shown: s.opacity, gap: cur.r.baseVal.value - parseFloat(s.strokeWidth) / 2 - dot.r.baseVal.value, stroke: s.stroke, first: first && getComputedStyle(first).stroke, whole: reach <= 5 || overflow === 'visible' };
 });
-assert.ok(ring.blue && ring.shown === '1' && ring.gap > 0.4 && ring.first && ring.stroke !== ring.first, `the cursor should stand apart on a blue-line stop: ${JSON.stringify(ring)}`);
+assert.ok(ring.blue && ring.shown === '1' && ring.gap > 0.4 && ring.first && ring.stroke !== ring.first && ring.whole, `the cursor should stand apart on a blue-line stop: ${JSON.stringify(ring)}`);
 
 // An open sheet starts on its main button, keeps the keyboard inside it, and hands focus back when it closes.
 const focused = () => page.evaluate(() => document.activeElement.id || document.activeElement.textContent.trim());
