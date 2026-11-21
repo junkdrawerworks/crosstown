@@ -84,6 +84,10 @@ function save() {
   } catch { writeFailed = true; /* no storage here: play still works, it just isn't kept */ return; }
   if (progressed) drive.changed();   // sent to Google Drive shortly, if it's on (the options stay on this device)
 }
+// When a game opened fresh begins: now, but never before its puzzle was last started over. That time may come from
+// another device, whose clock can be ahead of this one's, and Google Drive drops every game that began before it (see
+// mergeProgress()), so a game begun here on a clock running behind would be dropped at every sync.
+const beginning = id => Math.max(Date.now(), saved.cleared[id] || 0);
 // Takes on what's stored as this window's own. The puzzle on screen keeps the game being played, put together with
 // what another window has saved of it (see combine()), and shows that once it can (see catchUp()). After an erase in
 // another window it starts afresh. What Google Drive brings (`from` 'drive') is from another device: an erase made
@@ -95,7 +99,7 @@ function adopt(now, from = 'window') {
   const over = from === 'drive' && (now.cleared[cur.p.id] || 0) > beganAt(cur.game);
   if (erasedThere || over) {
     cur.erased = erasedThere ? `Progress erased ${from === 'drive' ? 'on another device' : 'in another window'}` : 'Started over on another device';
-    erasedThere = false; cur.game = { ...fresh(), grid: cur.p.grid, began: Date.now() };
+    erasedThere = false; cur.game = { ...fresh(), grid: cur.p.grid, began: beginning(cur.p.id) };
     return;
   }
   if (started(cur.game)) saved.games[cur.p.id] = combine(cur.game, now.games[cur.p.id], cur.p.id);
@@ -536,7 +540,7 @@ function openPuzzle(i) {
   const p = list[i];
   const lineOf = new Int8Array(N);
   p.lines.forEach((line, k) => line.forEach(stop => { lineOf[stop] = k; }));
-  const game = { ...(gameFor(p.id) || { ...fresh(), began: Date.now() }), grid: p.grid };
+  const game = { ...(gameFor(p.id) || { ...fresh(), began: beginning(p.id) }), grid: p.grid };
   // Each line's letters, as traced, and as people write it (PRIMA DONNA for PRIMADONNA, VELOUTÉ for VELOUTE), which is
   // what the found message, a tapped stop and the done sheet's key show.
   const words = p.lines.map(l => spell(p.grid, l)), shown = words.map(w => p.written?.[w] ?? w);
@@ -1109,16 +1113,26 @@ const restartAsk = () => {
   const n = bestStars(cur.p.id);
   return n === 1 ? 'Tap again: its 1 star stays' : `Tap again: its ${n} stars stay`;
 };
+// Starts puzzle `id` over, its game `game` going (its best stars and time stay), and gives the time it was started over.
+// That time is kept, so Google Drive won't bring back the game it replaced (see mergeProgress()). It's now, but always
+// after the puzzle was last started over and after the game it replaces began, as either may have been stamped on
+// another device with a clock ahead of this one's.
+function startOver(id, game) {
+  dropWaiting(id); toldSpent.delete(id);
+  if (game) keepBest(id, game);
+  const t = Math.max(Date.now(), (saved.cleared[id] || 0) + 1, beganAt(game) + 1);
+  saved.cleared[id] = t;
+  if (cur?.p.id === id) cur.game = fresh();   // so saving doesn't keep the game on screen (see adopt())
+  setGame(id, null);
+  return t;
+}
+// The new game is marked as started over, so it isn't put together with the game it replaced, still open in another
+// window, say: the better of the two stays (see combine()).
+const markStarted = t => { cur.game.restartedAt = cur.game.began = t; };
 twice($('m-restart'), restartAsk, () => {
-  dropWaiting(cur.p.id); toldSpent.delete(cur.p.id);
-  keepBest(cur.p.id, cur.game);
-  // When it was started over is kept, so Google Drive won't bring back the game it replaced (see mergeProgress()).
-  const t = Date.now();
-  saved.cleared[cur.p.id] = t; cur.game = fresh(); setGame(cur.p.id, null);
+  const t = startOver(cur.p.id, cur.game);
   const i = cur.i; closeSheets(); openPuzzle(i);
-  // The new game is marked as started over, so it isn't put together with the game it replaced, still open in another
-  // window, say: the better of the two stays (see combine()).
-  cur.game.restartedAt = cur.game.began = t;
+  markStarted(t);
 });
 // With Google Drive on, an erase reaches every device that saves there, so the second tap says so.
 twice($('m-erase'), () => (drive.isOn() ? 'Tap again to erase every device' : 'Tap again to erase every line'), () => {

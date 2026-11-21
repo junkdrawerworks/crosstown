@@ -26,8 +26,10 @@ async function until(fn, what, ms = 15000) {
 }
 // A device: a browser context with `state` saved (once: not again on a reload or in a second tab), sharing the fake
 // Google `g`. Without `g`, the page is left as it is, so Drive should be nowhere.
-async function device(state, g, options = {}) {
+// A device whose clock is `skew` ms off the true time (ahead if above 0) sees every time it stamps off by that much.
+async function device(state, g, options = {}, skew = 0) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block', ...options });
+  if (skew) await ctx.addInitScript(ms => { const now = Date.now; Date.now = () => now() + ms; }, skew);
   await ctx.addInitScript(s => { if (s && !localStorage.getItem('__seeded')) { localStorage.setItem('crosstown.v1', s); localStorage.setItem('__seeded', '1'); } }, state ? JSON.stringify(state) : '');
   if (g) await g.install(ctx, { rewrite: { '**/js/sync.js': s => s.replace("['https://crosstown.junkdrawer.works']", `['https://crosstown.junkdrawer.works', '${origin}']`) } });
   const tab = await open(ctx);
@@ -313,6 +315,55 @@ for (const order of ['phone first', 'phone second']) {
   await L.waitForTimeout(1800);
   assert.equal(g.calls.length, calls, 'nothing goes to Drive once it’s off on this device');
   assert.deepEqual(problems, []);
+  await phone.ctx.close(); await laptop.ctx.close();
+}
+
+// ---- two devices whose clocks differ ----
+// The phone's clock runs a minute behind the laptop's. A puzzle started over on the laptop, then played on the phone,
+// keeps what the phone played, however far behind its clock is: Drive drops only games that began before the puzzle
+// was started over, and a game begun on the phone mustn't count as older than that because its clock is behind.
+{
+  const g = fakeGoogle();
+  const driveDoc = () => JSON.parse(g.files().find(f => f.appProperties?.crosstown === 'sync' && !f.trashed).body);
+  const laptop = await device(marks(), g, { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false });
+  const phone = await device(marks(), g, {}, -60000);
+  const P = phone.tab, L = laptop.tab;
+  assert.ok(await L.evaluate(() => Date.now()) - await P.evaluate(() => Date.now()) > 55000, 'the phone’s clock should be a minute behind');
+  await turnOn(L); await turnOn(P);
+  const restartOn = async (tab, n) => { await tab.click(`#route li:nth-child(${n}) .row`); await tab.click('#b-menu'); await tab.click('#m-restart'); await tab.click('#m-restart'); await tab.click('#b-back'); };
+  const found = async (tab, q) => (await stored(tab)).games[q.id]?.found;
+
+  // Opened from the list on the phone after the laptop started it over.
+  await restartOn(L, 5);
+  await syncNow(L); await syncNow(P);
+  assert.equal(await P.textContent('#route li:nth-child(5) .row-go'), 'Replay', 'the start-over should reach the phone');
+  await P.click('#route li:nth-child(5) .row'); await drag(P, MAIN[4].lines[1]); await P.click('#b-back');
+  await syncNow(P);
+  assert.deepEqual(await found(P, MAIN[4]), [1], 'a line found on a phone whose clock is behind should stay on the phone after a sync');
+  assert.deepEqual(driveDoc().games[MAIN[4].id]?.found, [1], 'and reach Drive');
+  await syncNow(L);
+  assert.deepEqual(await found(L, MAIN[4]), [1], 'and the laptop');
+  await syncNow(P);
+  assert.deepEqual(await found(P, MAIN[4]), [1], 'and stay at the next sync');
+
+  // On screen on the phone when the laptop started it over: it starts afresh, and what's played then stays.
+  await P.click('#route li:nth-child(6) .row');
+  await restartOn(L, 6);
+  await syncNow(L);
+  await syncOnScreen(phone);
+  await until(async () => await P.textContent('#readout') === 'Started over on another device', 'the phone to start the puzzle afresh');
+  await drag(P, MAIN[5].lines[1]); await P.click('#b-back');
+  await syncNow(P); await syncNow(L); await syncNow(P);
+  assert.deepEqual([await found(P, MAIN[5]), await found(L, MAIN[5])], [[1], [1]], 'a game begun afresh on screen, on a clock behind, should stay after a sync');
+
+  // Started over on the phone, behind, after the laptop began a game of it: the laptop's game goes, and doesn't come back.
+  await pick(L, 2); await pick(P, 2);
+  await L.click('#route li:nth-child(1) .row'); await drag(L, MARKET[0].lines[1]); await L.click('#b-back');
+  await syncNow(L); await syncNow(P);
+  assert.deepEqual(await found(P, MARKET[0]), [1], 'the laptop’s game should reach the phone');
+  await restartOn(P, 1);
+  await syncNow(P); await syncNow(L); await syncNow(P);
+  assert.deepEqual([await found(P, MARKET[0]), await found(L, MARKET[0]), driveDoc().games[MARKET[0].id]], [undefined, undefined, undefined], 'a puzzle started over on a clock behind should not get back the game it replaced');
   await phone.ctx.close(); await laptop.ctx.close();
 }
 
