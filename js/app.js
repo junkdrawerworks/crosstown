@@ -1235,6 +1235,11 @@ function showDone() {
   const rows = [['Every stop on a line', true], ['No tokens spent', game.spent === 0], ['Crosstown found first', game.crossAt === 0]];
   $('done-stars').innerHTML = rows.map(([label, got]) => `<li class="${got ? 'got' : ''}">${STAR}<span><span class="sr-only">${got ? 'Earned' : 'Missed'}: </span>${label}</span></li>`).join('');
   $('done-sum').textContent = `${rows.filter(([, got]) => got).length} of 3 stars.`;
+  // A map played again and finished short of its best keeps its best (see bestStars()), and a quiet line says so, so a
+  // worse ride never looks as if it cost anything.
+  const best = bestStars(p.id), short = starsFor(game) < best;
+  $('done-best').hidden = !short;
+  $('done-best').textContent = short ? `Your best, ${best} star${best === 1 ? '' : 's'}, stays` : '';
   // The detours found are a button, "12 detours", that shows them in capitals, A to Z, under the line (closed each time
   // the sheet opens). None is "no detours", as the share says "no tokens".
   const d = game.detours.length, more = document.createElement('button');

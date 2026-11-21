@@ -288,7 +288,8 @@ assert.equal(await text('#sheet-done .eyebrow'), 'Last stop');
 assert.equal(await page.locator('#done-stars .got').count(), 1);
 // Earned and missed stars say which they are, not only by colour, and the sheet's description gives the result.
 assert.deepEqual(await page.$$eval('#done-stars li', l => l.map(li => li.textContent)), ['Earned: Every stop on a line', 'Missed: No tokens spent', 'Missed: Crosstown found first']);
-assert.equal(await page.getAttribute('#sheet-done .panel', 'aria-describedby'), 'done-sum done-stats done-line');
+assert.equal(await page.getAttribute('#sheet-done .panel', 'aria-describedby'), 'done-sum done-best done-stats done-line');
+assert.equal(await page.isHidden('#done-best'), true, 'a first finish has no best to keep, so it should say nothing of one');
 assert.deepEqual([await text('#done-sum'), await text('#done-line')], ['1 of 3 stars.', ''], "the description should say the stars, and nothing of a line that isn't finished");
 assert.equal(await page.locator('#done-key li').count(), p.lines.length);
 assert.equal(await text('#done-key li.xt'), `${p.name.toUpperCase()} (the Crosstown)`, 'the key should give the Crosstown as the map names it, spaces and all');
@@ -1801,6 +1802,7 @@ if (LINES.length > 1) {
   // With all three stars it's "Express service".
   assert.equal(await tab.textContent('#sheet-done .eyebrow'), 'Express service', 'Results on an old three-star map should say Express service, not that its line was just finished');
   assert.deepEqual([await tab.isHidden('#done-line'), await tab.textContent('#done-line')], [true, '']);
+  assert.equal(await tab.isHidden('#done-best'), true, 'a ride at its best should say nothing of a best kept');
   assert.equal(await tab.textContent('#b-done-next'), `On to ${second.name.replace(/ Line$/, '')}`);
   await tab.keyboard.press('Escape');
   // Starting a finished map over is playing it again, and its second tap says its stars stay.
@@ -1829,6 +1831,7 @@ if (LINES.length > 1) {
     await drag(tab, q.lines[0]);
     await tab.waitForSelector('#sheet-done:not([hidden])');
     assert.deepEqual([await tab.textContent('#done-sum'), await tab.textContent('#sheet-done .eyebrow')], ['2 of 3 stars.', 'Last stop'], 'a puzzle played again on a finished line should not say the line was just finished');
+    assert.deepEqual([await tab.isVisible('#done-best'), await tab.textContent('#done-best')], [true, 'Your best, 3 stars, stays'], 'a ride short of the best should say the best stays');
     await tab.keyboard.press('Escape'); await tab.click('#b-back');
     assert.equal(await tab.textContent('#route li:nth-child(1) .st'), '★★★', 'the list should keep the best stars');
     assert.equal(await tab.textContent('#tally'), full, 'the tally should keep the best stars');

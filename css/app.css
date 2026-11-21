@@ -454,6 +454,7 @@ a { color: inherit; }
 .stars li.got { color: var(--ink); font-weight: 700; }
 .stars svg { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--stop-edge); stroke-width: 1.8; stroke-linejoin: round; }
 .stars li.got svg { fill: var(--star); stroke: var(--star); }
+.done-best { color: var(--muted); margin-top: -4px; }
 .done-stats { color: var(--muted); font-variant-numeric: tabular-nums; }
 /* "12 detours", which shows the detours found under the line: a link in looks, with room enough to tap. */
 .done-stats .more { padding: 10px 0; margin: -10px 0; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; touch-action: manipulation; }
