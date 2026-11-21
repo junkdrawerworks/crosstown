@@ -267,17 +267,17 @@ function drawList() {
   // lost from sight: the tally ends with a way to the nearest, "· No. 20 under way" (or "· 3 under way, next No. 20").
   // A finished line's tally ends with a way to the first puzzle short of three stars, "· No. 5 short of three stars"
   // (or "· 27 short of three stars, next No. 5").
-  const tallyLink = (label, i) => {
+  const tallyLink = (label, i, go = fromList) => {
     const sep = document.createElement('span'); sep.className = 'sep'; sep.setAttribute('aria-hidden', 'true');
     const to = document.createElement('button'); to.type = 'button'; to.className = 'tally-link';
     to.textContent = label;
-    to.addEventListener('click', () => fromList(i));
+    to.addEventListener('click', () => go(i));
     const run = document.createElement('span'); run.className = 'tally-run'; run.append(sep, to);
     $('tally').append(' ', run);
   };
   const later = going.filter(i => i > up), short = up < 0 ? shortOf(line) : [];
   if (up >= 0 && later.length) tallyLink(later.length > 1 ? `${later.length} under way, next No. ${later[0] + 1}` : `No. ${later[0] + 1} under way`, later[0]);
-  if (short.length) tallyLink(short.length > 1 ? `${short.length} short of three stars, next No. ${short[0] + 1}` : `No. ${short[0] + 1} short of three stars`, short[0]);
+  if (short.length) tallyLink(short.length > 1 ? `${short.length} short of three stars, next No. ${short[0] + 1}` : `No. ${short[0] + 1} short of three stars`, short[0], playAgain);
   drawToday();
   route.setAttribute('aria-label', `${line.name} puzzles`);
   route.classList.toggle('finished', finished === list.length);
@@ -1391,6 +1391,16 @@ let backing = false;        // the page asked the history for a Back that hasn't
 let sheetStep = false;      // a sheet open on the list has its step in the history
 
 function fromList(i) { openPuzzle(i); addStep(); }
+// Go for three stars, and a finished line's way to a puzzle short of them, play it: a finished map opens on a fresh
+// board, as Play this puzzle again does, its best stars and time staying. One under way, or started over and not yet
+// played, opens as it is. (Its row on the list still opens the finished map.)
+function playAgain(i) {
+  const id = list[i].id, g = gameFor(id);
+  if (!g?.done) { fromList(i); return; }
+  const t = startOver(id, g);
+  fromList(i);
+  markStarted(t);
+}
 // A Back that comes while a finger is tracing a word, or within SLIP of the browser taking a touch away from the map,
 // is a slip: a finger tracing near the screen's side can set off Android's back gesture (or Chrome's swipe to go back),
 // which takes the touch and then goes Back. A web page can't keep those gestures off its edges as an app can, so the
@@ -1451,7 +1461,7 @@ $('b-continue').addEventListener('click', () => {
   const l = nextLine();
   if (l) { showLine(l); $('b-continue').focus({ preventScroll: true }); return; }
   const h = hunt();   // every line finished: the first puzzle short of three stars
-  if (h) { if (h.l !== line) showLine(h.l); fromList(h.i); }
+  if (h) { if (h.l !== line) showLine(h.l); playAgain(h.i); }
 });
 $('b-line').addEventListener('click', openLines);
 // The fare meter, tapped, gives the count, and how many detours so far.

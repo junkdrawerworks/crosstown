@@ -462,6 +462,14 @@ function contrast(a, b) {
   await tab.emulateMedia({ colorScheme: 'light' });
   await tab.click('#b-continue');
   assert.equal(await tab.textContent('#where'), `Main, No. ${PUZZLES.length}`, 'Go for three stars should open the puzzle short of them');
+  // On a fresh board, ready to play, as Play this puzzle again would: its best stars stay.
+  assert.deepEqual([await tab.textContent('#count'), await tab.locator('#board .line').count(), await tab.isHidden('#after')], [`0 of ${last.lines.length} lines`, 0, true], 'Go for three stars should open a fresh board, not the finished map');
+  {
+    const s = await tab.evaluate(() => JSON.parse(localStorage.getItem('crosstown.v1')));
+    assert.deepEqual([s.games[last.id], s.stars[last.id], s.cleared[last.id] > 0], [undefined, 2, true], 'the finished game should go, its stars kept, and the start-over kept for Drive');
+  }
+  await tab.click('#b-back');
+  assert.equal(await tab.textContent('#tally'), `Every line finished: ${puzzles} puzzles, ${got} of ${most} stars No. ${PUZZLES.length} short of three stars`, 'its best stars should still count');
   assert.deepEqual(errors, []);
   await other.close();
 }
@@ -1867,6 +1875,18 @@ if (LINES.length > 1) {
     assert.equal(await t2.textContent('#tally'), `${n} of ${n} finished, ${n * 3 - 2} of ${n * 3} stars 2 short of three stars, next No. 5`);
     await t2.click('#tally .tally-link');
     assert.equal(await t2.textContent('#where'), 'Main, No. 5', 'the link should open the first puzzle short of three stars');
+    // On a fresh board, ready to play, its best stars kept.
+    assert.deepEqual([await t2.textContent('#count'), await t2.locator('#board .line').count()], [`0 of ${main.puzzles[4].lines.length} lines`, 0], 'the link should open a fresh board, not the finished map');
+    await drag(t2, main.puzzles[4].lines[1]);
+    await t2.click('#b-back');
+    assert.equal(await t2.textContent('#tally'), `${n} of ${n} finished, ${n * 3 - 2} of ${n * 3} stars 2 short of three stars, next No. 5`, 'its best stars should still count');
+    // Under way, the link opens it as it is, the line found still there.
+    await t2.click('#tally .tally-link');
+    assert.equal(await t2.textContent('#count'), `1 of ${main.puzzles[4].lines.length} lines`, 'a puzzle under way should open as it is');
+    await t2.click('#b-back');
+    // Its row on the list still opens the finished map.
+    await t2.click('#route li:nth-child(9) .row');
+    assert.equal(await t2.textContent('#count'), 'All found', 'a row on the list should still open its finished map');
     await t2.click('#b-back');
     await t2.evaluate(id => { const s = JSON.parse(localStorage.getItem('crosstown.v1')); s.stars = { [id]: 3 }; localStorage.setItem('crosstown.v1', JSON.stringify(s)); }, main.puzzles[4].id);
     await t2.reload(); await t2.evaluate(() => document.fonts.ready);
