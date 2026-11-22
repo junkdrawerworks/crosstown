@@ -47,7 +47,7 @@ node tools/make-icons.mjs     # redraws the PNG icons from icon.svg
 npm run build                 # dist/crosstown.html, the whole game in one file, and dist/artifact.html
 ```
 
-To put it online with GitHub Pages: **Settings → Pages → Build and deployment → Deploy from a branch**, then pick `main` and `/ (root)`. The `CNAME` file gives it its own address, which needs a DNS record pointing `crosstown` at `markjf99702.github.io`.
+To put it online with GitHub Pages: **Settings → Pages → Build and deployment → Deploy from a branch**, then pick `main` and `/ (root)`. The `CNAME` file gives it its own address, which needs a DNS record pointing `crosstown` at `junkdrawerworks.github.io`.
 
 ### Files
 
