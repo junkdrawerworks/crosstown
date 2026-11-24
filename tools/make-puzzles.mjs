@@ -275,7 +275,8 @@ async function main() {
     }
     return [t.id, forms];
   }));
-  const show = new Set(args.filter(a => ids.has(a)));
+  // A line's id can also be a puzzle's (the Ballpark Line and the Main Line's ballpark): the line wins.
+  const show = new Set(args.filter(a => ids.has(a) && !lineIds.has(a)));
   const wanted = t => !args.length || show.has(t.id) || args.some(a => LINES.find(l => l.id === a)?.themes.includes(t));
 
   // The puzzles that aren't being laid out again keep their boards. Their detours are listed again, which is quick, so
