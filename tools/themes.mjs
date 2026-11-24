@@ -13,6 +13,7 @@ import { THEMES as UNIVERSITY } from './themes/university.mjs';
 import { THEMES as AIRPORT } from './themes/airport.mjs';
 import { THEMES as HOLIDAY } from './themes/holiday.mjs';
 import { THEMES as BALLPARK } from './themes/ballpark.mjs';
+import { THEMES as BAY } from './themes/bay.mjs';
 
 export const LINES = [
   { id: 'main', name: 'Main Line', about: 'A bit of everything', color: 'cross', themes: MAIN },
@@ -24,6 +25,7 @@ export const LINES = [
   { id: 'airport', name: 'Airport Line', about: 'Places, travel and jobs around town', color: 'l6', themes: AIRPORT },
   { id: 'holiday', name: 'Holiday Line', about: 'Holidays and celebrations', color: 'l7', themes: HOLIDAY },
   { id: 'ballpark', name: 'Ballpark Line', about: 'Sports and games', color: 'l8', themes: BALLPARK },
+  { id: 'bay', name: 'Bay Line', about: 'San Francisco and the Bay Area', color: 'l2', themes: BAY },
 ];
 
 export const THEMES = LINES.flatMap(line => line.themes);
