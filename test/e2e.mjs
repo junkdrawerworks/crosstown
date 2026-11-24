@@ -1926,21 +1926,26 @@ if (LINES.length > 1) {
   }
   await tab.setViewportSize({ width: 390, height: 844 });
   assert.deepEqual(await tab.$$eval('#lines .here', h => h.map(x => [x.closest('li') === x.closest('ul').children[1], x.textContent])), [[true, 'You are here']], 'the line on show should say so');
-  // On a 375x667 phone every row and Close are in sight together, the sheet opened on the first line or the last, and
-  // a sheet that fits isn't nudged so its title sits against the top edge.
+  // On a 375x667 phone the rows scroll between the title and the buttons: Surprise me and Close are in sight, so are
+  // at least seven rows (as many lines as there once were) and the line on show, whether the sheet opened on the first
+  // line or the last, and the sheet itself isn't nudged so its title sits against the top edge.
   const sheetFit = () => tab.evaluate(() => {
-    const panel = document.querySelector('#sheet-lines .panel'), box = panel.getBoundingClientRect(), close = document.querySelector('#sheet-lines .panel-row .btn').getBoundingClientRect();
-    const rows = [...document.querySelectorAll('#lines .line-row')].filter(r => { const b = r.getBoundingClientRect(); return b.top >= box.top && b.bottom <= box.bottom; });
-    return { rows: rows.length, close: close.bottom <= box.bottom && close.bottom <= innerHeight, top: panel.scrollTop, focus: document.activeElement.getAttribute('aria-current') };
+    const panel = document.querySelector('#sheet-lines .panel'), list = document.getElementById('lines').getBoundingClientRect();
+    const surprise = document.getElementById('b-surprise').getBoundingClientRect(), close = document.querySelector('#sheet-lines .panel-row [data-close]').getBoundingClientRect();
+    const inSight = r => { const b = r.getBoundingClientRect(); return b.top >= list.top - 1 && b.bottom <= list.bottom + 1; };
+    const rows = [...document.querySelectorAll('#lines .line-row')].filter(inSight);
+    const buttons = [surprise, close].every(b => b.top >= list.bottom && b.bottom <= panel.getBoundingClientRect().bottom && b.bottom <= innerHeight);
+    return { rows: Math.min(rows.length, 7), here: inSight(document.querySelector('#lines [aria-current]')), close: buttons, top: panel.scrollTop, focus: document.activeElement.getAttribute('aria-current') };
   });
+  const fits = { rows: Math.min(LINES.length, 7), here: true, close: true, top: 0, focus: 'true' };
   await tab.setViewportSize({ width: 375, height: 667 });
-  assert.deepEqual(await sheetFit(), { rows: LINES.length, close: true, top: 0, focus: 'true' }, 'the Lines sheet should fit a 375x667 phone');
+  assert.deepEqual(await sheetFit(), fits, 'the Lines sheet should fit a 375x667 phone');
   await tab.click(`#lines li:nth-child(${LINES.length}) .line-row`); await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
   for (const [width, height] of [[375, 667], [360, 740]]) {
     await tab.setViewportSize({ width, height });
     await tab.click('#b-line'); await tab.waitForSelector('#sheet-lines:not([hidden])');
     await tab.waitForFunction(() => !document.querySelector('#sheet-lines .panel').getAnimations().length);   // risen
-    assert.deepEqual(await sheetFit(), { rows: LINES.length, close: true, top: 0, focus: 'true' }, `the Lines sheet opened on the last line at ${width}x${height}`);
+    assert.deepEqual(await sheetFit(), fits, `the Lines sheet opened on the last line at ${width}x${height}`);
     await tab.keyboard.press('Escape'); await tab.waitForSelector('#sheet-lines', { state: 'hidden' });
   }
   await tab.setViewportSize({ width: 390, height: 844 });

@@ -218,8 +218,12 @@ a { color: inherit; }
 .line-strip i { display: block; height: 100%; background: var(--row-line); }
 .line-main .here { font-size: 11.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; line-height: 1.5; }
 .lines { display: flex; flex-direction: column; gap: 6px; }
-/* On a short screen (an iPhone SE's 667, less the browser's bars) what each line is about keeps to one line, so all
-   seven rows and Close are in sight together. */
+/* With more lines than a phone has room for, the rows scroll between the heading and the buttons, so Surprise me and
+   Close stay in sight and the sheet itself doesn't have to scroll. The list keeps room for a few rows before the sheet
+   does scroll (zoomed right in, say), and a little space round it keeps a row's focus ring from being cut off. */
+#sheet-lines .lines { flex: 0 1 auto; min-height: 150px; overflow-y: auto; overscroll-behavior: contain; padding: 5px; margin: -5px; scroll-padding: 5px; }
+/* On a short screen (an iPhone SE's 667, less the browser's bars) what each line is about keeps to one line, so more
+   rows are in sight at once. */
 @media (max-height: 700px) {
   #sheet-lines .panel { gap: 10px; padding-top: 18px; }
   .line-row .line-main small:not(.here) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -54,7 +54,7 @@ export const THEMES = [
   { id: 'japanese', name: 'Japanese', clue: 'Borrowed from Japan', cross: 'JAPANESE',
     words: 'EMOJI UMAMI ANIME TYCOON HONCHO SUDOKU KIMONO BONSAI TSUNAMI KARAOKE HIBACHI' },
   { id: 'metrical-feet', name: 'Metrical feet', clue: 'Da-DUM, for one', cross: 'METRICALFEET',
-    words: 'IAMB BEAT STRESS DACTYL CRETIC TROCHEE ANAPEST SPONDEE PYRRHIC BACCHIUS AMPHIBRACH MOLOSSUS' },
+    words: 'IAMB PAEON IONIC DACTYL CRETIC TROCHEE ANAPEST SPONDEE PYRRHIC BACCHIUS AMPHIBRACH MOLOSSUS' },
   { id: 'chokepoints', clue: 'Where ships squeeze through', cross: 'CHOKEPOINTS',
     words: 'SUEZ KERCH SUNDA DOVER TORRES BERING HORMUZ PANAMA MALACCA BOSPORUS MAGELLAN GIBRALTAR' },
   { id: 'donnybrook', clue: 'Fists up', cross: 'DONNYBROOK',

@@ -1903,7 +1903,7 @@ export const LINES = [
     { id: "lake-merritt", name: "Lake Merritt", clue: "Three miles around",
       grid: 'BONSOPLKEAOLAMIGEESAERESBILRITOSECNTSATACEEUOHLK', lines: [[6,12,7,8,13,20,27,21,28,35,29],[11,10,4,5],[15,22,16,23,17],[18,19,25,26,31],[0,1,2,3,9,14],[34,41,40,47,46,39,33,32],[24,30,37,38,45,44,43,36,42]] },
   ] },
-  { id: "express", name: "Express Line", about: "Harder puzzles, any subject", color: "l5", fp: 'f569c212', puzzles: [
+  { id: "express", name: "Express Line", about: "Harder puzzles, any subject", color: "l5", fp: 'e47c4faf', puzzles: [
     { id: "palindromes", name: "Palindromes", clue: "Read it back",
       grid: 'CIICELEVLVORDRAETOEDKYKRRDRMASPNIOENALCCOORAEARN', lines: [[30,36,37,32,31,25,26,33,27,34,29],[47,40,41,35],[22,28,21,14,20],[8,15,9,4,5],[11,10,16,17,23],[3,2,7,1,0],[13,6,12,19,18,24],[42,43,38,44,39,45,46]] },
     { id: "eponyms", name: "Eponyms", clue: "Who’s that named after?",
@@ -1953,7 +1953,7 @@ export const LINES = [
     { id: "japanese", name: "Japanese", clue: "Borrowed from Japan",
       grid: 'EISUKUMNDOOJAOHEMIINTNOOMHCYCEMAOESNUPANAUJAIMST', lines: [[42,43,37,38,39,33,34,29],[15,16,10,11,17],[36,30,31,24,18],[12,7,1,6,0],[20,27,28,23,22,21],[14,13,19,26,25,32],[2,3,8,9,4,5],[47,46,41,35,40,45,44]] },
     { id: "metrical-feet", name: "Metrical feet", clue: "Da-DUM, for one",
-      grid: 'EBMEADAIRTYCTCALCTABILERCRMHFTHSAPEITREAECSSIMBT', lines: [[2,3,9,8,7,13,14,21,28,34,40,47],[44,39,45,46],[1,0,6,12],[31,36,37,38,43,42],[5,4,11,17,10,15],[16,23,22,29,35,41],[32,26,33,27,20,19,25,18,24,30]] },
+      grid: 'IAEMCAMTRHRCBIHIBRACMPEPLFATIAOIECEOINECLNCTDATY', lines: [[3,2,7,8,13,19,18,24,25,32,38,43],[0,1,6,12],[23,29,34,35,41],[31,30,37,36,42],[44,45,39,46,47,40],[11,17,22,27,28,33],[26,20,21,14,15,16,10,5,4,9]] },
     { id: "chokepoints", name: "Chokepoints", clue: "Where ships squeeze through",
       grid: 'ESKEERZUOPOVCHONDSGIRITHNENAECBSUDKROUZTRSHRMORE', lines: [[12,13,8,2,3,9,14,21,15,22,17],[1,7,0,6],[34,28,35,29,23],[31,32,26,33,27],[16,10,11,4,5],[39,45,46,40,47,41],[30,25,20,19,24,18],[42,36,43,44,37,38]] },
     { id: "donnybrook", name: "Donnybrook", clue: "Fists up",
